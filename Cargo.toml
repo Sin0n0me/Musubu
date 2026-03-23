@@ -1,0 +1,21 @@
+[package]
+name = "Musubu"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+name = "musubu"
+path = "compiler/musubu/src/lib.rs"
+
+[dependencies]
+musubu_ast = { version = "0.1.0", path = "compiler/musubu_ast" }
+musubu_lexer = { version = "0.1.0", path = "compiler/musubu_lexer" }
+musubu_parser = { version = "0.1.0", path = "compiler/musubu_parser" }
+musubu_type_check = { version = "0.1.0", path = "compiler/musubu_type_check" }
+musubu_resolve = { version = "0.1.0", path = "compiler/musubu_resolve" }
+musubu_vm = { version = "0.1.0", path = "compiler/musubu_vm" }
+musubu_desugar = { version = "0.1.0", path = "compiler/musubu_desugar" }
+musubu_ir_compiler = { version = "0.1.0", path = "compiler/musubu_ir_compiler" }
+musubu_primitive = { version = "0.1.0", path = "compiler/musubu_primitive" }
+nalgebra = "0.34.1"
