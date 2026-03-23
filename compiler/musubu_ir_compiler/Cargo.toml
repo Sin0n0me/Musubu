@@ -1,0 +1,9 @@
+[package]
+name = "musubu_ir_compiler"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+musubu_hir = { version = "0.1.0", path = "../musubu_hir" }
+musubu_ir = { version = "0.1.0", path = "../musubu_ir" }
+musubu_primitive = { version = "0.1.0", path = "../musubu_primitive" }

@@ -1,0 +1,9 @@
+[package]
+name = "musubu_resolve"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+musubu_ast = { version = "0.1.0", path = "../musubu_ast" }
+musubu_primitive = { version = "0.1.0", path = "../musubu_primitive" }
+musubu_span = { version = "0.1.0", path = "../musubu_span" }

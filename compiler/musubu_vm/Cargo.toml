@@ -1,0 +1,10 @@
+[package]
+name = "musubu_vm"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+musubu_hir = { version = "0.1.0", path = "../musubu_hir" }
+musubu_ir = { version = "0.1.0", path = "../musubu_ir" }
+musubu_primitive = { version = "0.1.0", path = "../musubu_primitive" }
+nalgebra = "0.34.1"
