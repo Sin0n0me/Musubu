@@ -24,7 +24,7 @@ registries = []
 
 [bans]
 multiple-versions = "deny"
-wildcards = "allow"
+wildcards = "deny"
 highlight = "all"
 workspace-default-features = "allow"
 external-default-features = "allow"
