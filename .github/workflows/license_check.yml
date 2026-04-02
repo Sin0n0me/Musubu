@@ -32,9 +32,14 @@ jobs:
             ~/.cargo/bin
           key: cargo-registry-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
 
+      # インストール済みであればバージョン表示
       - name: Install cargo-deny
         run: |
-          cargo install cargo-deny --version ${CARGO_DENY_VERSION} --locked
+          if ! command -v cargo-deny >/dev/null 2>&1; then
+            cargo install cargo-deny --version ${CARGO_DENY_VERSION} --locked
+          else
+            cargo-deny --version
+          fi
 
       - name: License check
         run: |
