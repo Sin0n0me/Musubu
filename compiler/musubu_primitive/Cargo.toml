@@ -2,6 +2,7 @@
 name = "musubu_primitive"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 
 [dependencies]
 nalgebra = "0.34.1"
