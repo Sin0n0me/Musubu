@@ -1,0 +1,40 @@
+name: License Check
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+env:
+  RUST_TOOLCHAIN: "stable"
+  CARGO_DENY_VERSION: "0.19.0"
+
+jobs:
+  license-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-registry-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install cargo-deny
+        run: |
+          cargo install cargo-deny --version ${CARGO_DENY_VERSION} --locked
+
+      - name: License check
+        run: |
+          cargo deny check licenses

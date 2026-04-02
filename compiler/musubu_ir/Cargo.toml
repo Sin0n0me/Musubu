@@ -2,6 +2,7 @@
 name = "musubu_ir"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 
 [dependencies]
 musubu_primitive = { version = "0.1.0", path = "../musubu_primitive" }
