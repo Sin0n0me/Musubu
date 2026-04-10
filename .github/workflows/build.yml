@@ -1,0 +1,54 @@
+name: Rust Build
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+env:
+  RUST_TOOLCHAIN: "stable"
+  CARGO_HOME: ~/.cargo
+  TARGET_DIR: target
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        profile: [debug, release]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Cache cargo registry and git
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.CARGO_HOME }}/registry
+            ${{ env.CARGO_HOME }}/git
+          key: cargo-registry-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache build artifacts
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.TARGET_DIR }}
+          key: target-${{ runner.os }}-${{ env.RUST_TOOLCHAIN }}-${{ matrix.profile }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            target-${{ runner.os }}-${{ env.RUST_TOOLCHAIN }}-${{ matrix.profile }}-
+            target-${{ runner.os }}-${{ env.RUST_TOOLCHAIN }}-
+
+      - name: Build
+        run: |
+          if [ "${{ matrix.profile }}" = "release" ]; then
+            cargo build --release --locked --verbose
+          else
+            cargo build --locked --verbose
+          fi
