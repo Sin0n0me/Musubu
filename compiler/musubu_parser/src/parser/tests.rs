@@ -498,6 +498,28 @@ mod tests {
     }
 
     #[test]
+    fn test_if_multi() {
+        let statements = extract(parsed_fn(
+            "if a == b { let a = 1; } if c != d { let b = 2; } ",
+        ));
+
+        for statement in statements {
+            let Statement::Expression(expr) = statement else {
+                panic!("{statement:#?}");
+            };
+            let Expression::If { then_body, .. } = &*expr.node else {
+                panic!("{expr:#?}");
+            };
+            let Expression::Block(stmts) = &*then_body.node else {
+                panic!("{then_body:#?}");
+            };
+            let Statement::Let { .. } = &stmts[0].node else {
+                panic!("{stmts:#?}");
+            };
+        }
+    }
+
+    #[test]
     fn test_if_else_if_chain() {
         let node = extract_first_expr(parsed_fn("if a { b; } else if c { d; } else { e; }"));
 
