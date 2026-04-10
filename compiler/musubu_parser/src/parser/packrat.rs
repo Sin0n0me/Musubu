@@ -83,6 +83,8 @@ impl<'a> PackratAndPrattParser<'a> {
 
         let pos = self.max_read_position;
         self.tokens.set_position(pos);
+
+        #[cfg(test)]
         println!(
             "position: {:?}, rule: {:?}, token: {:?}",
             pos,
@@ -250,14 +252,12 @@ impl<'a> PackratAndPrattParser<'a> {
 
     fn get_memo_uncheck(&mut self, key: &MemoKey<'a>) -> Option<MemoResult> {
         #[cfg(test)]
-        if true {
-            println!(
-                "in({:?}): {:?} {key:?} {:?}",
-                self.memo.contains_key(key),
-                self.bp_stack.last(),
-                self.tokens.get()
-            );
-        }
+        println!(
+            "in({:?}): {:?} {key:?} {:?}",
+            self.memo.contains_key(key),
+            self.bp_stack.last(),
+            self.tokens.get()
+        );
 
         // メモが存在した場合はその内容を返す
         if let Some(memo) = self.memo.get(key) {
@@ -321,14 +321,12 @@ impl<'a> PackratAndPrattParser<'a> {
 
     fn make_memo_from_result(&mut self, key: MemoKey<'a>, result: ParseResult) -> ParseResult {
         #[cfg(test)]
-        if true {
-            println!(
-                "out({:?}): {:?} {key:?}, {:?}",
-                result.is_ok(),
-                self.bp_stack.last(),
-                self.tokens.get()
-            );
-        }
+        println!(
+            "out({:?}): {:?} {key:?}, {:?}",
+            result.is_ok(),
+            self.bp_stack.last(),
+            self.tokens.get()
+        );
 
         let memo = match &result {
             Ok(memo) => {
