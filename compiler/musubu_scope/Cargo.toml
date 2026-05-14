@@ -1,13 +1,10 @@
 [package]
-name = "musubu_resolve"
+name = "musubu_scope"
 version = "0.1.0"
 edition = "2024"
-license = "MIT"
 
 [dependencies]
 musubu_ast = { version = "0.1.0", path = "../musubu_ast" }
-musubu_name_space = { version = "0.1.0", path = "../musubu_name_space" }
 musubu_primitive = { version = "0.1.0", path = "../musubu_primitive" }
-musubu_scope = { version = "0.1.0", path = "../musubu_scope" }
 musubu_span = { version = "0.1.0", path = "../musubu_span" }
-musubu_type_check = { version = "0.1.0", path = "../musubu_type_check" }
+

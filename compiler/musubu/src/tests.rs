@@ -28,7 +28,9 @@ mod tests {
         let Some(value) = VM::new().run_function(0, args) else {
             panic!();
         };
+        eprintln!("{value:?}");
 
-        panic!("{value:?}");
+        // TODO: 正しい計算結果
+        panic!();
     }
 }

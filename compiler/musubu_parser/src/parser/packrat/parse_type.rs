@@ -148,27 +148,31 @@ impl<'a> PackratAndPrattParser<'a> {
             return Ok(memo);
         }
 
+        // `(`
         let Some(MusubuOperator::LeftParenthesis) = self.tokens.get_operator() else {
             return self.make_memo_from_result(key, Err(ParseError::NotMatch));
         };
         self.tokens.next();
 
-        let params = self
+        // TypePathFnInputs?
+        let arguments = self
             .option(Self::parse_type_path_inputs)
             .and_then(|memo| memo.get_node())
             .and_then(|kind| {
                 let ASTNode::Arguments(types) = kind.as_ref() else {
                     unreachable!();
                 };
-                Some(types.clone())
+                Some(types.iter().map(|t| t.clone()).collect::<Vec<_>>())
             })
             .unwrap_or_default();
 
+        // `)`
         let Some(MusubuOperator::RightParenthesis) = self.tokens.get_operator() else {
             return self.make_memo_from_result(key, Err(ParseError::NotMatch));
         };
         self.tokens.next();
 
+        // TypeNoBounds
         let return_type = self
             .option(|parser| {
                 let Some(MusubuOperator::RightArrow) = parser.tokens.get_operator() else {
@@ -189,14 +193,14 @@ impl<'a> PackratAndPrattParser<'a> {
             })
             .unwrap_or(Spanned {
                 node: Box::new(TypeKind::Primitive(PrimitiveType::Unit)),
-                span: Span::default(),
+                span: self.make_span(&key),
             });
 
         self.make_memo_from(
             key,
             TypeKind::Function {
-                params,
                 return_type,
+                arguments,
             },
         )
     }

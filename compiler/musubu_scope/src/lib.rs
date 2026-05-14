@@ -1,0 +1,233 @@
+// TODO
+//#![no_std]
+
+extern crate alloc;
+
+pub mod errors;
+
+use self::errors::ScopeError;
+use alloc::collections::{BTreeMap, BTreeSet};
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
+use musubu_primitive::PrimitiveType;
+
+pub type ScopeId = u64;
+pub type ScopeResult<T> = Result<T, ScopeError>;
+pub const ROOT_SCOPE_ID: ScopeId = 0;
+
+pub trait ScopeControl<E> {
+    fn on_enter_scope(&mut self) -> Result<(), E>;
+
+    fn on_exit_scope(&mut self) -> Result<(), E>;
+}
+
+pub trait SymbolStore<'a, E> {
+    fn add_variable(&mut self, name: &'a str, ty: TypeRequirement) -> Result<(), E>;
+
+    fn add_type(&mut self, name: &'a str, ty: TypeRequirement) -> Result<(), E>;
+
+    fn get_type(&self, name: &'a str) -> Result<&TypeSymbol, E>;
+
+    fn get_type_option(&self, name: &'a str) -> Result<&TypeOption, E>;
+
+    //fn is_variable(&self, name: &'a str) -> bool;
+
+    //fn is_type(&self, name: &'a str) -> bool;
+
+    fn contains(&self, name: &'a str) -> bool;
+}
+
+#[derive(Debug)]
+pub struct Scope<'a> {
+    parent: Option<&'a Scope<'a>>,
+    symbol_map: BTreeMap<&'a str, Symbol>,
+    import_types: BTreeSet<&'a str>, // 今は考えない
+    return_type: TypeSymbol,
+}
+
+impl<'a> Scope<'a> {
+    pub fn new() -> Self {
+        Self {
+            parent: None,
+            symbol_map: BTreeMap::new(),
+            import_types: BTreeSet::new(),
+            return_type: TypeSymbol::default(),
+        }
+    }
+
+    pub fn set_return_type(&mut self, retrun_type: TypeSymbol) {
+        self.return_type = retrun_type;
+    }
+
+    pub fn add_import_type(&mut self, name: &'a str) -> ScopeResult<()> {
+        if self.import_types.insert(name) {
+            // TODO: 警告
+        };
+        Ok(())
+    }
+
+    fn add_symbol(&mut self, name: &'a str, symbol: Symbol) -> ScopeResult<()> {
+        if let Some(symbol) = self.symbol_map.get(name) {
+            match symbol {
+                Symbol::Variable(_) => {
+                    return Err(ScopeError::DuplicateVariable {
+                        name: name.to_string(),
+                    });
+                }
+                Symbol::Type(_) => {
+                    return Err(ScopeError::DuplicateType {
+                        name: name.to_string(),
+                    });
+                }
+            }
+        }
+
+        self.symbol_map.insert(name, symbol);
+
+        Ok(())
+    }
+
+    pub fn contains_inferring_types(&self) -> bool {
+        self.symbol_map
+            .iter()
+            .any(|(_, symbol)| symbol.contains_inferring())
+    }
+
+    pub fn get_inferring_names(&self) -> Vec<String> {
+        self.symbol_map
+            .iter()
+            .filter_map(|(name, symbol)| {
+                if symbol.contains_inferring() {
+                    return None;
+                }
+                Some(name.to_string())
+            })
+            .collect()
+    }
+}
+
+impl<'a> SymbolStore<'a, ScopeError> for Scope<'a> {
+    fn add_type(&mut self, name: &'a str, ty: TypeRequirement) -> Result<(), ScopeError> {
+        self.add_symbol(name, Symbol::Variable(ty))
+    }
+
+    fn add_variable(&mut self, name: &'a str, ty: TypeRequirement) -> Result<(), ScopeError> {
+        self.add_symbol(name, Symbol::Type(ty))
+    }
+
+    fn get_type(&self, name: &'a str) -> Result<&TypeSymbol, ScopeError> {
+        self.symbol_map
+            .get(name)
+            .and_then(|s| match s {
+                Symbol::Type(TypeRequirement::Expect(ty)) => Some(ty),
+                Symbol::Variable(TypeRequirement::Expect(ty)) => Some(ty),
+                _ => None,
+            })
+            .ok_or(ScopeError::UnresolveType {
+                name: name.to_string(),
+            })
+    }
+
+    fn get_type_option(&self, name: &'a str) -> Result<&TypeOption, ScopeError> {
+        self.symbol_map
+            .get(name)
+            .map(|s| s.get_type_option())
+            .ok_or(ScopeError::IllegalHierarchyAccess)
+    }
+
+    fn contains(&self, name: &'a str) -> bool {
+        self.symbol_map.contains_key(name)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Symbol {
+    Variable(TypeRequirement),
+    Type(TypeRequirement),
+}
+
+impl Symbol {
+    pub fn contains_inferring(&self) -> bool {
+        match self {
+            Self::Variable(v) => v.is_inferring(),
+            Self::Type(t) => t.is_inferring(),
+        }
+    }
+
+    pub fn get_type_option(&self) -> &TypeOption {
+        match self {
+            Self::Type(t) => t.get_type_option(),
+            Self::Variable(v) => v.get_type_option(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TypeSymbol {
+    pub type_kind: PrimitiveType,
+    option: TypeOption,
+}
+
+impl TypeSymbol {
+    pub fn new(type_kind: PrimitiveType) -> Self {
+        Self {
+            type_kind,
+            option: TypeOption::default(),
+        }
+    }
+
+    pub fn is_mutable(&self) -> bool {
+        self.option.mutable
+    }
+
+    pub fn is_same_type(&self, ty: &Self) -> bool {
+        self.type_kind == ty.type_kind && self.option.reference == ty.option.reference
+    }
+
+    pub fn get_type_option(&self) -> &TypeOption {
+        &self.option
+    }
+}
+
+impl Default for TypeSymbol {
+    fn default() -> Self {
+        Self {
+            type_kind: PrimitiveType::Unit,
+            option: TypeOption::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TypeOption {
+    pub mutable: bool,
+    pub reference: bool,
+}
+
+impl Default for TypeOption {
+    fn default() -> Self {
+        Self {
+            mutable: false,
+            reference: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum TypeRequirement {
+    Expect(TypeSymbol),
+    Inferring(TypeOption),
+}
+
+impl TypeRequirement {
+    pub fn is_inferring(&self) -> bool {
+        matches!(self, Self::Inferring(_))
+    }
+
+    pub fn get_type_option(&self) -> &TypeOption {
+        match self {
+            Self::Expect(ty) => ty.get_type_option(),
+            Self::Inferring(op) => op,
+        }
+    }
+}

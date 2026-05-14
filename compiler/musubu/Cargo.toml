@@ -1,0 +1,18 @@
+[package]
+name = "musubu"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[dependencies]
+musubu_ast = { version = "0.1.0", path = "../musubu_ast" }
+musubu_lexer = { version = "0.1.0", path = "../musubu_lexer" }
+musubu_parser = { version = "0.1.0", path = "../musubu_parser" }
+musubu_type_check = { version = "0.1.0", path = "../musubu_type_check" }
+musubu_resolve = { version = "0.1.0", path = "../musubu_resolve" }
+musubu_vm = { version = "0.1.0", path = "../musubu_vm" }
+musubu_desugar = { version = "0.1.0", path = "../musubu_desugar" }
+musubu_ir_compiler = { version = "0.1.0", path = "../musubu_ir_compiler" }
+musubu_primitive = { version = "0.1.0", path = "../musubu_primitive" }
+nalgebra = "0.34.1"
+

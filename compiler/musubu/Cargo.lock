@@ -24,12 +24,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8efb64bd706a16a1bdde310ae86b351e4d21550d98d056f22f8a7f7a2183fec"
 
 [[package]]
-name = "equivalent"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
-
-[[package]]
 name = "glam"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -138,22 +132,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f70749695b063ecbf6b62949ccccde2e733ec3ecbbd71d467dca4e5c6c97cca0"
 
 [[package]]
-name = "hashbrown"
-version = "0.17.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f467dd6dccf739c208452f8014c75c18bb8301b050ad1cfb27153803edb0f51"
-
-[[package]]
-name = "indexmap"
-version = "2.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d466e9454f08e4a911e14806c24e16fba1b4c121d1ea474396f396069cf949d9"
-dependencies = [
- "equivalent",
- "hashbrown",
-]
-
-[[package]]
 name = "matrixmultiply"
 version = "0.3.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -188,10 +166,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "musubu_builtin"
-version = "0.1.0"
-
-[[package]]
 name = "musubu_desugar"
 version = "0.1.0"
 dependencies = [
@@ -207,16 +181,6 @@ name = "musubu_hir"
 version = "0.1.0"
 dependencies = [
  "musubu_primitive",
-]
-
-[[package]]
-name = "musubu_infer"
-version = "0.1.0"
-dependencies = [
- "musubu_ast",
- "musubu_primitive",
- "musubu_scope",
- "musubu_span",
 ]
 
 [[package]]
@@ -240,16 +204,6 @@ name = "musubu_lexer"
 version = "0.1.0"
 
 [[package]]
-name = "musubu_name_space"
-version = "0.1.0"
-dependencies = [
- "indexmap",
- "musubu_primitive",
- "musubu_scope",
- "twox-hash",
-]
-
-[[package]]
 name = "musubu_parser"
 version = "0.1.0"
 dependencies = [
@@ -271,18 +225,6 @@ name = "musubu_resolve"
 version = "0.1.0"
 dependencies = [
  "musubu_ast",
- "musubu_name_space",
- "musubu_primitive",
- "musubu_scope",
- "musubu_span",
- "musubu_type_check",
-]
-
-[[package]]
-name = "musubu_scope"
-version = "0.1.0"
-dependencies = [
- "musubu_ast",
  "musubu_primitive",
  "musubu_span",
 ]
@@ -296,9 +238,7 @@ name = "musubu_type_check"
 version = "0.1.0"
 dependencies = [
  "musubu_ast",
- "musubu_name_space",
  "musubu_primitive",
- "musubu_scope",
  "musubu_span",
 ]
 
@@ -469,16 +409,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "twox-hash"
-version = "2.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ea3136b675547379c4bd395ca6b938e5ad3c3d20fad76e7fe85f9e0d011419c"
-
-[[package]]
 name = "typenum"
-version = "1.20.0"
+version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40ce102ab67701b8526c123c1bab5cbe42d7040ccfd0f64af1a385808d2f43de"
+checksum = "562d481066bde0658276a35467c4af00bdc6ee726305698a55b86e61d7ad82bb"
 
 [[package]]
 name = "unicode-ident"

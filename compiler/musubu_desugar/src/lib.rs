@@ -6,17 +6,17 @@ use musubu_span::*;
 use std::collections::HashMap;
 
 pub struct Desugar<'a> {
-    pub next_symbol: usize,
-    pub next_function: usize,
+    next_symbol: usize,
+    next_function: usize,
     pub variables: HashMap<String, SymbolId>,
     pub functions: HashMap<String, FunctionId>,
-    resolver: &'a NameResolver,
+    resolver: &'a str, // TODO
 }
 
 impl<'a> Desugar<'a> {
     const INITIAL_ID: usize = 0;
 
-    pub fn new(resolver: &'a NameResolver) -> Self {
+    pub fn new(resolver: &'a str) -> Self {
         Self {
             next_symbol: Self::INITIAL_ID,
             next_function: Self::INITIAL_ID,

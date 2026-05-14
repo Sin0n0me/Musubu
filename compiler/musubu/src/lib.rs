@@ -3,14 +3,8 @@ mod compiler;
 #[cfg(test)]
 mod tests;
 
-use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::slice;
-
-use musubu_primitive::*;
-use musubu_vm::VM;
-use nalgebra::Matrix4;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn compile(code_ptr: *const c_char, len: usize) -> bool {
@@ -32,6 +26,7 @@ pub extern "C" fn compile(code_ptr: *const c_char, len: usize) -> bool {
 }
 
 // デモ用
+/*
 const MAT_ELEM_COUNT: usize = 16;
 #[unsafe(no_mangle)]
 pub extern "C" fn run_script(matrix_ptr: *mut f32) -> bool {
@@ -61,3 +56,4 @@ pub extern "C" fn run_script(matrix_ptr: *mut f32) -> bool {
         Err(_) => false,
     }
 }
+ * */

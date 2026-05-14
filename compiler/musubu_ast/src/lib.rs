@@ -1,5 +1,6 @@
 use musubu_primitive::*;
 use musubu_span::*;
+use std::string::ToString;
 
 pub trait NodeMaker {
     fn make_node(self, span: Span) -> ASTNode;
@@ -238,11 +239,33 @@ pub enum TypeKind {
     // int, u32, String
     PathType(SpannedBox<Path>),
 
-    // fn(i32) -> bool
     Function {
-        params: SpannedVec<TypeKind>,
         return_type: SpannedBox<TypeKind>,
+        arguments: SpannedVec<TypeKind>,
     },
+}
+
+impl ToString for TypeKind {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Primitive(t) => t.to_string(),
+            Self::PathType(t) => t.node.to_string(),
+            Self::Function {
+                return_type,
+                arguments,
+            } => {
+                format!(
+                    "fn({})->{}",
+                    arguments
+                        .iter()
+                        .map(|arg| arg.node.to_string())
+                        .collect::<Vec<String>>()
+                        .join(","),
+                    return_type.node.to_string()
+                )
+            }
+        }
+    }
 }
 
 impl TypeKind {
@@ -375,6 +398,16 @@ impl Path {
     }
 }
 
+impl ToString for Path {
+    fn to_string(&self) -> String {
+        self.segments
+            .iter()
+            .map(|seg| seg.node.to_string())
+            .collect::<Vec<String>>()
+            .join("::")
+    }
+}
+
 impl NodeMaker for Path {
     fn make_node(self, span: Span) -> ASTNode {
         ASTNode::Path(Spanned { node: self, span })
@@ -393,6 +426,23 @@ impl PathSegment {
             ident: type_name,
             arguments: vec![],
         }
+    }
+}
+
+impl ToString for PathSegment {
+    fn to_string(&self) -> String {
+        let args: String = self
+            .arguments
+            .iter()
+            .map(|arg| arg.node.to_string())
+            .collect::<Vec<String>>()
+            .join(", ");
+        let args = if args.is_empty() {
+            args
+        } else {
+            format!("<{}>", args)
+        };
+        format!("{}{}", self.ident, args)
     }
 }
 

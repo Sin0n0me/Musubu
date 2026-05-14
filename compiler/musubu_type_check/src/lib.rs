@@ -1,120 +1,399 @@
+// TODO
+//#![no_std]
+
+extern crate alloc;
+
 pub mod errors;
-mod infer;
 
-use errors::SemanticError;
-use infer::infer_expression::{infer_expression, infer_item};
-use musubu_ast::ASTNode;
+use crate::errors::TypeCheckError;
+use alloc::boxed::Box;
+use alloc::vec::Vec;
+use musubu_ast::{AssignOperator, Literal, LogicalOperator, Path, Pattern, TypeKind};
 use musubu_primitive::*;
-use std::collections::HashMap;
+use musubu_scope::{Scope, ScopeControl, SymbolStore, TypeOption, TypeRequirement, TypeSymbol};
 
-#[derive(Debug, Clone)]
-pub struct TypeSymbol {
-    pub type_kind: PrimitiveType,
-    pub mutable: bool,
-}
+pub type TypeCheckResult<T> = Result<T, TypeCheckError>;
 
 #[derive(Debug)]
-pub struct Scope {
-    symbols: HashMap<String, TypeSymbol>,
+pub struct TypeChecker {
+    scope_return_stack: Vec<TypeSymbol>,
+    function_return_stack: Vec<TypeSymbol>,
 }
 
-#[derive(Debug)]
-pub struct TypeEnv {
-    scopes: Vec<Scope>,
-    return_type: Option<PrimitiveType>,
-}
+impl ScopeControl<TypeCheckError> for TypeChecker {
+    fn on_exit_scope(&mut self) -> Result<(), TypeCheckError> {
+        // スコープを抜けるまでに推論中の型があればエラー
+        /*
+        let inferring_names = self
+            .scope_stack
+            .symbol_map
+            .iter()
+            .filter_map(|(name, symbol)| {
+                if symbol.contains_inferring() {
+                    return None;
+                }
+                Some(name.to_string())
+            })
+            .collect::<Vec<_>>();
 
-pub(crate) type SemanticResult<T> = Result<T, SemanticError>;
+        if !inferring_names.is_empty() {
+            return Err(TypeCheckError::InferenceFailure {
+                names: inferring_names,
+            });
+        }:
+         * */
 
-// Resolvedと似たようなことしているのでResolveをmutで受け取って書き換えるような形にする
-impl TypeEnv {
-    pub fn new() -> Self {
-        let mut env = Self {
-            return_type: None,
-            scopes: vec![Scope {
-                symbols: HashMap::new(),
-            }],
-        };
-
-        env.insert(
-            "matrix".to_string(),
-            TypeSymbol {
-                type_kind: PrimitiveType::Matrix {
-                    type_kind: Box::new(PrimitiveType::default_float()),
-                    rows: 4,
-                    columns: 4,
-                },
-                mutable: true,
-            },
-        );
-        env.insert(
-            "vec3".to_string(),
-            TypeSymbol {
-                type_kind: PrimitiveType::Vector {
-                    type_kind: Box::new(PrimitiveType::default_float()),
-                    dimension: 3,
-                },
-                mutable: true,
-            },
-        );
-        env.insert(
-            "vec4".to_string(),
-            TypeSymbol {
-                type_kind: PrimitiveType::Vector {
-                    type_kind: Box::new(PrimitiveType::default_float()),
-                    dimension: 4,
-                },
-                mutable: true,
-            },
-        );
-
-        env
-    }
-
-    pub fn enter_scope(&mut self) {
-        self.scopes.push(Scope {
-            symbols: HashMap::new(),
-        });
-    }
-
-    pub fn exit_scope(&mut self) {
-        self.scopes.pop();
-    }
-
-    pub fn insert(&mut self, name: String, symbol: TypeSymbol) -> SemanticResult<()> {
-        let current = self
-            .scopes
-            .last_mut()
-            .ok_or(SemanticError::InvalidScope {})?;
-
-        if current.symbols.contains_key(&name) {
-            return Err(SemanticError::DuplicateDefinition { name });
-        }
-
-        current.symbols.insert(name, symbol);
         Ok(())
     }
 
-    pub fn lookup(&self, name: &str) -> SemanticResult<&TypeSymbol> {
-        for scope in self.scopes.iter().rev() {
-            if let Some(sym) = scope.symbols.get(name) {
-                return Ok(sym);
-            }
-        }
-
-        Err(SemanticError::UndefinedVariable {
-            name: name.to_string(),
-        })
+    fn on_enter_scope(&mut self) -> Result<(), TypeCheckError> {
+        Ok(())
     }
 }
 
-pub fn type_check(ast: &ASTNode) -> Result<(), SemanticError> {
-    let mut env = TypeEnv::new();
-    match &ast {
-        ASTNode::Expression(expr) => infer_expression(&mut env, expr)?,
-        ASTNode::Item { item, .. } => infer_item(item, &mut env)?,
-        _ => unreachable!(),
-    };
+impl TypeChecker {
+    pub fn new() -> Self {
+        Self {
+            scope_return_stack: Vec::new(),
+            function_return_stack: Vec::new(),
+        }
+    }
 
-    Ok(())
+    pub fn enter_function(&mut self, return_type: TypeSymbol) {
+        self.function_return_stack.push(return_type);
+    }
+
+    pub fn exit_function(&mut self) {
+        self.function_return_stack.pop();
+    }
+
+    pub fn check_binary_operator(
+        &self,
+        operator: &BinaryOperator,
+        lhs: TypeSymbol,
+        rhs: TypeSymbol,
+    ) -> TypeCheckResult<TypeSymbol> {
+        self.validate_binary_operand(&lhs, &rhs)?;
+
+        match operator {
+            BinaryOperator::Addition
+            | BinaryOperator::Subtract
+            | BinaryOperator::Multiply
+            | BinaryOperator::Divide => {
+                if !lhs.type_kind.is_scalar_type() {
+                    return Err(TypeCheckError::InvalidOperation {
+                        op: format!("{:?}", operator),
+                        reason: "unsupported binary operator".into(),
+                    });
+                }
+            }
+            BinaryOperator::Modulo
+            | BinaryOperator::And
+            | BinaryOperator::Or
+            | BinaryOperator::Xor
+            | BinaryOperator::LeftShift
+            | BinaryOperator::RightShift => {
+                if !lhs.type_kind.is_integer() {
+                    return Err(TypeCheckError::InvalidOperation {
+                        op: format!("{:?}", operator),
+                        reason: "unsupported binary operator".into(),
+                    });
+                }
+            }
+        }
+
+        Ok(lhs)
+    }
+
+    pub fn check_assign_operator(
+        &self,
+        operator: &AssignOperator,
+        lhs: TypeSymbol,
+        rhs: TypeSymbol,
+    ) -> TypeCheckResult<TypeSymbol> {
+        self.validate_binary_operand(&lhs, &rhs)?;
+
+        if !lhs.is_mutable() {
+            return Err(TypeCheckError::NotMutable {
+                name: lhs.type_kind.to_string(), // TODO
+            });
+        }
+
+        match operator {
+            AssignOperator::Assign
+            | AssignOperator::AddAssign
+            | AssignOperator::SubAssign
+            | AssignOperator::MulAssign
+            | AssignOperator::DivAssign => {
+                if !lhs.type_kind.is_scalar_type() {
+                    return Err(TypeCheckError::InvalidOperation {
+                        op: format!("{:?}", operator),
+                        reason: "unsupported assign operator".into(),
+                    });
+                }
+            }
+            AssignOperator::ModAssign
+            | AssignOperator::AndAssign
+            | AssignOperator::OrAssign
+            | AssignOperator::XorAssign
+            | AssignOperator::LeftShiftAssign
+            | AssignOperator::RightShiftAssign => {
+                if !lhs.type_kind.is_integer() {
+                    return Err(TypeCheckError::InvalidOperation {
+                        op: format!("{:?}", operator),
+                        reason: "unsupported assign operator".into(),
+                    });
+                }
+            }
+        }
+
+        Ok(lhs)
+    }
+
+    pub fn check_comparison_operator(
+        &self,
+        operator: &ComparisonOperator,
+        lhs: TypeSymbol,
+        rhs: TypeSymbol,
+    ) -> TypeCheckResult<TypeSymbol> {
+        self.validate_binary_operand(&lhs, &rhs)?;
+
+        match operator {
+            ComparisonOperator::Equal | ComparisonOperator::NotEqual => {
+                if !lhs.type_kind.is_integer() {
+                    return Err(TypeCheckError::InvalidOperation {
+                        op: format!("{:?}", operator),
+                        reason: "unsupported comparison operator".into(),
+                    });
+                }
+            }
+            ComparisonOperator::LessThan
+            | ComparisonOperator::LessThanEqual
+            | ComparisonOperator::GreaterThan
+            | ComparisonOperator::GreaterThanEqual => {
+                if !lhs.type_kind.is_scalar_type() {
+                    return Err(TypeCheckError::InvalidOperation {
+                        op: format!("{:?}", operator),
+                        reason: "unsupported comparison operator".into(),
+                    });
+                }
+            }
+        }
+
+        Ok(lhs)
+    }
+
+    pub fn check_logical_operator(
+        &self,
+        operator: &LogicalOperator,
+        lhs: TypeSymbol,
+        rhs: TypeSymbol,
+    ) -> TypeCheckResult<TypeSymbol> {
+        self.validate_binary_operand(&lhs, &rhs)?;
+
+        if !lhs.type_kind.is_boolean() {
+            return Err(TypeCheckError::InvalidOperation {
+                op: format!("{:?}", operator),
+                reason: "unsupported logical operator".into(),
+            });
+        }
+
+        Ok(lhs)
+    }
+
+    pub fn check_literal(&mut self, literal: &Literal) -> TypeCheckResult<TypeSymbol> {
+        let ty = match literal {
+            Literal::Integer { value_type, .. } | Literal::Float { value_type, .. } => {
+                self.check_type(value_type)?
+            }
+            Literal::Bool(_) => TypeSymbol::new(PrimitiveType::Boolean),
+            _ => unimplemented!(), // TODO
+        };
+
+        Ok(ty)
+    }
+
+    pub fn check_let<'a>(
+        &mut self,
+        scope: &Scope<'a>,
+        pattern: &Pattern,
+        initializer: Option<TypeSymbol>,
+        variable_type: Option<TypeSymbol>,
+    ) -> TypeCheckResult<()> {
+        match (initializer, variable_type) {
+            (Some(initializer), Some(variable_type)) => {
+                if !initializer.is_same_type(&variable_type) {
+                    return Err(TypeCheckError::TypeMismatch {
+                        expected: variable_type.type_kind,
+                        found: initializer.type_kind,
+                    });
+                }
+
+                self.resolve_variable_type_from_pattern(scope, pattern, variable_type.type_kind)?;
+            }
+            (Some(initializer), None) => {
+                self.resolve_variable_type_from_pattern(scope, pattern, initializer.type_kind)?;
+            }
+            (None, Some(variable_type)) => {
+                self.resolve_variable_type_from_pattern(scope, pattern, variable_type.type_kind)?;
+            }
+            (None, None) => {
+                // 型がない場合は推論
+                TypeRequirement::Inferring(TypeOption::default());
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn check_if(
+        &self,
+        condition: TypeSymbol,
+        then_body: TypeSymbol,
+        else_body: Option<TypeSymbol>,
+    ) -> TypeCheckResult<TypeSymbol> {
+        // 条件式
+        if !matches!(condition.type_kind, PrimitiveType::Boolean) {
+            return Err(TypeCheckError::TypeMismatch {
+                expected: PrimitiveType::Boolean,
+                found: condition.type_kind.clone(),
+            });
+        }
+
+        if condition.type_kind.is_pointer() {
+            return Err(TypeCheckError::TypeMismatch {
+                expected: PrimitiveType::Boolean,
+                found: PrimitiveType::Pointer {
+                    point: Box::new(condition.type_kind.clone()),
+                },
+            });
+        }
+
+        // 条件式の戻り型チェック
+        let Some(else_body) = else_body else {
+            return Ok(then_body);
+        };
+
+        if !then_body.is_same_type(&else_body) {
+            return Err(TypeCheckError::TypeMismatch {
+                expected: then_body.type_kind,
+                found: else_body.type_kind,
+            });
+        }
+
+        Ok(then_body)
+    }
+
+    pub fn check_return(&mut self, return_type: TypeSymbol) -> TypeCheckResult<TypeSymbol> {
+        let expected = self
+            .function_return_stack
+            .last()
+            .ok_or(TypeCheckError::InvalidReturnScope)?;
+
+        if !return_type.is_same_type(expected) {
+            return Err(TypeCheckError::FunctionReturnMismatch {
+                expected: expected.type_kind.clone(),
+                found: return_type.type_kind,
+            });
+        }
+
+        Ok(return_type)
+    }
+
+    pub fn check_type(&mut self, type_kind: &TypeKind) -> TypeCheckResult<TypeSymbol> {
+        let ty = match type_kind {
+            TypeKind::Primitive(ty) => TypeSymbol::new(ty.clone()),
+            TypeKind::Function {
+                arguments,
+                return_type,
+            } => {
+                let return_type = self.check_type(&return_type.node)?;
+                let mut params = Vec::new();
+                for arg in arguments {
+                    params.push(self.check_type(&arg.node)?.type_kind);
+                }
+
+                TypeSymbol::new(PrimitiveType::Function {
+                    return_type: Box::new(return_type.type_kind),
+                    arguments: params,
+                })
+            }
+            TypeKind::PathType(path) => self.check_path(&path.node)?,
+        };
+
+        Ok(ty)
+    }
+
+    pub fn check_path(&mut self, path: &Path) -> TypeCheckResult<TypeSymbol> {
+        for segment in &path.segments {
+            let segment = &segment.node;
+            for arg in &segment.arguments {
+                let arg = &arg.node;
+                self.check_type(&arg)?;
+            }
+        }
+
+        path.last_ident();
+
+        Ok(TypeSymbol::default())
+    }
+
+    fn validate_binary_operand(&self, lhs: &TypeSymbol, rhs: &TypeSymbol) -> TypeCheckResult<()> {
+        if !lhs.is_same_type(rhs) {
+            return Err(TypeCheckError::TypeMismatch {
+                expected: lhs.type_kind.clone(),
+                found: rhs.type_kind.clone(),
+            });
+        }
+
+        if lhs.type_kind.is_pointer() {
+            return Err(TypeCheckError::TypeMismatch {
+                expected: lhs.type_kind.clone(),
+                found: rhs.type_kind.clone(),
+            });
+        }
+
+        Ok(())
+    }
+
+    pub fn resolve_variable_type_from_pattern<'a>(
+        &mut self,
+        scope: &Scope<'a>,
+        pattern: &Pattern,
+        variable_type: PrimitiveType,
+    ) -> TypeCheckResult<()> {
+        match pattern {
+            Pattern::Identifier { ident, .. } => {
+                if !scope.contains(ident) {
+                    return Err(TypeCheckError::UnknownPattern {
+                        name: ident.to_string(),
+                    });
+                }
+            }
+            Pattern::Multiply(patterns) => {
+                let PrimitiveType::Struct { elements } = variable_type else {
+                    unimplemented!() // TODO
+                    // return Err(TypeCheckError::);
+                };
+
+                let expected_count = patterns.len();
+                let found_count = elements.len();
+                if expected_count != found_count {
+                    return Err(TypeCheckError::TupleCountMismatch {
+                        expected: expected_count,
+                        found: found_count,
+                    });
+                }
+
+                // TODO
+            }
+            Pattern::Literal(literal) => {}
+            Pattern::None => {}
+        }
+
+        Ok(())
+    }
 }
+
+#[derive(Debug)]
+struct S {}

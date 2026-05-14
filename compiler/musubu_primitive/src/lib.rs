@@ -1,22 +1,29 @@
 use nalgebra::{Matrix3, Matrix4, Vector3, Vector4};
 use std::ops::{Add, Div, Mul, Sub};
+use std::str::Chars;
+use std::string::ToString;
+
+pub const BYTE_BIT_WIDTH: u32 = 8;
+type ByteCount = u8;
+type SizeCount = u32;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PrimitiveType {
     Unit, // void
+    Boolean,
     Integer {
         signed: bool,
-        byte: u8,
+        byte: ByteCount,
     },
     Float {
-        byte: u8,
+        byte: ByteCount,
     },
     Struct {
         elements: Vec<PrimitiveType>,
     },
     Array {
         type_kind: Box<PrimitiveType>,
-        size: u32,
+        size: SizeCount,
     },
     Pointer {
         point: Box<PrimitiveType>,
@@ -27,12 +34,12 @@ pub enum PrimitiveType {
     },
     Vector {
         type_kind: Box<PrimitiveType>,
-        dimension: u32,
+        dimension: SizeCount,
     },
     Matrix {
         type_kind: Box<PrimitiveType>,
-        rows: u32,
-        columns: u32,
+        rows: SizeCount,
+        columns: SizeCount,
     },
 }
 
@@ -48,13 +55,42 @@ impl PrimitiveType {
         Self::Float { byte: 4 }
     }
 
+    pub fn is_scalar_type(&self) -> bool {
+        matches!(self, Self::Integer { .. } | Self::Float { .. })
+    }
+
     pub fn is_unit(&self) -> bool {
         matches!(self, Self::Unit)
+    }
+
+    pub fn is_integer(&self) -> bool {
+        matches!(self, Self::Integer { .. })
+    }
+
+    pub fn is_float(&self) -> bool {
+        matches!(self, Self::Float { .. })
+    }
+
+    pub fn is_boolean(&self) -> bool {
+        matches!(self, Self::Boolean)
+    }
+
+    pub fn is_struct(&self) -> bool {
+        matches!(self, Self::Struct { .. })
+    }
+
+    pub fn is_array(&self) -> bool {
+        matches!(self, Self::Array { .. })
+    }
+
+    pub fn is_pointer(&self) -> bool {
+        matches!(self, Self::Pointer { .. })
     }
 
     pub fn is_valid(&self) -> bool {
         match self {
             Self::Unit => false,
+            Self::Boolean => true,
             Self::Integer { byte, .. } => *byte > 0,
             Self::Float { byte } => *byte > 0,
             Self::Struct { elements } => {
@@ -90,10 +126,7 @@ impl PrimitiveType {
                 type_kind,
                 dimension,
             } => {
-                if !type_kind.is_valid() {
-                    return false;
-                }
-                if !matches!(**type_kind, Self::Integer { .. } | Self::Float { .. }) {
+                if !type_kind.is_valid() && !type_kind.is_scalar_type() {
                     return false;
                 }
                 *dimension > 0
@@ -103,14 +136,178 @@ impl PrimitiveType {
                 rows,
                 columns,
             } => {
-                if !type_kind.is_valid() {
-                    return false;
-                }
-                if !matches!(**type_kind, Self::Integer { .. } | Self::Float { .. }) {
+                if !type_kind.is_valid() && !type_kind.is_scalar_type() {
                     return false;
                 }
                 *rows > 0 && *columns > 0
             }
+        }
+    }
+
+    pub fn from(name: &str) -> Option<Self> {
+        if let Some(postfix) = name.strip_prefix("i") {
+            let mut chars = postfix.chars();
+            let bit_width = Self::parse_number(&mut chars)?;
+            let byte = Self::get_byte(bit_width)?;
+            return Some(Self::Integer { signed: true, byte });
+        }
+
+        if let Some(postfix) = name.strip_prefix("u") {
+            let mut chars = postfix.chars();
+            let bit_width = Self::parse_number(&mut chars)?;
+            let byte = Self::get_byte(bit_width)?;
+            return Some(Self::Integer {
+                signed: false,
+                byte,
+            });
+        }
+
+        if let Some(postfix) = name.strip_prefix("f") {
+            let mut chars = postfix.chars();
+            let bit_width = Self::parse_number(&mut chars)?;
+            let byte = Self::get_byte(bit_width)?;
+            return Some(Self::Float { byte });
+        }
+
+        // ベクトル
+        if let Some(postfix) = name.strip_prefix("vec") {
+            return Self::parse_vec(postfix);
+        }
+
+        // 行列
+        if let Some(postfix) = name.strip_prefix("mat") {
+            return Self::parse_matrix(postfix);
+        }
+        None
+    }
+
+    // vec2i16, vec3, vec4f32
+    fn parse_vec(postfix: &str) -> Option<Self> {
+        let mut chars = postfix.chars();
+        let dimension = Self::parse_number(&mut chars)?;
+
+        // 型指定がなければf32として扱う
+        let spec_ty = chars.as_str();
+        if spec_ty.is_empty() {
+            return Some(Self::Vector {
+                dimension,
+                type_kind: Box::new(PrimitiveType::default_float()),
+            });
+        }
+
+        // 内部の型
+        let ty = Self::from(spec_ty)?;
+        if !ty.is_scalar_type() {
+            return None;
+        }
+
+        return Some(Self::Vector {
+            dimension,
+            type_kind: Box::new(ty),
+        });
+    }
+
+    // 列を表し次に行を表す
+    // mat3x3, mat4x3f32, mat4x4i32
+    fn parse_matrix(postfix: &str) -> Option<Self> {
+        let mut chars = postfix.chars();
+
+        let columns = Self::parse_number(&mut chars)?;
+        if !matches!(chars.next(), Some('x')) {
+            return None;
+        }
+        let rows = Self::parse_number(&mut chars)?;
+
+        // 型
+        // 型なしはvec同様f32として扱う
+        let spec_ty = chars.as_str();
+        if spec_ty.is_empty() {
+            return Some(Self::Matrix {
+                columns,
+                rows,
+                type_kind: Box::new(PrimitiveType::default_float()),
+            });
+        }
+        let ty = Self::from(spec_ty)?;
+        if !ty.is_scalar_type() {
+            return None;
+        }
+
+        return Some(Self::Matrix {
+            columns,
+            rows,
+            type_kind: Box::new(ty),
+        });
+    }
+
+    fn parse_number(iter: &mut Chars) -> Option<u32> {
+        let s = iter.as_str();
+        let end_index = s.find(|c: char| !c.is_ascii_digit()).unwrap_or(s.len());
+
+        if end_index == 0 {
+            return None;
+        }
+
+        let num_str = &s[..end_index];
+        let number = num_str.parse::<SizeCount>().ok()?;
+
+        for _ in 0..num_str.chars().count() {
+            iter.next();
+        }
+
+        Some(number)
+    }
+
+    fn get_byte(bit_width: SizeCount) -> Option<ByteCount> {
+        if bit_width % BYTE_BIT_WIDTH != 0 {
+            return None;
+        }
+        let byte = bit_width / BYTE_BIT_WIDTH;
+        if (ByteCount::MAX as SizeCount) < byte {
+            return None;
+        }
+        Some(byte as ByteCount)
+    }
+}
+
+impl ToString for PrimitiveType {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Unit => "void".to_string(),
+            Self::Boolean => "bool".to_string(),
+            Self::Integer { signed, byte } => {
+                let bit = (*byte as SizeCount) * BYTE_BIT_WIDTH;
+                if *signed {
+                    format!("int_{bit}")
+                } else {
+                    format!("uint_{bit}")
+                }
+            }
+            Self::Float { byte } => format!("float_{}", (*byte as SizeCount) * BYTE_BIT_WIDTH),
+            Self::Struct { elements } => elements.iter().map(|elem| elem.to_string()).collect(),
+            Self::Array { type_kind, size } => format!("{}[{size}]", type_kind.to_string()),
+            Self::Pointer { point } => format!("{}_ptr", point.to_string()),
+            Self::Function {
+                return_type,
+                arguments,
+            } => format!(
+                "fn({})->{}",
+                arguments
+                    .iter()
+                    .map(|arg| arg.to_string())
+                    .collect::<Vec<String>>()
+                    .join("_"),
+                return_type.to_string()
+            ),
+            Self::Vector {
+                type_kind,
+                dimension,
+            } => format!("vec<{}>{dimension}", type_kind.to_string()),
+            Self::Matrix {
+                type_kind,
+                rows,
+                columns,
+            } => format!("matrix<{}>{rows}x{columns}", type_kind.to_string()),
         }
     }
 }
@@ -121,6 +318,7 @@ pub enum Value {
     Integer(Integer),
     Float(Float),
     Bool(bool),
+    Pointer(),
     String(String),
     Vector(Vector),
     Matrix(Matrix),
