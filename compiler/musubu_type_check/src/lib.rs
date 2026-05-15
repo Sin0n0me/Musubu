@@ -22,6 +22,8 @@ pub struct TypeChecker {
 
 impl ScopeControl<TypeCheckError> for TypeChecker {
     fn on_exit_scope(&mut self) -> Result<(), TypeCheckError> {
+        self.scope_return_stack.push(TypeSymbol::default());
+
         // スコープを抜けるまでに推論中の型があればエラー
         /*
         let inferring_names = self
@@ -47,6 +49,7 @@ impl ScopeControl<TypeCheckError> for TypeChecker {
     }
 
     fn on_enter_scope(&mut self) -> Result<(), TypeCheckError> {
+        self.scope_return_stack.pop();
         Ok(())
     }
 }
@@ -71,6 +74,15 @@ impl TypeChecker {
         self.function_return_stack.last()
     }
 
+    pub fn set_scope_return_type(&mut self, return_type: TypeSymbol) -> TypeCheckResult<()> {
+        if self.scope_return_stack.pop().is_none() {
+            return Err(TypeCheckError::InvalidScope);
+        }
+        self.scope_return_stack.push(return_type);
+
+        Ok(())
+    }
+
     pub fn check_binary_operator(
         &self,
         operator: &BinaryOperator,
@@ -86,7 +98,7 @@ impl TypeChecker {
             | BinaryOperator::Divide => {
                 if !lhs.type_kind.is_scalar_type() {
                     return Err(TypeCheckError::InvalidOperation {
-                        op: format!("{:?}", operator),
+                        op: format!("{:?} lhs: {:?} rhs: {:?}", operator, lhs, rhs),
                         reason: "unsupported binary operator".into(),
                     });
                 }
@@ -219,8 +231,8 @@ impl TypeChecker {
 
     pub fn check_let<'a>(
         &mut self,
-        scope: &Scope<'a>,
-        pattern: &Pattern,
+        scope: &mut Scope<'a>,
+        pattern: &'a Pattern,
         initializer: Option<TypeSymbol>,
         variable_type: Option<TypeSymbol>,
     ) -> TypeCheckResult<()> {
@@ -232,13 +244,13 @@ impl TypeChecker {
                         found: initializer.type_kind,
                     });
                 }
-                self.resolve_variable_type_from_pattern(scope, pattern, variable_type.type_kind)?;
+                self.resolve_pattern(scope, pattern, variable_type.type_kind)?;
             }
             (Some(initializer), None) => {
-                self.resolve_variable_type_from_pattern(scope, pattern, initializer.type_kind)?;
+                self.resolve_pattern(scope, pattern, initializer.type_kind)?;
             }
             (None, Some(variable_type)) => {
-                self.resolve_variable_type_from_pattern(scope, pattern, variable_type.type_kind)?;
+                self.resolve_pattern(scope, pattern, variable_type.type_kind)?;
             }
             (None, None) => {
                 // 型がない場合は推論
@@ -359,10 +371,10 @@ impl TypeChecker {
         Ok(())
     }
 
-    pub fn resolve_variable_type_from_pattern<'a>(
+    pub fn resolve_pattern<'a>(
         &mut self,
-        scope: &Scope<'a>,
-        pattern: &Pattern,
+        scope: &mut Scope<'a>,
+        pattern: &'a Pattern,
         variable_type: PrimitiveType,
     ) -> TypeCheckResult<()> {
         match pattern {
@@ -372,6 +384,8 @@ impl TypeChecker {
                         name: ident.to_string(),
                     });
                 }
+
+                scope.resolve_variable_type(ident, variable_type)?;
             }
             Pattern::Multiply(patterns) => {
                 let PrimitiveType::Struct { elements } = variable_type else {
@@ -397,6 +411,3 @@ impl TypeChecker {
         Ok(())
     }
 }
-
-#[derive(Debug)]
-struct S {}

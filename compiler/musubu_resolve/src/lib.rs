@@ -6,6 +6,7 @@ pub mod errors;
 
 mod name_resolver;
 
+use alloc::string::ToString;
 use alloc::vec::Vec;
 use errors::ResolveError;
 use musubu_ast::*;
@@ -22,7 +23,6 @@ pub type ResolveResult<T> = Result<T, ResolveError>;
 pub struct Resolver<'a> {
     pub name_resolver: NameResolver<'a>,
     type_checker: TypeChecker,
-    scope_stack: Vec<Scope<'a>>,
 }
 
 #[derive(Debug)]
@@ -35,7 +35,6 @@ impl<'a> Resolver<'a> {
         Self {
             name_resolver: NameResolver::new(project_name),
             type_checker: TypeChecker::new(),
-            scope_stack: Vec::new(),
         }
     }
 
@@ -135,7 +134,7 @@ impl<'a> Resolver<'a> {
         for field in fields {
             let field = &field.node;
             let field_type = self.resolve_type(field.field_type.as_ref_spanned(), false)?;
-            struct_item.add_field(&field.name, field_type);
+            struct_item.add_field(&field.name, field_type)?;
         }
 
         self.name_resolver.add_struct(struct_item)?;
@@ -162,11 +161,11 @@ impl<'a> Resolver<'a> {
                         let field_type =
                             self.resolve_type(field.field_type.as_ref_spanned(), false)?;
 
-                        enum_item.add_variant_field(name, field_name, field_type);
+                        enum_item.add_variant_field(name, field_name, field_type)?;
                     }
                 }
                 musubu_ast::EnumItem::TupleItem { name, visibility } => {
-                    enum_item.add_variant(name);
+                    enum_item.add_variant(name)?;
                 }
             }
         }
@@ -276,12 +275,11 @@ impl<'a> Resolver<'a> {
         }
 
         self.enter_scope(TypeRequirement::Inferring(TypeOption::default()), |s| {
-            let mut return_type = TypeSymbol::default();
             for statement in statements {
                 s.resolve_statement(statement.as_ref_spanned())?;
             }
 
-            Ok(return_type)
+            Ok(TypeSymbol::default())
         })
     }
 
@@ -366,14 +364,19 @@ impl<'a> Resolver<'a> {
         is_declaration: bool,
     ) -> ResolveResult<TypeSymbol> {
         //
-        let ty = if is_declaration {
-        } else {
-            //self.name_resolver.use_path(&mut self.scope_resolver, path);
-            //self.type_checker.check_path(path.node)?;
-        };
+        let path = path.node;
+        let last_name = path.last_ident();
+        if is_declaration {
+            return Ok(TypeSymbol::default());
+        }
+
+        self.get_type(last_name)
+            .ok_or(ResolveError::UnresolvePath {
+                name: last_name.to_string(),
+            })
+            .cloned()
 
         // TODO
-        Ok(TypeSymbol::default())
     }
 
     fn resolve_literal(
@@ -418,13 +421,6 @@ impl<'a> Resolver<'a> {
                 // パターン
                 self.resolve_pattern(&name.as_ref_spanned())?;
 
-                // 初期化式
-                let initializer = if let Some(init_expr) = initializer {
-                    Some(self.resolve_expression(&init_expr.as_ref_spanned())?)
-                } else {
-                    None
-                };
-
                 // 型
                 let variable_type = if let Some(variable_type) = variable_type {
                     Some(self.resolve_type(variable_type.as_ref_spanned(), false)?)
@@ -432,7 +428,18 @@ impl<'a> Resolver<'a> {
                     None
                 };
 
-                let scope = self.scope_stack.last().ok_or(ResolveError::InvalidScope)?;
+                // 初期化式
+                let initializer = if let Some(init_expr) = initializer {
+                    Some(self.resolve_expression(&init_expr.as_ref_spanned())?)
+                } else {
+                    None
+                };
+
+                let scope = self
+                    .name_resolver
+                    .get_mut_scope()
+                    .ok_or(ResolveError::InvalidScope)?;
+
                 self.type_checker
                     .check_let(scope, &name.node, initializer, variable_type)?;
 
@@ -463,7 +470,7 @@ impl<'a> Resolver<'a> {
                     mutable: *mutable,
                     reference: *reference,
                 });
-                self.name_resolver.add_variable(&ident, ty.clone());
+                self.add_variable(ident, ty.clone())?;
                 ty
             }
             Pattern::Multiply(patterns) => {
@@ -483,8 +490,6 @@ impl<'a> Resolver<'a> {
             }
             Pattern::None => TypeRequirement::Inferring(TypeOption::default()),
         };
-
-        //self.type_check(&pattern)?;
 
         Ok(ty)
     }
@@ -593,5 +598,35 @@ impl<'a> Resolver<'a> {
         self.name_resolver.on_exit_scope()?;
 
         Ok(result)
+    }
+}
+
+impl<'a> SymbolStore<'a, ResolveError> for Resolver<'a> {
+    fn add_variable(&mut self, name: &'a str, ty: TypeRequirement) -> Result<(), ResolveError> {
+        self.name_resolver.add_variable(name, ty)
+    }
+
+    fn add_type(&mut self, name: &'a str, ty: TypeRequirement) -> Result<(), ResolveError> {
+        self.name_resolver.add_type(name, ty)
+    }
+
+    fn resolve_variable_type(
+        &mut self,
+        name: &'a str,
+        ty: PrimitiveType,
+    ) -> Result<(), ResolveError> {
+        Ok(self.name_resolver.resolve_variable_type(name, ty)?)
+    }
+
+    fn get_type_option(&self, name: &'a str) -> Option<&TypeOption> {
+        self.name_resolver.get_type_option(name)
+    }
+
+    fn get_type(&self, name: &'a str) -> Option<&TypeSymbol> {
+        self.name_resolver.get_type(name)
+    }
+
+    fn contains(&self, name: &'a str) -> bool {
+        self.name_resolver.contains(name)
     }
 }

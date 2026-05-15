@@ -26,9 +26,11 @@ pub trait SymbolStore<'a, E> {
 
     fn add_type(&mut self, name: &'a str, ty: TypeRequirement) -> Result<(), E>;
 
-    fn get_type(&self, name: &'a str) -> Result<&TypeSymbol, E>;
+    fn get_type(&self, name: &'a str) -> Option<&TypeSymbol>;
 
-    fn get_type_option(&self, name: &'a str) -> Result<&TypeOption, E>;
+    fn get_type_option(&self, name: &'a str) -> Option<&TypeOption>;
+
+    fn resolve_variable_type(&mut self, name: &'a str, ty: PrimitiveType) -> Result<(), E>;
 
     //fn is_variable(&self, name: &'a str) -> bool;
 
@@ -108,31 +110,64 @@ impl<'a> Scope<'a> {
 
 impl<'a> SymbolStore<'a, ScopeError> for Scope<'a> {
     fn add_type(&mut self, name: &'a str, ty: TypeRequirement) -> Result<(), ScopeError> {
-        self.add_symbol(name, Symbol::Variable(ty))
-    }
-
-    fn add_variable(&mut self, name: &'a str, ty: TypeRequirement) -> Result<(), ScopeError> {
         self.add_symbol(name, Symbol::Type(ty))
     }
 
-    fn get_type(&self, name: &'a str) -> Result<&TypeSymbol, ScopeError> {
-        self.symbol_map
-            .get(name)
-            .and_then(|s| match s {
-                Symbol::Type(TypeRequirement::Expect(ty)) => Some(ty),
-                Symbol::Variable(TypeRequirement::Expect(ty)) => Some(ty),
-                _ => None,
-            })
-            .ok_or(ScopeError::UnresolveType {
-                name: name.to_string(),
-            })
+    fn add_variable(&mut self, name: &'a str, ty: TypeRequirement) -> Result<(), ScopeError> {
+        self.add_symbol(name, Symbol::Variable(ty))
     }
 
-    fn get_type_option(&self, name: &'a str) -> Result<&TypeOption, ScopeError> {
-        self.symbol_map
-            .get(name)
-            .map(|s| s.get_type_option())
-            .ok_or(ScopeError::IllegalHierarchyAccess)
+    // 推論中の型の確定は一度のみ
+    fn resolve_variable_type(
+        &mut self,
+        name: &'a str,
+        ty: PrimitiveType,
+    ) -> Result<(), ScopeError> {
+        let Some(symbol) = self.symbol_map.get(name) else {
+            return Err(ScopeError::UnresolveVariable {
+                name: name.to_string(),
+            });
+        };
+        let Symbol::Variable(type_request) = symbol else {
+            return Err(ScopeError::NotVariable {
+                name: name.to_string(),
+                found: "Type".to_string(), //
+            });
+        };
+        let TypeRequirement::Inferring(_) = type_request else {
+            return Err(ScopeError::TypeConflict {
+                name: name.to_string(),
+                expected: "Inferring".to_string(),
+                found: "".to_string(),
+            });
+        };
+        let Some(Symbol::Variable(TypeRequirement::Inferring(option))) =
+            self.symbol_map.remove(name)
+        else {
+            unreachable!()
+        };
+
+        self.symbol_map.insert(
+            name,
+            Symbol::Variable(TypeRequirement::Expect(TypeSymbol {
+                type_kind: ty,
+                option,
+            })),
+        );
+
+        Ok(())
+    }
+
+    fn get_type(&self, name: &'a str) -> Option<&TypeSymbol> {
+        self.symbol_map.get(name).and_then(|s| match s {
+            Symbol::Type(TypeRequirement::Expect(ty)) => Some(ty),
+            Symbol::Variable(TypeRequirement::Expect(ty)) => Some(ty),
+            _ => None,
+        })
+    }
+
+    fn get_type_option(&self, name: &'a str) -> Option<&TypeOption> {
+        self.symbol_map.get(name).map(|s| s.get_type_option())
     }
 
     fn contains(&self, name: &'a str) -> bool {
@@ -165,7 +200,7 @@ impl Symbol {
 #[derive(Debug, Clone)]
 pub struct TypeSymbol {
     pub type_kind: PrimitiveType,
-    option: TypeOption,
+    pub option: TypeOption,
 }
 
 impl TypeSymbol {

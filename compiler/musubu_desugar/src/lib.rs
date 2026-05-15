@@ -1,3 +1,8 @@
+// TODO
+// #![no_std]
+
+extern crate alloc;
+
 use musubu_ast::*;
 use musubu_hir::*;
 use musubu_primitive::*;
