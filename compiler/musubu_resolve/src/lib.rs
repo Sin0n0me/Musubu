@@ -11,9 +11,9 @@ use errors::ResolveError;
 use musubu_ast::*;
 use musubu_name_space::*;
 use musubu_primitive::PrimitiveType;
-use musubu_scope::{Scope, ScopeControl, SymbolStore, TypeOption, TypeRequirement};
+use musubu_scope::{Scope, ScopeControl, SymbolStore, TypeOption, TypeRequirement, TypeSymbol};
 use musubu_span::*;
-use musubu_type_check::{TypeChecker, TypeSymbol};
+use musubu_type_check::TypeChecker;
 use name_resolver::NameResolver;
 
 pub type ResolveResult<T> = Result<T, ResolveError>;
@@ -35,7 +35,7 @@ impl<'a> Resolver<'a> {
         Self {
             name_resolver: NameResolver::new(project_name),
             type_checker: TypeChecker::new(),
-            scope_stack: Vec::new()
+            scope_stack: Vec::new(),
         }
     }
 
@@ -97,10 +97,13 @@ impl<'a> Resolver<'a> {
 
         // 関数本体+引数
         self.enter_function(return_type, |s| {
-            let mut function_item = FunctionItem::new(name, return_type);
+            let return_type = s
+                .type_checker
+                .get_return_type()
+                .ok_or(ResolveError::InvalidRetrunType)?;
+            let mut function_item = FunctionItem::new(name, return_type.clone());
 
             // 引数
-            let mut arguments = Vec::with_capacity(params.len());
             for param in params {
                 let param = &param.node;
                 if let Some(ref pattern) = param.pattern {
@@ -109,8 +112,6 @@ impl<'a> Resolver<'a> {
 
                 let arg_type = s.resolve_type(param.param_type.as_ref_spanned(), false)?;
                 function_item.add_argument(arg_type)?;
-
-                arguments.push(arg_type);
             }
 
             // 関数本体
@@ -145,12 +146,12 @@ impl<'a> Resolver<'a> {
     fn resolve_enumeration(
         &mut self,
         enum_name: &'a str,
-        items: &'a [Spanned<EnumItem>],
+        items: &'a [Spanned<musubu_ast::EnumItem>],
     ) -> ResolveResult<()> {
         let mut enum_item = musubu_name_space::EnumItem::new(enum_name);
         for item in items {
             match &item.node {
-                EnumItem::StructItem {
+                musubu_ast::EnumItem::StructItem {
                     name,
                     fields,
                     visibility,
@@ -164,7 +165,7 @@ impl<'a> Resolver<'a> {
                         enum_item.add_variant_field(name, field_name, field_type);
                     }
                 }
-                EnumItem::TupleItem { name, visibility } => {
+                musubu_ast::EnumItem::TupleItem { name, visibility } => {
                     enum_item.add_variant(name);
                 }
             }
@@ -431,12 +432,9 @@ impl<'a> Resolver<'a> {
                     None
                 };
 
-
-                
+                let scope = self.scope_stack.last().ok_or(ResolveError::InvalidScope)?;
                 self.type_checker
-                    .check_let(
-
-                        ,&name.node, initializer, variable_type)?;
+                    .check_let(scope, &name.node, initializer, variable_type)?;
 
                 TypeSymbol::default()
             }

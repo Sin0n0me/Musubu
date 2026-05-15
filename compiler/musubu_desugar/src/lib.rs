@@ -5,24 +5,22 @@ use musubu_resolve::*;
 use musubu_span::*;
 use std::collections::HashMap;
 
-pub struct Desugar<'a> {
+pub struct Desugar {
     next_symbol: usize,
     next_function: usize,
     pub variables: HashMap<String, SymbolId>,
     pub functions: HashMap<String, FunctionId>,
-    resolver: &'a str, // TODO
 }
 
-impl<'a> Desugar<'a> {
+impl Desugar {
     const INITIAL_ID: usize = 0;
 
-    pub fn new(resolver: &'a str) -> Self {
+    pub fn new() -> Self {
         Self {
             next_symbol: Self::INITIAL_ID,
             next_function: Self::INITIAL_ID,
             variables: HashMap::new(),
             functions: HashMap::new(),
-            resolver,
         }
     }
 

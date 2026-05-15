@@ -67,6 +67,10 @@ impl TypeChecker {
         self.function_return_stack.pop();
     }
 
+    pub fn get_return_type(&self) -> Option<&TypeSymbol> {
+        self.function_return_stack.last()
+    }
+
     pub fn check_binary_operator(
         &self,
         operator: &BinaryOperator,
@@ -228,7 +232,6 @@ impl TypeChecker {
                         found: initializer.type_kind,
                     });
                 }
-
                 self.resolve_variable_type_from_pattern(scope, pattern, variable_type.type_kind)?;
             }
             (Some(initializer), None) => {

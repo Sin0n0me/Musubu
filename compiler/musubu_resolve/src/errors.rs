@@ -11,6 +11,7 @@ pub enum ResolveError {
     TypeError,
     InvalidScope,
     InvalidModule,
+    InvalidRetrunType,
     TypeCheckError(TypeCheckError),
     ScopeError(ScopeError),
     NameSpaceError(NameSpaceError),

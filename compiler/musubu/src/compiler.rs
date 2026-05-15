@@ -2,12 +2,8 @@ use musubu_desugar::*;
 use musubu_ir_compiler::*;
 use musubu_lexer::tokenize;
 use musubu_parser::parse;
-use musubu_primitive::*;
-use musubu_resolve::name_resolver::NameResolver;
-use musubu_resolve::*;
-use musubu_type_check::type_check;
+use musubu_resolve::Resolver;
 use musubu_vm::VM;
-use nalgebra::Matrix4;
 
 pub fn compile(code: &str) -> bool {
     let tokens = match tokenize(code) {
@@ -26,28 +22,20 @@ pub fn compile(code: &str) -> bool {
         }
     };
 
-    // スコープ解決
-    let mut name_resolver = NameResolver::new();
+    // スコープ, 型などの解決
+    let mut resolver = Resolver::new("");
     for ast in ast_items.iter() {
-        if let Err(e) = name_resolver.add_ast(ast.as_ref()) {
-            println!("resolve error(pre): {e:?}");
+        let result = resolver.resolve("", ast.as_ref());
+        if let Err(e) = result {
+            println!("resolve error: {e:?}");
             return false;
         };
-    }
-    if let Err(e) = name_resolver.resolve() {
-        println!("resolve error(post): {e:?}");
-        return false;
     }
 
     // astの解析
     for ast in ast_items.iter() {
-        if let Err(e) = type_check(ast.as_ref()) {
-            println!("type check error: {e:?}");
-            return false;
-        }
-
         // 脱糖
-        let hir = Desugar::new(&name_resolver).desugar(ast.as_ref());
+        let hir = Desugar::new().desugar(ast.as_ref());
 
         // 命令化
         let instructions = compile_module(&hir);

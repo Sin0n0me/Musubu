@@ -1,3 +1,8 @@
+// TODO
+// #![no_std]
+
+extern crate alloc;
+
 mod compiler;
 
 #[cfg(test)]

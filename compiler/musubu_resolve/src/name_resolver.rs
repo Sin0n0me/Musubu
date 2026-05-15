@@ -8,7 +8,6 @@ use crate::{ResolveResult, errors::ResolveError};
 #[derive(Debug)]
 pub struct NameResolver<'a> {
     modules: BTreeMap<&'a str, Module<'a>>, // 定義済みモジュール
-    current_module: Option<&'a mut Module<'a>>, //
     current_module_path: Vec<&'a str>,      // 現在 stack
     scope_stack: Vec<Scope<'a>>,            // 一時
 }
@@ -78,15 +77,13 @@ impl<'a> NameResolver<'a> {
     pub fn new(project_name: &'a str) -> Self {
         Self {
             modules: BTreeMap::new(),
-            current_module: None,
             current_module_path: Vec::new(),
             scope_stack: Vec::new(),
         }
     }
 
     pub fn enter_module(&mut self, name: &'a str) -> ResolveResult<()> {
-        self.modules;
-
+        self.get_mut_name_space()?.add_module(name);
         self.current_module_path.push(name);
         Ok(())
     }
@@ -108,68 +105,45 @@ impl<'a> NameResolver<'a> {
             .ok_or(ResolveError::InvalidScope)
     }
 
+    fn get_top_level_module(&self) -> ResolveResult<&Module<'a>> {
+        let module_name = self
+            .current_module_path
+            .first()
+            .ok_or(ResolveError::InvalidModule)?;
+        self.modules
+            .get(module_name)
+            .ok_or(ResolveError::InvalidModule)
+    }
+
     fn get_mut_top_level_module(&mut self) -> ResolveResult<&mut Module<'a>> {
         let module_name = self
             .current_module_path
             .first()
             .ok_or(ResolveError::InvalidModule)?;
-
         self.modules
             .get_mut(module_name)
             .ok_or(ResolveError::InvalidModule)
     }
 
     fn get_name_space(&self) -> ResolveResult<&Module<'a>> {
-        self.current_module_path
-            .last()
+        let path = self.get_child_path();
+        self.get_top_level_module()?
+            .get_last_module(path.as_slice())
             .ok_or(ResolveError::InvalidModule)
     }
 
     fn get_mut_name_space(&mut self) -> ResolveResult<&mut Module<'a>> {
-        self.current_module_path
-            .last_mut()
+        let path = self.get_child_path();
+        self.get_mut_top_level_module()?
+            .get_mut_last_module(path.as_slice())
             .ok_or(ResolveError::InvalidModule)
     }
-}
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ResolvedPath<'a> {
-    path: Vec<&'a str>,
-}
-
-impl<'a> ResolvedPath<'a> {
-    pub fn new(name: &'a str) -> Self {
-        Self { path: vec![name] }
-    }
-
-    pub fn add_child(&mut self, name: &'a str) {
-        self.path.push(name);
-    }
-
-    pub fn parent_path(&self) -> Self {
-        let mut path = self.clone();
-        path.path.pop();
-        path
-    }
-
-    pub fn last_name(&self) -> Option<&'a str> {
-        self.path.last().map(|p| *p)
-    }
-
-    pub fn from(path: &'a Path) -> Self {
-        let mut iter = path.segments.iter();
-        let Some(root) = iter.next() else {
-            return Self::new("");
-        };
-        let mut new_path = Self::new(&root.node.ident);
-        for segment in iter {
-            new_path.add_child(&segment.node.ident);
-        }
-
-        new_path
-    }
-
-    pub fn get_path(&self) -> &Vec<&'a str> {
-        &self.path
+    fn get_child_path(&self) -> Vec<&'a str> {
+        self.current_module_path
+            .clone()
+            .into_iter()
+            .skip(1) // 最初の要素はトップレベルなので含めない
+            .collect::<Vec<_>>()
     }
 }

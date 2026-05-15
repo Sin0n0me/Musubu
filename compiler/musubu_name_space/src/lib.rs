@@ -143,6 +143,47 @@ impl<'a> Module<'a> {
             .entry(name)
             .or_insert(Box::new(Module::new(name)));
     }
+
+    pub fn add_modules(&mut self, child_path: &[&'a str]) {
+        let mut iter = child_path.iter();
+        let Some(first) = iter.next() else {
+            return;
+        };
+        let mut module = self
+            .children
+            .entry(first)
+            .or_insert(Box::new(Module::new(first)));
+        for name in iter {
+            module = module
+                .children
+                .entry(name)
+                .or_insert(Box::new(Module::new(name)));
+        }
+    }
+
+    pub fn get_mut_child_module(&mut self, name: &'a str) -> Option<&mut Self> {
+        self.children.get_mut(name).map(|c| c.as_mut())
+    }
+
+    pub fn get_mut_last_module(&mut self, child_path: &[&'a str]) -> Option<&mut Self> {
+        let mut iter = child_path.iter();
+        let first = iter.next()?;
+        let mut module = self.children.get_mut(first)?;
+        for name in iter {
+            module = module.children.get_mut(name)?;
+        }
+        Some(module.as_mut())
+    }
+
+    pub fn get_last_module(&self, child_path: &[&'a str]) -> Option<&Self> {
+        let mut iter = child_path.iter();
+        let first = iter.next()?;
+        let mut module = self.children.get(first)?;
+        for name in iter {
+            module = module.children.get(name)?;
+        }
+        Some(module.as_ref())
+    }
 }
 
 impl<'a> ItemSymbol<'a> {
