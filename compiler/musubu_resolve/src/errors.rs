@@ -1,4 +1,5 @@
 use alloc::string::String;
+use alloc::vec::Vec;
 use musubu_name_space::errors::NameSpaceError;
 use musubu_scope::errors::ScopeError;
 use musubu_type_check::errors::TypeCheckError;
@@ -8,10 +9,10 @@ pub enum ResolveError {
     UnresolvePath { name: String },
     UndefinedVariable { name: String },
     DuplicateDefinition { name: String },
-    TypeError,
-    InvalidScope,
-    InvalidModule,
+    UnresolveType { name: String },
+    UnresolveTypes { names: Vec<String> },
     InvalidRetrunType,
+    InvalidModuleScope,
     TypeCheckError(TypeCheckError),
     ScopeError(ScopeError),
     NameSpaceError(NameSpaceError),

@@ -23,19 +23,24 @@ pub fn compile(code: &str) -> bool {
     };
 
     // スコープ, 型などの解決
-    let mut resolver = Resolver::new("");
-    for ast in ast_items.iter() {
-        let result = resolver.resolve("", ast.as_ref());
-        if let Err(e) = result {
-            println!("resolve error: {e:?}");
-            return false;
-        };
+    let mut resolver = Resolver::new("M");
+    let ast_items = ast_items.iter().map(|ast| ast.as_ref()).collect::<Vec<_>>();
+
+    if let Err(e) = resolver.import("m", ast_items.as_slice()) {
+        println!("resolve import error: {e:?}");
+        return false;
     }
 
+    let result = resolver.resolve("m", ast_items.as_slice());
+    if let Err(e) = result {
+        println!("resolve error: {e:?}");
+        return false;
+    };
+
     // astの解析
-    for ast in ast_items.iter() {
+    for ast in ast_items {
         // 脱糖
-        let hir = Desugar::new().desugar(ast.as_ref());
+        let hir = Desugar::new().desugar(ast);
 
         // 命令化
         let instructions = compile_module(&hir);

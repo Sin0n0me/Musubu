@@ -1,11 +1,22 @@
+// TODO
+//#![no_std]
+
+extern crate alloc;
+
+use alloc::boxed::Box;
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
+use core::ops::{Add, Div, Mul, Sub};
+use core::str::Chars;
 use nalgebra::{Matrix3, Matrix4, Vector3, Vector4};
-use std::ops::{Add, Div, Mul, Sub};
-use std::str::Chars;
-use std::string::ToString;
 
 pub const BYTE_BIT_WIDTH: u32 = 8;
 type ByteCount = u8;
 type SizeCount = u32;
+
+pub trait ToPrimitiveType {
+    fn to_type(&self) -> PrimitiveType;
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PrimitiveType {
@@ -20,6 +31,15 @@ pub enum PrimitiveType {
     },
     Struct {
         elements: Vec<PrimitiveType>,
+    },
+    /*
+    Union {
+        max_size: SizeCount,
+        elements: Vec<PrimitiveType>,
+    },
+    * */
+    Enumeration {
+        variants: Vec<PrimitiveType>,
     },
     Array {
         type_kind: Box<PrimitiveType>,
@@ -89,13 +109,19 @@ impl PrimitiveType {
 
     pub fn is_valid(&self) -> bool {
         match self {
-            Self::Unit => false,
-            Self::Boolean => true,
-            Self::Integer { byte, .. } => *byte > 0,
-            Self::Float { byte } => *byte > 0,
+            Self::Unit | Self::Boolean => true,
+            Self::Integer { byte, .. } | Self::Float { byte } => *byte > 0,
             Self::Struct { elements } => {
                 for element in elements {
                     if !element.is_valid() {
+                        return false;
+                    }
+                }
+                true
+            }
+            Self::Enumeration { variants } => {
+                for variant in variants {
+                    if !variant.is_valid() {
                         return false;
                     }
                 }
@@ -125,22 +151,12 @@ impl PrimitiveType {
             Self::Vector {
                 type_kind,
                 dimension,
-            } => {
-                if !type_kind.is_valid() && !type_kind.is_scalar_type() {
-                    return false;
-                }
-                *dimension > 0
-            }
+            } => type_kind.is_scalar_type() && type_kind.is_valid() && *dimension > 0,
             Self::Matrix {
                 type_kind,
                 rows,
                 columns,
-            } => {
-                if !type_kind.is_valid() && !type_kind.is_scalar_type() {
-                    return false;
-                }
-                *rows > 0 && *columns > 0
-            }
+            } => type_kind.is_valid() && type_kind.is_scalar_type() && *rows > 0 && *columns > 0,
         }
     }
 
@@ -285,6 +301,9 @@ impl ToString for PrimitiveType {
             }
             Self::Float { byte } => format!("float_{}", (*byte as SizeCount) * BYTE_BIT_WIDTH),
             Self::Struct { elements } => elements.iter().map(|elem| elem.to_string()).collect(),
+            Self::Enumeration { variants } => {
+                variants.iter().map(|variant| variant.to_string()).collect()
+            }
             Self::Array { type_kind, size } => format!("{}[{size}]", type_kind.to_string()),
             Self::Pointer { point } => format!("{}_ptr", point.to_string()),
             Self::Function {

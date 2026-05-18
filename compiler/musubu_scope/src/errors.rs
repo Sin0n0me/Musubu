@@ -19,7 +19,7 @@ pub enum ScopeError {
     UnresolveVariable {
         name: String,
     },
-    UnresolveType {
+    UnresolveTypea {
         name: String,
     },
     NotVariable {

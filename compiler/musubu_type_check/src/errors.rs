@@ -37,7 +37,6 @@ pub enum TypeCheckError {
         name: String,
     },
     InvalidReturnScope,
-    InvalidScope,
     DuplicateDefinition {
         name: String,
     },
@@ -48,6 +47,9 @@ pub enum TypeCheckError {
         name: String,
     },
     UnknownPattern {
+        name: String,
+    },
+    UnknownType {
         name: String,
     },
     ScopeError(ScopeError),

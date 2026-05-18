@@ -10,6 +10,7 @@ use alloc::boxed::Box;
 use alloc::vec::Vec;
 use musubu_ast::{AssignOperator, Literal, LogicalOperator, Path, Pattern, TypeKind};
 use musubu_primitive::*;
+use musubu_scope::errors::ScopeError;
 use musubu_scope::{Scope, ScopeControl, SymbolStore, TypeOption, TypeRequirement, TypeSymbol};
 
 pub type TypeCheckResult<T> = Result<T, TypeCheckError>;
@@ -22,6 +23,10 @@ pub struct TypeChecker {
 
 impl ScopeControl<TypeCheckError> for TypeChecker {
     fn on_exit_scope(&mut self) -> Result<(), TypeCheckError> {
+        if self.scope_return_stack.pop().is_none() {
+            return Err(TypeCheckError::ScopeError(ScopeError::InvalidScope));
+        }
+
         self.scope_return_stack.push(TypeSymbol::default());
 
         // スコープを抜けるまでに推論中の型があればエラー
@@ -49,7 +54,7 @@ impl ScopeControl<TypeCheckError> for TypeChecker {
     }
 
     fn on_enter_scope(&mut self) -> Result<(), TypeCheckError> {
-        self.scope_return_stack.pop();
+        self.scope_return_stack.push(TypeSymbol::default());
         Ok(())
     }
 }
@@ -70,13 +75,9 @@ impl TypeChecker {
         self.function_return_stack.pop();
     }
 
-    pub fn get_return_type(&self) -> Option<&TypeSymbol> {
-        self.function_return_stack.last()
-    }
-
     pub fn set_scope_return_type(&mut self, return_type: TypeSymbol) -> TypeCheckResult<()> {
         if self.scope_return_stack.pop().is_none() {
-            return Err(TypeCheckError::InvalidScope);
+            return Err(TypeCheckError::ScopeError(ScopeError::InvalidScope));
         }
         self.scope_return_stack.push(return_type);
 
@@ -217,10 +218,14 @@ impl TypeChecker {
         Ok(lhs)
     }
 
-    pub fn check_literal(&mut self, literal: &Literal) -> TypeCheckResult<TypeSymbol> {
+    pub fn check_literal<'a>(
+        &self,
+        scope: &Scope<'a>,
+        literal: &Literal,
+    ) -> TypeCheckResult<TypeSymbol> {
         let ty = match literal {
             Literal::Integer { value_type, .. } | Literal::Float { value_type, .. } => {
-                self.check_type(value_type)?
+                self.check_type(scope, value_type)?
             }
             Literal::Bool(_) => TypeSymbol::new(PrimitiveType::Boolean),
             _ => unimplemented!(), // TODO
@@ -229,9 +234,9 @@ impl TypeChecker {
         Ok(ty)
     }
 
-    pub fn check_let<'a>(
-        &mut self,
-        scope: &mut Scope<'a>,
+    pub fn check_let_statenent<'a>(
+        &self,
+        scope: &Scope<'a>,
         pattern: &'a Pattern,
         initializer: Option<TypeSymbol>,
         variable_type: Option<TypeSymbol>,
@@ -244,24 +249,21 @@ impl TypeChecker {
                         found: initializer.type_kind,
                     });
                 }
-                self.resolve_pattern(scope, pattern, variable_type.type_kind)?;
+                self.resolve_pattern(scope, pattern, &variable_type.type_kind)?;
             }
             (Some(initializer), None) => {
-                self.resolve_pattern(scope, pattern, initializer.type_kind)?;
+                self.resolve_pattern(scope, pattern, &initializer.type_kind)?;
             }
             (None, Some(variable_type)) => {
-                self.resolve_pattern(scope, pattern, variable_type.type_kind)?;
+                self.resolve_pattern(scope, pattern, &variable_type.type_kind)?;
             }
-            (None, None) => {
-                // 型がない場合は推論
-                TypeRequirement::Inferring(TypeOption::default());
-            }
-        }
+            (None, None) => {} // 型がない場合は推論
+        };
 
-        Ok(())
+        Ok(ty)
     }
 
-    pub fn check_if(
+    pub fn check_if_statement(
         &self,
         condition: TypeSymbol,
         then_body: TypeSymbol,
@@ -315,17 +317,21 @@ impl TypeChecker {
         Ok(return_type)
     }
 
-    pub fn check_type(&mut self, type_kind: &TypeKind) -> TypeCheckResult<TypeSymbol> {
+    pub fn check_type<'a>(
+        &self,
+        scope: &Scope<'a>,
+        type_kind: &TypeKind,
+    ) -> TypeCheckResult<TypeSymbol> {
         let ty = match type_kind {
             TypeKind::Primitive(ty) => TypeSymbol::new(ty.clone()),
             TypeKind::Function {
                 arguments,
                 return_type,
             } => {
-                let return_type = self.check_type(&return_type.node)?;
+                let return_type = self.check_type(scope, &return_type.node)?;
                 let mut params = Vec::new();
                 for arg in arguments {
-                    params.push(self.check_type(&arg.node)?.type_kind);
+                    params.push(self.check_type(scope, &arg.node)?.type_kind);
                 }
 
                 TypeSymbol::new(PrimitiveType::Function {
@@ -333,24 +339,32 @@ impl TypeChecker {
                     arguments: params,
                 })
             }
-            TypeKind::PathType(path) => self.check_path(&path.node)?,
+            TypeKind::PathType(path) => self.check_path(scope, &path.node)?,
         };
 
         Ok(ty)
     }
 
-    pub fn check_path(&mut self, path: &Path) -> TypeCheckResult<TypeSymbol> {
+    pub fn check_path<'a>(&self, scope: &Scope<'a>, path: &Path) -> TypeCheckResult<TypeSymbol> {
+        // ジェネリクスの型チェック
         for segment in &path.segments {
             let segment = &segment.node;
             for arg in &segment.arguments {
                 let arg = &arg.node;
-                self.check_type(&arg)?;
+                self.check_type(scope, &arg)?;
             }
         }
 
-        path.last_ident();
+        // TODO: パスの処理
+        let name = path.last_ident();
+        let ty = scope
+            .get_type(name)
+            .ok_or(TypeCheckError::UnknownType {
+                name: name.to_string(),
+            })?
+            .clone();
 
-        Ok(TypeSymbol::default())
+        Ok(ty)
     }
 
     fn validate_binary_operand(&self, lhs: &TypeSymbol, rhs: &TypeSymbol) -> TypeCheckResult<()> {
@@ -372,10 +386,10 @@ impl TypeChecker {
     }
 
     pub fn resolve_pattern<'a>(
-        &mut self,
-        scope: &mut Scope<'a>,
+        &self,
+        scope: &Scope<'a>,
         pattern: &'a Pattern,
-        variable_type: PrimitiveType,
+        variable_type: &PrimitiveType,
     ) -> TypeCheckResult<()> {
         match pattern {
             Pattern::Identifier { ident, .. } => {
@@ -385,7 +399,7 @@ impl TypeChecker {
                     });
                 }
 
-                scope.resolve_variable_type(ident, variable_type)?;
+                //scope.resolve_variable_type(ident, variable_type)?;
             }
             Pattern::Multiply(patterns) => {
                 let PrimitiveType::Struct { elements } = variable_type else {
