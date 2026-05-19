@@ -100,9 +100,9 @@ impl<'a> Scope<'a> {
             .iter()
             .filter_map(|(name, symbol)| {
                 if symbol.contains_inferring() {
-                    return None;
+                    return Some(name.to_string());
                 }
-                Some(name.to_string())
+                None
             })
             .collect()
     }

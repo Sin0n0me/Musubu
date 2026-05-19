@@ -4,17 +4,20 @@
 extern crate alloc;
 
 pub mod errors;
+pub mod name_resolver;
 
-mod name_resolver;
 mod resolver;
 mod resolver_collect;
 
+use crate::name_resolver::NameResolver;
 use crate::resolver_collect::SymbolCollector;
 use errors::ResolveError;
-use musubu_scope::errors::ScopeError;
-use musubu_scope::{Scope, ScopeControl, TypeSymbol};
+use musubu_ast::ASTNode;
+use musubu_desugar::Desugar;
+use musubu_hir::{HIRExpression, HIRFunction, HIRStatement};
+use musubu_scope::{Scope, ScopeControl, TypeSymbol, errors::ScopeError};
+use musubu_span::SpannedAsRef;
 use musubu_type_check::TypeChecker;
-use name_resolver::NameResolver;
 
 pub type ResolveResult<T> = Result<T, ResolveError>;
 
@@ -23,6 +26,13 @@ pub struct Resolver<'a> {
     pub name_resolver: NameResolver<'a>,
     type_checker: TypeChecker,
     collector: SymbolCollector<'a>,
+    desuger: Desugar<'a>,
+}
+
+#[derive(Debug)]
+pub struct Lowered<T> {
+    type_symbol: TypeSymbol,
+    hir: T,
 }
 
 impl<'a> Resolver<'a> {
@@ -31,22 +41,41 @@ impl<'a> Resolver<'a> {
             name_resolver: NameResolver::new(project_name),
             type_checker: TypeChecker::new(),
             collector: SymbolCollector::new(),
+            desuger: Desugar::new(),
         }
     }
 
-    pub(crate) fn enter_function(
+    pub fn resolve(&mut self, module_name: &'a str, nodes: &[&'a ASTNode]) -> ResolveResult<()> {
+        self.enter_module(module_name, |s| {
+            for node in nodes {
+                match node {
+                    ASTNode::Item {
+                        visibility: _,
+                        item,
+                    } => {
+                        s.resolve_item(item.as_ref_spanned())?;
+                    }
+                    _ => unreachable!(),
+                }
+            }
+
+            Ok(())
+        })
+    }
+
+    pub(crate) fn enter_function<T>(
         &mut self,
         return_type: TypeSymbol,
-        function: impl Fn(&mut Self) -> ResolveResult<TypeSymbol>,
-    ) -> ResolveResult<()> {
+        function: impl Fn(&mut Self) -> ResolveResult<Lowered<T>>,
+    ) -> ResolveResult<Lowered<T>> {
         self.type_checker.enter_function(return_type);
 
         let result = self.enter_scope(function)?;
 
-        self.type_checker.check_return(result)?;
+        self.type_checker.check_return(result.type_symbol)?;
         self.type_checker.exit_function();
 
-        Ok(())
+        Ok(result)
     }
 
     pub(crate) fn enter_module(
@@ -62,16 +91,15 @@ impl<'a> Resolver<'a> {
 
         self.type_checker.on_exit_scope()?;
         self.name_resolver.on_exit_scope()?;
-
         self.name_resolver.exit_module()?;
 
         Ok(())
     }
 
-    pub(crate) fn enter_scope(
+    pub(crate) fn enter_scope<T>(
         &mut self,
-        function: impl Fn(&mut Self) -> ResolveResult<TypeSymbol>,
-    ) -> ResolveResult<TypeSymbol> {
+        function: impl Fn(&mut Self) -> ResolveResult<Lowered<T>>,
+    ) -> ResolveResult<Lowered<T>> {
         self.name_resolver.on_enter_scope()?;
         self.type_checker.on_enter_scope()?;
 

@@ -7,7 +7,6 @@ use musubu_ast::*;
 use musubu_name_space::{FunctionItem, ItemStore, ItemSymbol, StructItem};
 use musubu_primitive::PrimitiveType;
 use musubu_scope::TypeSymbol;
-use musubu_scope::errors::ScopeError;
 use musubu_span::{Spanned, SpannedAsRef};
 
 #[derive(Debug)]
@@ -204,7 +203,6 @@ impl<'a> Resolver<'a> {
 
     fn import_path(&mut self, path: Spanned<&'a Path>) -> ResolveResult<TypeSymbol> {
         let path = &path.node;
-
         let name = path.last_ident();
 
         if let Some(type_kind) = PrimitiveType::from(name) {

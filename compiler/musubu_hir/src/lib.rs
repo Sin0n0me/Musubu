@@ -1,5 +1,10 @@
-use std::usize;
+// TODO
+//#![no_std]
 
+extern crate alloc;
+
+use alloc::boxed::Box;
+use alloc::vec::Vec;
 use musubu_primitive::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -30,7 +35,7 @@ pub struct HIRFunction {
     pub id: FunctionId,
     pub params: Vec<(SymbolId, TypeId)>,
     pub return_type: TypeId,
-    pub body: HIRBlock,
+    pub body: HIRExpression,
 }
 
 #[derive(Debug, Clone)]
@@ -38,12 +43,6 @@ pub struct HIRGlobal {
     pub symbol: SymbolId,
     pub type_id: TypeId,
     pub initializer: Option<HIRExpression>,
-}
-
-#[derive(Debug, Clone)]
-pub struct HIRBlock {
-    pub statements: Vec<HIRStatement>,
-    pub result: Option<Box<HIRExpression>>, // 式ブロック対応
 }
 
 #[derive(Debug, Clone)]
@@ -86,21 +85,26 @@ pub enum HIRExpression {
 
     // 関数呼び出し
     Call {
-        function: FunctionId,
+        function: Box<HIRExpression>,
         args: Vec<HIRExpression>,
+    },
+
+    Block {
+        statements: Vec<HIRStatement>,
+        result: Option<Box<HIRExpression>>, // 式ブロック対応
     },
 
     If {
         cond: Box<HIRExpression>,
-        then_block: HIRBlock,
-        else_block: Option<HIRBlock>,
+        then_block: Box<HIRExpression>,
+        else_block: Option<Box<HIRExpression>>,
     },
 
     Loop {
-        body: HIRBlock,
+        body: Box<HIRExpression>,
     },
 
-    // break
+    Continue,
     Break(Option<Box<HIRExpression>>),
 
     // return

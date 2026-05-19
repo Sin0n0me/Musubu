@@ -4,6 +4,9 @@ use musubu_name_space::errors::NameSpaceError;
 use musubu_scope::errors::ScopeError;
 use musubu_type_check::errors::TypeCheckError;
 
+// TODO Spanによるエラー箇所特定ロジック完成後,
+// Fromトレイト実装部分は削除しエラー内容をその場で構築するように変更
+
 #[derive(Debug)]
 pub enum ResolveError {
     UnresolvePath { name: String },

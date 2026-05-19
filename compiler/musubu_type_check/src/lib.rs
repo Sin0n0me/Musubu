@@ -8,10 +8,10 @@ pub mod errors;
 use crate::errors::TypeCheckError;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
-use musubu_ast::{AssignOperator, Literal, LogicalOperator, Path, Pattern, TypeKind};
+use musubu_ast::{AssignOperator, Expression, Literal, LogicalOperator, Path, Pattern, TypeKind};
 use musubu_primitive::*;
 use musubu_scope::errors::ScopeError;
-use musubu_scope::{Scope, ScopeControl, SymbolStore, TypeOption, TypeRequirement, TypeSymbol};
+use musubu_scope::{Scope, ScopeControl, SymbolStore, TypeSymbol};
 
 pub type TypeCheckResult<T> = Result<T, TypeCheckError>;
 
@@ -26,29 +26,6 @@ impl ScopeControl<TypeCheckError> for TypeChecker {
         if self.scope_return_stack.pop().is_none() {
             return Err(TypeCheckError::ScopeError(ScopeError::InvalidScope));
         }
-
-        self.scope_return_stack.push(TypeSymbol::default());
-
-        // スコープを抜けるまでに推論中の型があればエラー
-        /*
-        let inferring_names = self
-            .scope_stack
-            .symbol_map
-            .iter()
-            .filter_map(|(name, symbol)| {
-                if symbol.contains_inferring() {
-                    return None;
-                }
-                Some(name.to_string())
-            })
-            .collect::<Vec<_>>();
-
-        if !inferring_names.is_empty() {
-            return Err(TypeCheckError::InferenceFailure {
-                names: inferring_names,
-            });
-        }:
-         * */
 
         Ok(())
     }
@@ -223,15 +200,16 @@ impl TypeChecker {
         scope: &Scope<'a>,
         literal: &Literal,
     ) -> TypeCheckResult<TypeSymbol> {
-        let ty = match literal {
-            Literal::Integer { value_type, .. } | Literal::Float { value_type, .. } => {
-                self.check_type(scope, value_type)?
-            }
-            Literal::Bool(_) => TypeSymbol::new(PrimitiveType::Boolean),
-            _ => unimplemented!(), // TODO
+        let type_kind = match literal {
+            Literal::Float { value_type, .. }
+            | Literal::Integer { value_type, .. }
+            | Literal::Char { value_type, .. }
+            | Literal::UnicodeChar { value_type, .. }
+            | Literal::String { value_type, .. } => value_type.clone(),
+            Literal::Bool(_) => TypeKind::Primitive(PrimitiveType::Boolean),
         };
 
-        Ok(ty)
+        self.check_type(scope, &type_kind)
     }
 
     pub fn check_let_statenent<'a>(
@@ -240,8 +218,8 @@ impl TypeChecker {
         pattern: &'a Pattern,
         initializer: Option<TypeSymbol>,
         variable_type: Option<TypeSymbol>,
-    ) -> TypeCheckResult<()> {
-        match (initializer, variable_type) {
+    ) -> TypeCheckResult<Option<TypeSymbol>> {
+        let type_symbol = match (initializer, variable_type) {
             (Some(initializer), Some(variable_type)) => {
                 if !initializer.is_same_type(&variable_type) {
                     return Err(TypeCheckError::TypeMismatch {
@@ -250,17 +228,22 @@ impl TypeChecker {
                     });
                 }
                 self.resolve_pattern(scope, pattern, &variable_type.type_kind)?;
+                Some(variable_type)
             }
             (Some(initializer), None) => {
                 self.resolve_pattern(scope, pattern, &initializer.type_kind)?;
+                Some(initializer)
             }
             (None, Some(variable_type)) => {
                 self.resolve_pattern(scope, pattern, &variable_type.type_kind)?;
+                Some(variable_type)
             }
-            (None, None) => {} // 型がない場合は推論
+            (None, None) => {
+                None // 型がない場合は推論
+            }
         };
 
-        Ok(ty)
+        Ok(type_symbol)
     }
 
     pub fn check_if_statement(
@@ -307,7 +290,7 @@ impl TypeChecker {
             .last()
             .ok_or(TypeCheckError::InvalidReturnScope)?;
 
-        if !return_type.is_same_type(expected) {
+        if !expected.is_same_type(&return_type) {
             return Err(TypeCheckError::FunctionReturnMismatch {
                 expected: expected.type_kind.clone(),
                 found: return_type.type_kind,
@@ -365,6 +348,24 @@ impl TypeChecker {
             .clone();
 
         Ok(ty)
+    }
+
+    pub fn check_function_call(
+        &self,
+        function: &TypeSymbol,
+        arguments: &[&TypeSymbol],
+    ) -> TypeCheckResult<TypeSymbol> {
+        let PrimitiveType::Function {
+            return_type,
+            arguments,
+        } = function.type_kind
+        else {
+            return Err(TypeCheckError::NotCallable {
+                found: function.type_kind.clone(),
+            });
+        };
+
+        Ok(())
     }
 
     fn validate_binary_operand(&self, lhs: &TypeSymbol, rhs: &TypeSymbol) -> TypeCheckResult<()> {

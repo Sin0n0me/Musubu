@@ -1,44 +1,49 @@
+// TODO
+//#![no_std]
+
+extern crate alloc;
+
+pub mod errors;
+
+use crate::errors::DesugarError;
+use alloc::boxed::Box;
+use alloc::collections::btree_map::BTreeMap;
+use alloc::{vec, vec::Vec};
 use musubu_ast::*;
 use musubu_hir::*;
 use musubu_primitive::*;
-use musubu_resolve::*;
 use musubu_span::*;
-use std::collections::HashMap;
 
-pub struct Desugar {
+pub type DesugarResult<T> = Result<T, DesugarError>;
+
+#[derive(Debug)]
+pub struct Desugar<'a> {
     next_symbol: usize,
     next_function: usize,
-    pub variables: HashMap<String, SymbolId>,
-    pub functions: HashMap<String, FunctionId>,
+    pub variables: BTreeMap<&'a str, SymbolId>,
+    pub functions: BTreeMap<&'a str, FunctionId>,
 }
 
-impl Desugar {
+impl<'a> Desugar<'a> {
     const INITIAL_ID: usize = 0;
 
     pub fn new() -> Self {
         Self {
             next_symbol: Self::INITIAL_ID,
             next_function: Self::INITIAL_ID,
-            variables: HashMap::new(),
-            functions: HashMap::new(),
+            variables: BTreeMap::new(),
+            functions: BTreeMap::new(),
         }
     }
 
-    pub fn desugar(&mut self, node: &ASTNode) -> HIRModule {
-        match &node {
-            ASTNode::Item { item, .. } => self.lower_item(item),
-            _ => unimplemented!(),
-        }
-    }
-
-    fn alloc_symbol(&mut self, name: &str) -> SymbolId {
+    fn alloc_symbol(&mut self, name: &'a str) -> SymbolId {
         if let Some(id) = self.variables.get(name) {
             return *id;
         }
 
         let id = SymbolId(self.next_symbol);
         self.next_symbol += 1;
-        self.variables.insert(name.to_string(), id);
+        self.variables.insert(name, id);
         id
     }
 
@@ -46,7 +51,7 @@ impl Desugar {
         *self.variables.get(name).expect("undefined variable")
     }
 
-    fn alloc_function(&mut self, name: &str) -> FunctionId {
+    pub fn alloc_function(&mut self, name: &'a str) -> FunctionId {
         if let Some(id) = self.functions.get(name) {
             return *id;
         }
@@ -55,7 +60,7 @@ impl Desugar {
             id: FunctionType::UserDefined(self.next_function),
         };
         self.next_function += 1;
-        self.functions.insert(name.to_string(), id);
+        self.functions.insert(name, id);
         id
     }
 
@@ -77,7 +82,7 @@ impl Desugar {
         self.resolve_built_in(name)
     }
 
-    fn lower_item(&mut self, item: &Spanned<Item>) -> HIRModule {
+    fn lower_item(&mut self, item: &'a Spanned<Item>) -> HIRModule {
         let mut functions = Vec::new();
         let mut globals = Vec::new();
 
@@ -99,9 +104,9 @@ impl Desugar {
 
     fn lower_function(
         &mut self,
-        name: &str,
-        params: &[Spanned<FunctionParam>],
-        body: Option<&SpannedBox<Expression>>,
+        name: &'a str,
+        params: &'a [Spanned<FunctionParam>],
+        body: Option<&'a SpannedBox<Expression>>,
     ) -> HIRFunction {
         const DEFAULT_TYPE: TypeId = TypeId(0);
 
@@ -122,7 +127,7 @@ impl Desugar {
         let body = body
             .map(|b| self.lower_block_expr(&b))
             .unwrap_or_else(|| HIRBlock {
-                statements: vec![],
+                statements: Vec::new(),
                 result: None,
             });
 
@@ -134,7 +139,7 @@ impl Desugar {
         }
     }
 
-    fn lower_block_expr(&mut self, expr: &SpannedBox<Expression>) -> HIRBlock {
+    fn lower_block_expr(&mut self, expr: &'a SpannedBox<Expression>) -> HIRBlock {
         match expr.get_node() {
             Expression::Block(statements) => {
                 let mut hir_statements = Vec::new();
@@ -150,88 +155,29 @@ impl Desugar {
                 }
             }
             _ => HIRBlock {
-                statements: vec![],
+                statements: Vec::new(),
                 result: Some(Box::new(self.lower_expr(expr))),
             },
         }
     }
 
-    fn lower_statement(&mut self, statement: &Spanned<Statement>) -> Option<HIRStatement> {
+    fn lower_statement(&mut self, statement: &'a Spanned<Statement>) -> Option<HIRStatement> {
         const DEFAULT_TYPE: TypeId = TypeId(0);
 
         match statement.get_node() {
-            Statement::Let {
-                name, initializer, ..
-            } => {
-                let Pattern::Identifier { ident, .. } = &name.node else {
-                    return None;
-                };
-                let sym = self.alloc_symbol(&ident);
-                let init = initializer.as_ref().map(|e| self.lower_expr(&e));
-
-                Some(HIRStatement::Let {
-                    symbol: sym,
-                    ty: DEFAULT_TYPE,
-                    init,
-                })
-            }
-
             Statement::Expression(expr) => Some(HIRStatement::Expr(self.lower_expr(&expr))),
 
             _ => None,
         }
     }
 
-    fn lower_expr(&mut self, expr: &SpannedBox<Expression>) -> HIRExpression {
-        match expr.get_node() {
-            Expression::Literal(l) => self.lower_literal(l),
+    // 削除
+    fn lower_expr(&mut self, expr: &'a Expression) -> HIRExpression {
+        match expr {
             Expression::Path(path) => {
                 let name = path.node.last_ident();
                 HIRExpression::Variable(self.resolve_symbol(name))
             }
-            Expression::Binary {
-                operator,
-                left,
-                right,
-            } => HIRExpression::BinOp {
-                op: operator.clone(),
-                lhs: Box::new(self.lower_expr(&left)),
-                rhs: Box::new(self.lower_expr(&right)),
-            },
-            // 脱糖
-            // +=, -= など
-            Expression::Assign {
-                operator,
-                left,
-                right,
-            } => self.lower_assign(operator, &left, &right),
-            Expression::Call {
-                function,
-                arguments,
-            } => {
-                let name = match &*function.node {
-                    Expression::Path(path) => path.node.last_ident(),
-                    _ => panic!("unsupported call"),
-                };
-
-                HIRExpression::Call {
-                    function: self.resolve_function(&name),
-                    args: arguments.into_iter().map(|a| self.lower_expr(a)).collect(),
-                }
-            }
-
-            Expression::If {
-                condition,
-                then_body,
-                else_body,
-            } => HIRExpression::If {
-                cond: Box::new(self.lower_expr(condition)),
-                then_block: self.lower_block_expr(then_body),
-                else_block: else_body.as_ref().map(|e| self.lower_block_expr(&e)),
-            },
-
-            // while -> loop + if break
-            Expression::Loop(loop_expr) => self.lower_loop(loop_expr),
 
             Expression::Return(expr) => {
                 HIRExpression::Return(expr.as_ref().map(|e| Box::new(self.lower_expr(&e))))
@@ -245,88 +191,185 @@ impl Desugar {
         }
     }
 
-    fn lower_assign(
+    pub fn lower_let_statement(
         &mut self,
-        operator: &AssignOperator,
-        left: &SpannedBox<Expression>,
-        right: &SpannedBox<Expression>,
-    ) -> HIRExpression {
-        let target_name = match &*left.node {
-            Expression::Path(path) => path.node.last_ident(),
-            _ => panic!("unsupported assign target"),
+        pattern: &Pattern,
+        initializer: Option<HIRExpression>,
+    ) -> DesugarResult<Option<HIRStatement>> {
+        let Pattern::Identifier { ident, .. } = pattern else {
+            return Ok(None);
+        };
+        let symbol = self.alloc_symbol(&ident);
+        let init = initializer.as_ref().map(|e| self.lower_expr(&e));
+
+        let hir = HIRStatement::Let {
+            symbol,
+            ty: INITIAL_ID,
+            init,
         };
 
-        let sym = self.resolve_symbol(&target_name);
-        let rhs = self.lower_expr(right);
+        Ok(Some(hir))
+    }
 
-        match operator {
+    pub fn lower_binary_operator(
+        &mut self,
+        operator: BinaryOperator,
+        lhs: HIRExpression,
+        rhs: HIRExpression,
+    ) -> DesugarResult<HIRExpression> {
+        let hir = HIRExpression::BinOp {
+            op: operator,
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
+        };
+        Ok(hir)
+    }
+
+    // a += b, a -= b
+    // などを以下のように分解する
+    // a = a + b
+    // a = a - b
+    pub fn lower_assign_operator(
+        &mut self,
+        operator: AssignOperator,
+        lhs: HIRExpression,
+        rhs: HIRExpression,
+    ) -> DesugarResult<HIRExpression> {
+        let HIRExpression::Store { target, value: _ } = lhs else {
+            return Err(DesugarError::UnsupportAssignTarget);
+        };
+
+        let operator = match operator {
+            AssignOperator::AddAssign => BinaryOperator::Addition,
+            AssignOperator::SubAssign => BinaryOperator::Subtract,
+            AssignOperator::MulAssign => BinaryOperator::Multiply,
+            AssignOperator::DivAssign => BinaryOperator::Divide,
+            AssignOperator::ModAssign => BinaryOperator::Modulo,
+            AssignOperator::AndAssign => BinaryOperator::And,
+            AssignOperator::OrAssign => BinaryOperator::Or,
+            AssignOperator::XorAssign => BinaryOperator::Xor,
+            AssignOperator::LeftShiftAssign => BinaryOperator::LeftShift,
+            AssignOperator::RightShiftAssign => BinaryOperator::RightShift,
             AssignOperator::Assign => {
-                return HIRExpression::Store {
-                    target: sym,
+                return Ok(HIRExpression::Store {
+                    target,
                     value: Box::new(rhs),
-                };
+                });
             }
-            _ => {
-                let operator = match operator {
-                    AssignOperator::AddAssign => BinaryOperator::Addition,
-                    AssignOperator::SubAssign => BinaryOperator::Subtract,
-                    AssignOperator::MulAssign => BinaryOperator::Multiply,
-                    AssignOperator::DivAssign => BinaryOperator::Divide,
-                    AssignOperator::ModAssign => BinaryOperator::Modulo,
-                    AssignOperator::AndAssign => BinaryOperator::And,
-                    AssignOperator::OrAssign => BinaryOperator::Or,
-                    AssignOperator::XorAssign => BinaryOperator::Xor,
-                    AssignOperator::LeftShiftAssign => BinaryOperator::LeftShift,
-                    AssignOperator::RightShiftAssign => BinaryOperator::RightShift,
-                    AssignOperator::Assign => unreachable!(),
-                };
+        };
 
-                let lhs_expr = HIRExpression::Variable(sym);
-                HIRExpression::Store {
-                    target: sym,
-                    value: Box::new(HIRExpression::BinOp {
-                        op: operator,
-                        lhs: Box::new(lhs_expr),
-                        rhs: Box::new(rhs),
-                    }),
-                }
-            }
-        }
+        let lhs = HIRExpression::Variable(target);
+        let hir = HIRExpression::Store {
+            target,
+            value: Box::new(HIRExpression::BinOp {
+                op: operator,
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+            }),
+        };
+
+        Ok(hir)
     }
 
-    fn lower_loop(&mut self, loop_expr: &Spanned<LoopExpr>) -> HIRExpression {
-        match &loop_expr.node {
-            LoopExpr::Loop { body } => HIRExpression::Loop {
-                body: self.lower_block_expr(body),
-            },
-
-            LoopExpr::While { condition, body } => {
-                // while -> loop { if !cond { break } body }
-                let cond_expr = self.lower_expr(condition);
-                let break_statement = HIRStatement::Expr(HIRExpression::Break(None));
-
-                let if_expr = HIRExpression::If {
-                    cond: Box::new(cond_expr),
-                    then_block: self.lower_block_expr(body),
-                    else_block: Some(HIRBlock {
-                        statements: vec![break_statement],
-                        result: None,
-                    }),
-                };
-
-                HIRExpression::Loop {
-                    body: HIRBlock {
-                        statements: vec![HIRStatement::Expr(if_expr)],
-                        result: None,
-                    },
-                }
-            }
-            _ => unimplemented!(),
-        }
+    pub fn lower_comparison_operator(
+        &mut self,
+        operator: ComparisonOperator,
+        lhs: HIRExpression,
+        rhs: HIRExpression,
+    ) -> DesugarResult<HIRExpression> {
+        let hir = HIRExpression::CmpOp {
+            op: operator,
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
+        };
+        Ok(hir)
     }
 
-    fn lower_literal(&mut self, literal: &Spanned<Literal>) -> HIRExpression {
-        let value = match &literal.node {
+    pub fn lower_logical_operator(
+        &mut self,
+        operator: LogicalOperator,
+        lhs: HIRExpression,
+        rhs: HIRExpression,
+    ) -> DesugarResult<HIRExpression> {
+        // TODO
+
+        let hir = HIRExpression::CmpOp {
+            op: ComparisonOperator::Equal,
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
+        };
+
+        Ok(hir)
+    }
+
+    pub fn lower_call(
+        &mut self,
+        function: HIRExpression,
+        arguments: Vec<HIRExpression>,
+    ) -> DesugarResult<HIRExpression> {
+        let HIRExpression::Variable(id) = function else {
+            return Err(DesugarError::NotFunction);
+        };
+
+        let hir = HIRExpression::Call {
+            function: Box::new(function),
+            args: arguments,
+        };
+
+        Ok(hir)
+    }
+
+    pub fn lower_if_statement(
+        &mut self,
+        condition: HIRExpression,
+        then_body: HIRExpression,
+        else_body: Option<HIRExpression>,
+    ) -> DesugarResult<HIRExpression> {
+        let hir = HIRExpression::If {
+            cond: Box::new(condition),
+            then_block: Box::new(then_body),
+            else_block: else_body.map(|e| Box::new(e)),
+        };
+
+        Ok(hir)
+    }
+
+    pub fn lower_loop(&mut self, body: HIRExpression) -> DesugarResult<HIRExpression> {
+        let hir = HIRExpression::Loop {
+            body: Box::new(body),
+        };
+        Ok(hir)
+    }
+
+    pub fn lower_while(
+        &mut self,
+        condition: HIRExpression,
+        body: HIRExpression,
+    ) -> DesugarResult<HIRExpression> {
+        // while cond { body }
+        // を以下のようにする
+        // loop { if cond { body } else { break } }
+        let if_expr = HIRExpression::If {
+            cond: Box::new(condition),
+            then_block: Box::new(body),
+            else_block: Some(Box::new(HIRExpression::Block {
+                statements: vec![HIRStatement::Expr(HIRExpression::Break(None))],
+                result: None,
+            })),
+        };
+
+        let hir = HIRExpression::Loop {
+            body: Box::new(HIRExpression::Block {
+                statements: vec![HIRStatement::Expr(if_expr)],
+                result: None,
+            }),
+        };
+
+        Ok(hir)
+    }
+
+    pub fn lower_literal(&mut self, literal: &Literal) -> DesugarResult<HIRExpression> {
+        let value = match literal {
             Literal::Integer { value, value_type } => Value::Integer(match value_type {
                 TypeKind::Primitive(ty) => Integer::new(&value, ty).expect(""),
                 _ => unimplemented!(), // TODO
@@ -340,6 +383,6 @@ impl Desugar {
             _ => unimplemented!(),
         };
 
-        HIRExpression::Literal(value)
+        Ok(HIRExpression::Literal(value))
     }
 }

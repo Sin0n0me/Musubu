@@ -1,11 +1,10 @@
+use crate::{ResolveResult, errors::ResolveError};
 use alloc::vec::Vec;
+use core::iter::once;
 use musubu_name_space::*;
 use musubu_primitive::{PrimitiveType, ToPrimitiveType};
 use musubu_scope::errors::ScopeError;
 use musubu_scope::*;
-use musubu_type_check::errors::TypeCheckError;
-
-use crate::{ResolveResult, errors::ResolveError};
 
 #[derive(Debug)]
 pub struct NameResolver<'a> {
@@ -140,8 +139,6 @@ impl<'a> NameResolver<'a> {
 
     pub fn get_type(&self, name: &'a str) -> Option<&TypeSymbol> {
         // 変数や型が優先される
-        if let Some(a) = PrimitiveType::from(name) {}
-
         if let Some(symbol) = self.get_scope()?.get_type(name) {
             return Some(symbol);
         }
@@ -158,6 +155,14 @@ impl<'a> NameResolver<'a> {
 
     pub(crate) fn get_mut_scope(&mut self) -> Option<&mut Scope<'a>> {
         self.scope_stack.last_mut()
+    }
+
+    pub(crate) fn get_full_path(&self, name: &'a str) -> Vec<&'a str> {
+        self.current_module_path
+            .iter()
+            .copied()
+            .chain(once(name))
+            .collect()
     }
 
     fn get_top_level_module(&self) -> Option<&Module<'a>> {
