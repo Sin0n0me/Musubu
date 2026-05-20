@@ -1,8 +1,8 @@
 use crate::errors::ResolveError;
-use crate::{HIR, Lowered, ResolveResult, Resolver};
+use crate::{Lowered, ResolveResult, Resolver};
 use alloc::string::ToString;
 use musubu_ast::*;
-use musubu_hir::{HIRExpression, HIRFunction, HIRStatement};
+use musubu_hir::{HIRBlock, HIRExpression, HIRFunction, HIRStatement};
 use musubu_name_space::errors::NameSpaceError;
 use musubu_name_space::{FunctionItem, ItemStoreReader};
 use musubu_primitive::{BinaryOperator, ComparisonOperator};
@@ -87,10 +87,10 @@ impl<'a> Resolver<'a> {
                 };
             }
 
-            s.resolve_expression(&body_expr)
+            s.resolve_expression(body_expr)
         })?;
 
-        self.desuger;
+        //self.desuger.alloc_function(name);
 
         Ok(())
     }
@@ -123,11 +123,17 @@ impl<'a> Resolver<'a> {
 
     fn resolve_expression(
         &mut self,
-        expression: Spanned<&'a Expression>,
+        expression: &Spanned<&'a Expression>,
     ) -> ResolveResult<Lowered<HIRExpression>> {
-        let ty = match expression.node {
+        let lowered = match expression.get_node() {
             Expression::Literal(literal) => self.resolve_literal(literal.as_ref_spanned())?,
-            Expression::Path(path) => self.resolve_path(path.as_ref_spanned())?,
+            Expression::Path(path) => {
+                let (hir, type_symbol) = self.resolve_path(path.as_ref_spanned())?.split();
+                let Some(hir) = hir else {
+                    return Err(ResolveError::ExpectedValuePathButFoundType);
+                };
+                Lowered { type_symbol, hir }
+            }
             Expression::Binary {
                 left,
                 right,
@@ -169,9 +175,19 @@ impl<'a> Resolver<'a> {
                 arguments,
             } => self.resolve_call_expression(
                 function.as_ref_spanned(),
-                arguments.iter().map(|arg| arg.as_ref_spanned()).collect(),
+                arguments
+                    .iter()
+                    .map(|arg| arg.as_ref_spanned())
+                    .collect::<Vec<_>>()
+                    .as_slice(),
             )?,
-            Expression::Block(statements) => self.resolve_block(statements)?,
+            Expression::Block(statements) => {
+                let (hir, type_symbol) = self.resolve_block(statements)?.split();
+                Lowered {
+                    hir: HIRExpression::Block(hir),
+                    type_symbol,
+                }
+            }
             Expression::If {
                 condition,
                 then_body,
@@ -181,7 +197,7 @@ impl<'a> Resolver<'a> {
                 then_body.as_ref_spanned(),
                 else_body.as_ref().map(|body| body.as_ref_spanned()),
             )?,
-            Expression::Loop(loop_expr) => self.resolve_loop(&loop_expr.as_ref_spanned())?,
+            Expression::Loop(loop_expr) => self.resolve_loop(loop_expr.as_ref_spanned())?,
             Expression::Return(expr_opt) => {
                 self.resolve_return(expr_opt.as_ref().map(|expr| expr.as_ref_spanned()))?
             }
@@ -195,17 +211,44 @@ impl<'a> Resolver<'a> {
                 let i = self.resolve_expression(&index.as_ref_spanned())?;
                 p
             }
-            Expression::Continue { .. } => TypeSymbol::default(),
-            Expression::Break { expression, .. } => {
-                if let Some(expr) = expression {
-                    self.resolve_expression(&expr.as_ref_spanned())?
-                } else {
-                    TypeSymbol::default()
-                }
+            Expression::Continue { label } => {
+                self.resolve_continue(label.as_ref().map(|s| s.as_str()))?
             }
+            Expression::Break { label, expression } => self.resolve_break(
+                label.as_ref().map(|s| s.as_str()),
+                expression.as_ref().map(|expr| expr.as_ref_spanned()),
+            )?,
         };
 
-        Ok(ty)
+        Ok(lowered)
+    }
+
+    fn resolve_break(
+        &mut self,
+        _label: Option<&'a str>,
+        expression: Option<Spanned<&'a Expression>>,
+    ) -> ResolveResult<Lowered<HIRExpression>> {
+        let (expr_hir, expr_type) = if let Some(expr) = expression {
+            let (hir, ty) = self.resolve_expression(&expr)?.split();
+            (Some(hir), Some(ty))
+        } else {
+            (None, None)
+        };
+
+        let type_symbol = expr_type.unwrap_or_default();
+        let hir = self.desuger.lower_break(expr_hir)?;
+
+        Ok(Lowered { type_symbol, hir })
+    }
+
+    fn resolve_continue(
+        &mut self,
+        _label: Option<&'a str>,
+    ) -> ResolveResult<Lowered<HIRExpression>> {
+        let type_symbol = TypeSymbol::default();
+        let hir = self.desuger.lower_continue()?;
+
+        Ok(Lowered { type_symbol, hir })
     }
 
     fn resolve_binary_operator(
@@ -214,8 +257,8 @@ impl<'a> Resolver<'a> {
         left: Spanned<&'a Expression>,
         right: Spanned<&'a Expression>,
     ) -> ResolveResult<Lowered<HIRExpression>> {
-        let lhs = self.resolve_expression(left)?;
-        let rhs = self.resolve_expression(right)?;
+        let lhs = self.resolve_expression(&left)?;
+        let rhs = self.resolve_expression(&right)?;
 
         let type_symbol =
             self.type_checker
@@ -233,8 +276,8 @@ impl<'a> Resolver<'a> {
         left: Spanned<&'a Expression>,
         right: Spanned<&'a Expression>,
     ) -> ResolveResult<Lowered<HIRExpression>> {
-        let lhs = self.resolve_expression(left)?;
-        let rhs = self.resolve_expression(right)?;
+        let lhs = self.resolve_expression(&left)?;
+        let rhs = self.resolve_expression(&right)?;
 
         let type_symbol =
             self.type_checker
@@ -252,8 +295,8 @@ impl<'a> Resolver<'a> {
         left: Spanned<&'a Expression>,
         right: Spanned<&'a Expression>,
     ) -> ResolveResult<Lowered<HIRExpression>> {
-        let lhs = self.resolve_expression(left)?;
-        let rhs = self.resolve_expression(right)?;
+        let lhs = self.resolve_expression(&left)?;
+        let rhs = self.resolve_expression(&right)?;
 
         let type_symbol = self.type_checker.check_comparison_operator(
             operator,
@@ -273,8 +316,8 @@ impl<'a> Resolver<'a> {
         left: Spanned<&'a Expression>,
         right: Spanned<&'a Expression>,
     ) -> ResolveResult<Lowered<HIRExpression>> {
-        let lhs = self.resolve_expression(left)?;
-        let rhs = self.resolve_expression(right)?;
+        let lhs = self.resolve_expression(&left)?;
+        let rhs = self.resolve_expression(&right)?;
 
         let type_symbol =
             self.type_checker
@@ -289,12 +332,12 @@ impl<'a> Resolver<'a> {
     fn resolve_call_expression(
         &mut self,
         function: Spanned<&'a Expression>,
-        arguments: Vec<Spanned<&'a Expression>>,
+        arguments: &[Spanned<&'a Expression>],
     ) -> ResolveResult<Lowered<HIRExpression>> {
-        let call = self.resolve_expression(function)?;
+        let call = self.resolve_expression(&function)?;
         let args = arguments
             .into_iter()
-            .map(|arg| self.resolve_expression(arg))
+            .map(|arg| self.resolve_expression(&arg))
             .collect::<Result<Vec<_>, ResolveError>>()?;
 
         let function = function.get_node();
@@ -305,7 +348,10 @@ impl<'a> Resolver<'a> {
 
         let type_symbol = self.type_checker.check_function_call(
             &call.type_symbol,
-            args.iter().map(|l| &l.type_symbol).collect(),
+            args.iter()
+                .map(|l| &l.type_symbol)
+                .collect::<Vec<_>>()
+                .as_slice(),
         )?;
         let hir = self
             .desuger
@@ -317,13 +363,12 @@ impl<'a> Resolver<'a> {
     fn resolve_block(
         &mut self,
         statements: &'a [Spanned<Statement>],
-    ) -> ResolveResult<Lowered<HIRExpression>> {
+    ) -> ResolveResult<Lowered<HIRBlock>> {
         if statements.is_empty() {
             return Ok(Lowered {
                 type_symbol: TypeSymbol::default(),
-                hir: HIRExpression::Block {
+                hir: HIRBlock {
                     statements: Vec::new(),
-                    result: TypeSymbol::default(),
                 },
             });
         }
@@ -334,14 +379,14 @@ impl<'a> Resolver<'a> {
             for statement in statements {
                 if let Some(stat) = s.resolve_statement(statement.as_ref_spanned())? {
                     hir_statements.push(stat.hir);
+                    return_type = stat.type_symbol;
                 }
             }
 
             let hir = Lowered {
-                type_symbol: return_type.clone(),
-                hir: HIRExpression::Block {
+                type_symbol: return_type,
+                hir: HIRBlock {
                     statements: hir_statements,
-                    result: return_type,
                 },
             };
 
@@ -354,100 +399,160 @@ impl<'a> Resolver<'a> {
         condition: Spanned<&'a Expression>,
         then_body: Spanned<&'a Expression>,
         else_body: Option<Spanned<&'a Expression>>,
-    ) -> ResolveResult<TypeSymbol> {
-        let condition_ty = self.resolve_expression(condition)?;
-        let then_body = self.enter_scope(|s| s.resolve_expression(then_body))?;
-        let else_body = if let Some(expr) = else_body {
-            let return_type = self.enter_scope(|s| s.resolve_expression(&expr))?;
-            Some(return_type)
+    ) -> ResolveResult<Lowered<HIRExpression>> {
+        let condition = self.resolve_expression(&condition)?;
+        let then_body = self.resolve_expression(&then_body)?;
+        let (else_body_hir, else_body_type) = if let Some(expr) = else_body {
+            let (hir, ty) = self.resolve_expression(&expr)?.split();
+            (Some(hir), Some(ty))
         } else {
-            None
+            (None, None)
         };
 
-        let return_type =
-            self.type_checker
-                .check_if_statement(condition_ty, then_body, else_body)?;
+        let type_symbol = self.type_checker.check_if_statement(
+            condition.type_symbol,
+            then_body.type_symbol,
+            else_body_type,
+        )?;
+        let hir = self.desuger.lower_if_statement(
+            condition.hir,
+            then_body.hir.to_block(),
+            else_body_hir.map(|l| l.to_block()),
+        )?;
 
-        Ok(return_type)
+        Ok(Lowered { type_symbol, hir })
     }
 
     fn resolve_return(
         &mut self,
         expression: Option<Spanned<&'a Expression>>,
-    ) -> ResolveResult<TypeSymbol> {
-        let return_type = if let Some(expr) = expression {
-            self.resolve_expression(&expr)?
+    ) -> ResolveResult<Lowered<HIRExpression>> {
+        let (expr_hir, expr_ty) = if let Some(expr) = expression {
+            let (hir, ty) = self.resolve_expression(&expr)?.split();
+            (Some(hir), Some(ty))
         } else {
-            TypeSymbol::default()
+            (None, None)
         };
-        let return_type = self.type_checker.check_return(return_type)?;
 
-        Ok(return_type)
+        let type_symbol = self.type_checker.check_return(expr_ty)?;
+        let hir = self.desuger.lower_retrun(expr_hir)?;
+
+        Ok(Lowered { type_symbol, hir })
     }
 
     fn resolve_field_access(
         &mut self,
         expression: &Spanned<&'a Expression>,
         field_name: &'a str,
-    ) -> ResolveResult<TypeSymbol> {
-        Ok(TypeSymbol::default())
+    ) -> ResolveResult<Lowered<HIRExpression>> {
+        unimplemented!()
+        //Ok(Lowered { type_symbol, hir })
     }
 
-    fn resolve_method_call(&mut self, method: &'a MethodCall) -> ResolveResult<TypeSymbol> {
+    fn resolve_method_call(
+        &mut self,
+        method: &'a MethodCall,
+    ) -> ResolveResult<Lowered<HIRExpression>> {
         for param in &method.params {
             self.resolve_expression(&param.as_ref_spanned())?;
         }
 
-        Ok(TypeSymbol::default())
+        unimplemented!();
+        // Ok(Lowered { type_symbol, hir })
     }
 
-    fn resolve_array(&mut self, elements: &'a ArrayElements) -> ResolveResult<TypeSymbol> {
+    fn resolve_array(
+        &mut self,
+        elements: &'a ArrayElements,
+    ) -> ResolveResult<Lowered<HIRExpression>> {
         match elements {
-            ArrayElements::List(list) => {
-                for expr in list {
-                    self.resolve_expression(expr.as_ref_spanned())?;
-                }
-            }
+            ArrayElements::List(list) => self.resolve_array_list(
+                list.iter()
+                    .map(|expr| expr.as_ref_spanned())
+                    .collect::<Vec<_>>()
+                    .as_slice(),
+            ),
             ArrayElements::Repeat { value, count } => {
-                self.resolve_expression(value.as_ref_spanned())?;
-                self.resolve_expression(count.as_ref_spanned())?;
+                self.resolve_array_repeat(value.as_ref_spanned(), count.as_ref_spanned())
             }
         }
-
-        Ok(TypeSymbol::default())
     }
 
-    fn resolve_path(&mut self, path: Spanned<&'a Path>) -> ResolveResult<TypeSymbol> {
+    fn resolve_array_list(
+        &mut self,
+        list: &[Spanned<&'a Expression>],
+    ) -> ResolveResult<Lowered<HIRExpression>> {
+        for expr in list {
+            self.resolve_expression(&expr)?;
+        }
+
+        unimplemented!();
+
+        //Ok(Lowered { type_symbol, hir })
+    }
+
+    fn resolve_array_repeat(
+        &mut self,
+        value: Spanned<&'a Expression>,
+        count: Spanned<&'a Expression>,
+    ) -> ResolveResult<Lowered<HIRExpression>> {
+        unimplemented!()
+        //Ok(Lowered { type_symbol, hir })
+    }
+
+    fn resolve_path(
+        &mut self,
+        path: Spanned<&'a Path>,
+    ) -> ResolveResult<Lowered<Option<HIRExpression>>> {
         //
         let path = path.node;
-        let last_name = path.last_ident();
+        let name = path.last_ident();
 
-        // 変数が優先される
-        if let Some(symbol) = self.name_resolver.get_type(last_name).cloned() {
-            return Ok(symbol);
+        let Some(type_symbol) = self.name_resolver.get_type(name).cloned() else {
+            return Err(ResolveError::UnresolvePath {
+                name: name.to_string(),
+            });
+        };
+
+        if self.name_resolver.is_variable(name) {
+            let hir = self
+                .desuger
+                .lower_path(name, type_symbol.type_kind.clone())?;
+            return Ok(Lowered {
+                type_symbol,
+                hir: Some(hir),
+            });
+        }
+
+        if self.name_resolver.is_type(name) {
+            return Ok(Lowered {
+                type_symbol,
+                hir: None,
+            });
         }
 
         Err(ResolveError::UnresolvePath {
-            name: last_name.to_string(),
+            name: name.to_string(),
         })
     }
 
     fn resolve_literal(
         &mut self,
         spanned_literal: Spanned<&'a Literal>,
-    ) -> ResolveResult<Lowered<Expression>> {
+    ) -> ResolveResult<Lowered<HIRExpression>> {
+        // TODO
         let literal = &spanned_literal.node;
         match literal {
-            Literal::Float { value, .. } => {}
-            Literal::Integer { value, .. } => {}
-            Literal::Char { value, .. } => {}
-            Literal::UnicodeChar { value, .. } => {}
-            Literal::String { value, .. } => {}
+            Literal::Float { value: _, .. } => {}
+            Literal::Integer { value: _, .. } => {}
+            Literal::Char { value: _, .. } => {}
+            Literal::UnicodeChar { value: _, .. } => {}
+            Literal::String { value: _, .. } => {}
             Literal::Bool(_) => {}
         };
 
         let scope = self.get_scope()?;
-        let ty = self.type_checker.check_literal(scope, literal)?;
+        let type_symbol = self.type_checker.check_literal(scope, literal)?;
         let hir = self.desuger.lower_literal(literal)?;
 
         Ok(Lowered { type_symbol, hir })
@@ -457,13 +562,14 @@ impl<'a> Resolver<'a> {
         &mut self,
         statement: Spanned<&'a Statement>,
     ) -> ResolveResult<Option<Lowered<HIRStatement>>> {
-        let hir = match statement.get_node() {
+        match statement.get_node() {
             Statement::Expression(expr) => {
-                let expr = self.resolve_expression(expr.as_ref_spanned())?;
-                Lowered {
-                    type_symbol: expr.type_symbol,
-                    hir: HIRStatement::Expr(expr.hir),
-                }
+                let (hir, type_symbol) = self.resolve_expression(&expr.as_ref_spanned())?.split();
+
+                Ok(Some(Lowered {
+                    type_symbol,
+                    hir: hir.to_statement(),
+                }))
             }
             Statement::Let {
                 name,
@@ -471,25 +577,23 @@ impl<'a> Resolver<'a> {
                 variable_type,
                 label,
             } => {
-                let let_stat = self.resolve_let_statement(
-                    name,
-                    initializer.as_ref().map(|expr| expr.as_ref_spanned()),
-                    variable_type.as_ref().map(|expr| expr.as_ref_spanned()),
-                    label.as_ref().map(|s| s.as_str()),
-                )?;
-                Lowered {
-                    type_symbol: let_stat.type_symbol,
-                    hir: HIRStatement::Let(let_stat.hir),
-                }
+                let (hir, type_symbol) = self
+                    .resolve_let_statement(
+                        name,
+                        initializer.as_ref().map(|expr| expr.as_ref_spanned()),
+                        variable_type.as_ref().map(|expr| expr.as_ref_spanned()),
+                        label.as_ref().map(|s| s.as_str()),
+                    )?
+                    .split();
+
+                Ok(hir.map(|hir| Lowered { type_symbol, hir }))
             }
             Statement::Item(item) => {
                 self.resolve_item(item.as_ref_spanned())?;
-                return Ok(None);
+                Ok(None)
             }
-            Statement::Semicolon => return Ok(None),
-        };
-
-        Ok(Some(hir))
+            Statement::Semicolon => Ok(None),
+        }
     }
 
     fn resolve_let_statement(
@@ -507,29 +611,29 @@ impl<'a> Resolver<'a> {
         };
 
         // 初期化式
-        let initializer = if let Some(init_expr) = initializer {
-            Some(self.resolve_expression(init_expr)?)
+        let (initializer_hir, initializer_type) = if let Some(init_expr) = initializer {
+            let (hir, ty) = self.resolve_expression(&init_expr)?.split();
+            (Some(hir), Some(ty))
         } else {
-            None
+            (None, None)
         };
 
         // パターン
         let pattern = name.as_ref_spanned();
-        let type_kind = variable_type.as_ref().or(initializer.as_ref());
-        self.resolve_pattern(&pattern, type_kind)?;
-
-        let (init_ty, init_hir) = initializer
-            .map(|l| (Some(l.type_symbol), Some(l.hir)))
-            .unwrap_or((None, None));
+        let type_kind = variable_type.as_ref().or(initializer_type.as_ref());
+        let _ = self.resolve_pattern(&pattern, type_kind)?;
 
         // 型チェック
         let scope = self.get_scope()?;
-        let type_symbol =
-            self.type_checker
-                .check_let_statenent(scope, &name.node, init_ty, variable_type)?;
+        let type_symbol = self.type_checker.check_let_statenent(
+            scope,
+            &name.node,
+            initializer_type,
+            variable_type,
+        )?;
         let hir = self
             .desuger
-            .lower_let_statement(pattern.get_node(), init_hir)?;
+            .lower_let_statement(pattern.get_node(), initializer_hir)?;
 
         // TODO: 推論中
         let Some(type_symbol) = type_symbol else {
@@ -591,27 +695,78 @@ impl<'a> Resolver<'a> {
         Ok(ty)
     }
 
-    fn resolve_loop(&mut self, loop_expr: &Spanned<&'a LoopExpr>) -> ResolveResult<TypeSymbol> {
+    fn resolve_loop(
+        &mut self,
+        loop_expr: Spanned<&'a LoopExpr>,
+    ) -> ResolveResult<Lowered<HIRExpression>> {
         match &loop_expr.node {
-            LoopExpr::Loop { body } => {
-                self.resolve_expression(&body.as_ref_spanned())?;
-            }
+            LoopExpr::Loop { body } => self.resolve_loop_expr(body.as_ref_spanned()),
             LoopExpr::While { condition, body } => {
-                self.resolve_expression(&condition.as_ref_spanned())?;
-                self.resolve_expression(&body.as_ref_spanned())?;
+                self.resolve_while_expr(condition.as_ref_spanned(), body.as_ref_spanned())
             }
             LoopExpr::For {
                 pattern,
                 iterator,
                 body,
-            } => {
-                self.resolve_expression(&iterator.as_ref_spanned())?;
-                self.resolve_expression(&body.as_ref_spanned())?;
-                self.resolve_pattern(&pattern.as_ref_spanned(), None)?; // TODO
-            }
+            } => self.resolve_for_expr(
+                pattern.as_ref_spanned(),
+                iterator.as_ref_spanned(),
+                body.as_ref_spanned(),
+            ),
         }
+    }
 
-        Ok(TypeSymbol::default())
+    fn resolve_loop_expr(
+        &mut self,
+        body: Spanned<&'a Expression>,
+    ) -> ResolveResult<Lowered<HIRExpression>> {
+        let (body_hir, body_ty) = self.resolve_expression(&body)?.split();
+
+        let scope = self.get_scope()?;
+        let type_symbol = self.type_checker.check_loop_expr(scope, body_ty)?;
+        let hir = self.desuger.lower_loop(body_hir.to_block())?;
+
+        Ok(Lowered { type_symbol, hir })
+    }
+
+    fn resolve_while_expr(
+        &mut self,
+        condition: Spanned<&'a Expression>,
+        body: Spanned<&'a Expression>,
+    ) -> ResolveResult<Lowered<HIRExpression>> {
+        let (condition_hir, condition_ty) = self.resolve_expression(&condition)?.split();
+        let (body_hir, body_ty) = self.resolve_expression(&body)?.split();
+
+        let scope = self.get_scope()?;
+        let type_symbol = self
+            .type_checker
+            .check_while_expr(scope, condition_ty, body_ty)?;
+        let hir = self
+            .desuger
+            .lower_while(condition_hir, body_hir.to_block())?;
+
+        Ok(Lowered { type_symbol, hir })
+    }
+
+    fn resolve_for_expr(
+        &mut self,
+        pattern: Spanned<&'a Pattern>,
+        iterator: Spanned<&'a Expression>,
+        body: Spanned<&'a Expression>,
+    ) -> ResolveResult<Lowered<HIRExpression>> {
+        let (iterrator_hir, iterrator_ty) = self.resolve_expression(&iterator)?.split();
+        let (body_hir, body_ty) = self.resolve_expression(&body)?.split();
+        let _ = self.resolve_pattern(&pattern, None)?; // TODO
+
+        let scope = self.get_scope()?;
+        let type_symbol = self
+            .type_checker
+            .check_for_expr(scope, iterrator_ty, body_ty)?;
+        let hir = self
+            .desuger
+            .lower_for(pattern.get_node(), iterrator_hir, body_hir.to_block())?;
+
+        Ok(Lowered { type_symbol, hir })
     }
 
     fn resolve_type(&mut self, type_kind: Spanned<&'a TypeKind>) -> ResolveResult<TypeSymbol> {

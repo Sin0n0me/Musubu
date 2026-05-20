@@ -82,6 +82,14 @@ impl<'a> SymbolStore<'a, ResolveError> for NameResolver<'a> {
         self.get_scope()?.get_type_option(name)
     }
 
+    fn is_variable(&self, name: &'a str) -> bool {
+        self.get_scope().is_some_and(|s| s.is_variable(name))
+    }
+
+    fn is_type(&self, name: &'a str) -> bool {
+        self.get_scope().is_some_and(|s| s.is_type(name))
+    }
+
     fn resolve_variable_type(
         &mut self,
         name: &'a str,

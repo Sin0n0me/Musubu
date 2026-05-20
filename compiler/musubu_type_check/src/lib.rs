@@ -253,21 +253,7 @@ impl TypeChecker {
         else_body: Option<TypeSymbol>,
     ) -> TypeCheckResult<TypeSymbol> {
         // 条件式
-        if !matches!(condition.type_kind, PrimitiveType::Boolean) {
-            return Err(TypeCheckError::TypeMismatch {
-                expected: PrimitiveType::Boolean,
-                found: condition.type_kind.clone(),
-            });
-        }
-
-        if condition.type_kind.is_pointer() {
-            return Err(TypeCheckError::TypeMismatch {
-                expected: PrimitiveType::Boolean,
-                found: PrimitiveType::Pointer {
-                    point: Box::new(condition.type_kind.clone()),
-                },
-            });
-        }
+        self.check_condition(condition)?;
 
         // 条件式の戻り型チェック
         let Some(else_body) = else_body else {
@@ -284,12 +270,13 @@ impl TypeChecker {
         Ok(then_body)
     }
 
-    pub fn check_return(&mut self, return_type: TypeSymbol) -> TypeCheckResult<TypeSymbol> {
+    pub fn check_return(&mut self, return_type: Option<TypeSymbol>) -> TypeCheckResult<TypeSymbol> {
         let expected = self
             .function_return_stack
             .last()
             .ok_or(TypeCheckError::InvalidReturnScope)?;
 
+        let return_type = return_type.unwrap_or_default();
         if !expected.is_same_type(&return_type) {
             return Err(TypeCheckError::FunctionReturnMismatch {
                 expected: expected.type_kind.clone(),
@@ -358,12 +345,83 @@ impl TypeChecker {
         let PrimitiveType::Function {
             return_type,
             arguments,
-        } = function.type_kind
+        } = &function.type_kind
         else {
             return Err(TypeCheckError::NotCallable {
                 found: function.type_kind.clone(),
             });
         };
+
+        // TODO
+
+        Ok(TypeSymbol::new(return_type.as_ref().clone()))
+    }
+
+    pub fn check_loop_expr<'a>(
+        &self,
+        scope: &Scope<'a>,
+        body: TypeSymbol,
+    ) -> TypeCheckResult<TypeSymbol> {
+        let expect = scope.get_return_type();
+        if !expect.is_same_type(&body) {
+            return Err(TypeCheckError::TypeMismatch {
+                expected: expect.type_kind.clone(),
+                found: body.type_kind,
+            });
+        }
+
+        Ok(body)
+    }
+
+    pub fn check_while_expr<'a>(
+        &self,
+        scope: &Scope<'a>,
+        condition: TypeSymbol,
+        body: TypeSymbol,
+    ) -> TypeCheckResult<TypeSymbol> {
+        self.check_condition(condition)?;
+        self.check_loop_expr(scope, body)
+    }
+
+    pub fn check_for_expr<'a>(
+        &self,
+        scope: &Scope<'a>,
+        iterator: TypeSymbol,
+        body: TypeSymbol,
+    ) -> TypeCheckResult<TypeSymbol> {
+        // TODO
+        if !iterator.type_kind.is_array() {
+            return Err(TypeCheckError::NotIterable {
+                found: iterator.type_kind,
+            });
+        }
+
+        if !body.type_kind.is_unit() {
+            return Err(TypeCheckError::TypeMismatch {
+                expected: PrimitiveType::Unit,
+                found: body.type_kind,
+            });
+        }
+
+        self.check_loop_expr(scope, body)
+    }
+
+    fn check_condition(&self, condition: TypeSymbol) -> TypeCheckResult<()> {
+        if !condition.type_kind.is_boolean() {
+            return Err(TypeCheckError::TypeMismatch {
+                expected: PrimitiveType::Boolean,
+                found: condition.type_kind.clone(),
+            });
+        }
+
+        if condition.is_reference() {
+            return Err(TypeCheckError::TypeMismatch {
+                expected: PrimitiveType::Boolean,
+                found: PrimitiveType::Pointer {
+                    point: Box::new(condition.type_kind.clone()),
+                },
+            });
+        }
 
         Ok(())
     }

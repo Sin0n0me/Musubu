@@ -8,6 +8,9 @@ pub enum TypeCheckError {
         expected: PrimitiveType,
         found: PrimitiveType,
     },
+    NotIterable {
+        found: PrimitiveType,
+    },
     NotMutable {
         name: String,
     },

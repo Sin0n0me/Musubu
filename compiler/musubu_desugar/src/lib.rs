@@ -24,6 +24,8 @@ pub struct Desugar<'a> {
     pub functions: BTreeMap<&'a str, FunctionId>,
 }
 
+// HIRに変換するだけ
+// あくまでASTからHIRできるかだけを見る
 impl<'a> Desugar<'a> {
     const INITIAL_ID: usize = 0;
 
@@ -82,39 +84,20 @@ impl<'a> Desugar<'a> {
         self.resolve_built_in(name)
     }
 
-    fn lower_item(&mut self, item: &'a Spanned<Item>) -> HIRModule {
-        let mut functions = Vec::new();
-        let mut globals = Vec::new();
-
-        match item.get_node() {
-            Item::Function {
-                name,
-                params,
-                return_type: _,
-                body,
-            } => {
-                let func = self.lower_function(name, params, body.as_ref());
-                functions.push(func);
-            }
-            _ => {}
-        }
-
-        HIRModule { functions, globals }
-    }
-
+    /*
     fn lower_function(
         &mut self,
         name: &'a str,
-        params: &'a [Spanned<FunctionParam>],
-        body: Option<&'a SpannedBox<Expression>>,
-    ) -> HIRFunction {
+        params: &[&FunctionParam],
+        body: Option<HIRBlock>,
+    ) -> DesugarResult<HIRFunction> {
         const DEFAULT_TYPE: TypeId = TypeId(0);
 
         let func_id = self.alloc_function(&name);
         let mut hir_params = Vec::new();
 
         for param in params {
-            let Some(pattern) = &param.get_node().pattern else {
+            let Some(pattern) = &param.pattern else {
                 unreachable!();
             };
 
@@ -123,89 +106,64 @@ impl<'a> Desugar<'a> {
                 hir_params.push((sym, DEFAULT_TYPE));
             }
         }
-
-        let body = body
-            .map(|b| self.lower_block_expr(&b))
-            .unwrap_or_else(|| HIRBlock {
-                statements: Vec::new(),
-                result: None,
-            });
-
-        HIRFunction {
+        let hir = HIRFunction {
             id: func_id,
             params: hir_params,
             return_type: DEFAULT_TYPE,
             body,
-        }
+        };
+
+        Ok(hir)
+    }
+     * */
+
+    pub fn lower_block(&mut self, body: Vec<HIRStatement>) -> DesugarResult<HIRBlock> {
+        let hir = HIRBlock { statements: body };
+        Ok(hir)
     }
 
-    fn lower_block_expr(&mut self, expr: &'a SpannedBox<Expression>) -> HIRBlock {
-        match expr.get_node() {
-            Expression::Block(statements) => {
-                let mut hir_statements = Vec::new();
-                for statement in statements {
-                    if let Some(s) = self.lower_statement(statement) {
-                        hir_statements.push(s);
-                    }
-                }
-
-                HIRBlock {
-                    statements: hir_statements,
-                    result: None,
-                }
-            }
-            _ => HIRBlock {
-                statements: Vec::new(),
-                result: Some(Box::new(self.lower_expr(expr))),
-            },
-        }
+    pub fn lower_path(
+        &mut self,
+        name: &'a str,
+        symbol_type: PrimitiveType,
+    ) -> DesugarResult<HIRExpression> {
+        let id = self.resolve_symbol(name);
+        let hir = HIRExpression::Variable { id, symbol_type };
+        Ok(hir)
     }
 
-    fn lower_statement(&mut self, statement: &'a Spanned<Statement>) -> Option<HIRStatement> {
-        const DEFAULT_TYPE: TypeId = TypeId(0);
-
-        match statement.get_node() {
-            Statement::Expression(expr) => Some(HIRStatement::Expr(self.lower_expr(&expr))),
-
-            _ => None,
-        }
+    pub fn lower_continue(&mut self) -> DesugarResult<HIRExpression> {
+        let hir = HIRExpression::Continue;
+        Ok(hir)
     }
 
-    // 削除
-    fn lower_expr(&mut self, expr: &'a Expression) -> HIRExpression {
-        match expr {
-            Expression::Path(path) => {
-                let name = path.node.last_ident();
-                HIRExpression::Variable(self.resolve_symbol(name))
-            }
+    pub fn lower_break(&mut self, expr: Option<HIRExpression>) -> DesugarResult<HIRExpression> {
+        let hir = HIRExpression::Break(expr.map(|hir| Box::new(hir)));
+        Ok(hir)
+    }
 
-            Expression::Return(expr) => {
-                HIRExpression::Return(expr.as_ref().map(|e| Box::new(self.lower_expr(&e))))
-            }
-
-            Expression::Break { expression, .. } => {
-                HIRExpression::Break(expression.as_ref().map(|e| Box::new(self.lower_expr(&e))))
-            }
-
-            _ => unimplemented!(),
-        }
+    pub fn lower_retrun(&mut self, expr: Option<HIRExpression>) -> DesugarResult<HIRExpression> {
+        let hir = HIRExpression::Return(expr.map(|hir| Box::new(hir)));
+        Ok(hir)
     }
 
     pub fn lower_let_statement(
         &mut self,
-        pattern: &Pattern,
+        pattern: &'a Pattern,
         initializer: Option<HIRExpression>,
     ) -> DesugarResult<Option<HIRStatement>> {
         let Pattern::Identifier { ident, .. } = pattern else {
             return Ok(None);
         };
         let symbol = self.alloc_symbol(&ident);
-        let init = initializer.as_ref().map(|e| self.lower_expr(&e));
+        let symbol_type = initializer
+            .as_ref()
+            .map_or(PrimitiveType::Unit, |e| e.to_type());
 
         let hir = HIRStatement::Let {
             symbol,
-            ty: INITIAL_ID,
-            init,
+            symbol_type,
+            initializer,
         };
 
         Ok(Some(hir))
@@ -258,7 +216,10 @@ impl<'a> Desugar<'a> {
             }
         };
 
-        let lhs = HIRExpression::Variable(target);
+        let lhs = HIRExpression::Variable {
+            id: target,
+            symbol_type: lhs.to_type(),
+        };
         let hir = HIRExpression::Store {
             target,
             value: Box::new(HIRExpression::BinOp {
@@ -292,6 +253,7 @@ impl<'a> Desugar<'a> {
         rhs: HIRExpression,
     ) -> DesugarResult<HIRExpression> {
         // TODO
+        unimplemented!();
 
         let hir = HIRExpression::CmpOp {
             op: ComparisonOperator::Equal,
@@ -307,9 +269,11 @@ impl<'a> Desugar<'a> {
         function: HIRExpression,
         arguments: Vec<HIRExpression>,
     ) -> DesugarResult<HIRExpression> {
-        let HIRExpression::Variable(id) = function else {
+        /*
+        let HIRExpression::Variable { id, symbol_type } = function else {
             return Err(DesugarError::NotFunction);
         };
+         * */
 
         let hir = HIRExpression::Call {
             function: Box::new(function),
@@ -319,50 +283,92 @@ impl<'a> Desugar<'a> {
         Ok(hir)
     }
 
+    pub fn lower_array(&mut self) -> DesugarResult<HIRExpression> {
+        // TODO
+        let hir = HIRExpression::Continue;
+
+        Ok(hir)
+    }
+
     pub fn lower_if_statement(
         &mut self,
         condition: HIRExpression,
-        then_body: HIRExpression,
-        else_body: Option<HIRExpression>,
+        then_body: HIRBlock,
+        else_body: Option<HIRBlock>,
     ) -> DesugarResult<HIRExpression> {
         let hir = HIRExpression::If {
             cond: Box::new(condition),
-            then_block: Box::new(then_body),
-            else_block: else_body.map(|e| Box::new(e)),
+            then_block: then_body,
+            else_block: else_body,
         };
 
         Ok(hir)
     }
 
-    pub fn lower_loop(&mut self, body: HIRExpression) -> DesugarResult<HIRExpression> {
-        let hir = HIRExpression::Loop {
-            body: Box::new(body),
-        };
+    pub fn lower_loop(&mut self, body: HIRBlock) -> DesugarResult<HIRExpression> {
+        let hir = HIRExpression::Loop { body };
         Ok(hir)
     }
 
+    // while cond {
+    //  body
+    // }
+    // を以下のようにする
+    // loop {
+    //  if cond {
+    //   body
+    //  } else {
+    //   break
+    //  }
+    // }
     pub fn lower_while(
         &mut self,
         condition: HIRExpression,
-        body: HIRExpression,
+        body: HIRBlock,
     ) -> DesugarResult<HIRExpression> {
-        // while cond { body }
-        // を以下のようにする
-        // loop { if cond { body } else { break } }
-        let if_expr = HIRExpression::If {
-            cond: Box::new(condition),
-            then_block: Box::new(body),
-            else_block: Some(Box::new(HIRExpression::Block {
-                statements: vec![HIRStatement::Expr(HIRExpression::Break(None))],
-                result: None,
-            })),
-        };
+        let else_body = HIRExpression::Break(None).to_block();
+        let if_expr = self.lower_if_statement(condition, body, Some(else_body))?;
 
         let hir = HIRExpression::Loop {
-            body: Box::new(HIRExpression::Block {
-                statements: vec![HIRStatement::Expr(if_expr)],
-                result: None,
-            }),
+            body: if_expr.to_block(),
+        };
+
+        Ok(hir)
+    }
+
+    // for i in iter {
+    //  body
+    // }
+    //
+    // loop {
+    //   if let Some(i) = iter.next() {
+    //      body
+    //   } else {
+    //      break;
+    //   }
+    // }
+    pub fn lower_for(
+        &mut self,
+        pattern: &'a Pattern,
+        iterator: HIRExpression,
+        body: HIRBlock,
+    ) -> DesugarResult<HIRExpression> {
+        // TODO
+        let initializer = Some(HIRExpression::Call {
+            function: Box::new(HIRExpression::Continue),
+            args: Vec::new(),
+        });
+        let iter = self.lower_let_statement(pattern, initializer)?;
+        let condition = HIRExpression::Call {
+            function: Box::new(HIRExpression::Continue),
+            args: Vec::new(),
+        };
+        let then_body = body;
+        let else_body = HIRExpression::Break(None).to_block();
+        let if_expr = self.lower_if_statement(condition, then_body, Some(else_body))?;
+
+        let hir = HIRExpression::Loop {
+            body: if_expr.to_block(),
         };
 
         Ok(hir)

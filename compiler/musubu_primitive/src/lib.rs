@@ -333,7 +333,6 @@ impl ToString for PrimitiveType {
 
 #[derive(Debug, Clone)]
 pub enum Value {
-    Unit,
     Integer(Integer),
     Float(Float),
     Bool(bool),
@@ -341,6 +340,17 @@ pub enum Value {
     String(String),
     Vector(Vector),
     Matrix(Matrix),
+}
+
+impl ToPrimitiveType for Value {
+    fn to_type(&self) -> PrimitiveType {
+        match self {
+            Self::Integer(integer) => integer.to_type(),
+            Self::Float(float) => float.to_type(),
+            Self::Bool(_) => PrimitiveType::Boolean,
+            _ => unimplemented!(),
+        }
+    }
 }
 
 // TODO f32以外の型を使用できるように
@@ -424,6 +434,45 @@ impl Integer {
             Self::Uint16(v) => *v == 0,
             Self::Uint32(v) => *v == 0,
             Self::Uint64(v) => *v == 0,
+        }
+    }
+}
+
+impl ToPrimitiveType for Integer {
+    fn to_type(&self) -> PrimitiveType {
+        match self {
+            Self::Int8(_) => PrimitiveType::Integer {
+                signed: true,
+                byte: 1,
+            },
+            Self::Int16(_) => PrimitiveType::Integer {
+                signed: true,
+                byte: 2,
+            },
+            Self::Int32(_) => PrimitiveType::Integer {
+                signed: true,
+                byte: 4,
+            },
+            Self::Int64(_) => PrimitiveType::Integer {
+                signed: true,
+                byte: 8,
+            },
+            Self::Uint8(_) => PrimitiveType::Integer {
+                signed: false,
+                byte: 1,
+            },
+            Self::Uint16(_) => PrimitiveType::Integer {
+                signed: false,
+                byte: 2,
+            },
+            Self::Uint32(_) => PrimitiveType::Integer {
+                signed: false,
+                byte: 4,
+            },
+            Self::Uint64(_) => PrimitiveType::Integer {
+                signed: false,
+                byte: 8,
+            },
         }
     }
 }
@@ -596,6 +645,15 @@ impl Float {
             _ => return None,
         };
         Some(value)
+    }
+}
+
+impl ToPrimitiveType for Float {
+    fn to_type(&self) -> PrimitiveType {
+        match self {
+            Self::Float32(_) => PrimitiveType::Float { byte: 4 },
+            Self::Float64(_) => PrimitiveType::Float { byte: 8 },
+        }
     }
 }
 

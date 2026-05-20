@@ -32,15 +32,16 @@ pub trait SymbolStore<'a, E> {
 
     fn resolve_variable_type(&mut self, name: &'a str, ty: PrimitiveType) -> Result<(), E>;
 
-    //fn is_variable(&self, name: &'a str) -> bool;
+    fn is_variable(&self, name: &'a str) -> bool;
 
-    //fn is_type(&self, name: &'a str) -> bool;
+    fn is_type(&self, name: &'a str) -> bool;
 
     fn contains(&self, name: &'a str) -> bool;
 }
 
 #[derive(Debug)]
 pub struct Scope<'a> {
+    label: Option<&'a str>,
     parent: Option<&'a Scope<'a>>,
     symbol_map: BTreeMap<&'a str, Symbol>,
     import_types: BTreeSet<&'a str>, // 今は考えない
@@ -50,6 +51,7 @@ pub struct Scope<'a> {
 impl<'a> Scope<'a> {
     pub fn new() -> Self {
         Self {
+            label: None,
             parent: None,
             symbol_map: BTreeMap::new(),
             import_types: BTreeSet::new(),
@@ -59,6 +61,10 @@ impl<'a> Scope<'a> {
 
     pub fn set_return_type(&mut self, retrun_type: TypeSymbol) {
         self.return_type = retrun_type;
+    }
+
+    pub fn get_return_type(&self) -> &TypeSymbol {
+        &self.return_type
     }
 
     pub fn add_import_type(&mut self, name: &'a str) -> ScopeResult<()> {
@@ -170,6 +176,18 @@ impl<'a> SymbolStore<'a, ScopeError> for Scope<'a> {
         self.symbol_map.get(name).map(|s| s.get_type_option())
     }
 
+    fn is_type(&self, name: &'a str) -> bool {
+        self.symbol_map
+            .get(name)
+            .is_some_and(|s| matches!(s, Symbol::Type(_)))
+    }
+
+    fn is_variable(&self, name: &'a str) -> bool {
+        self.symbol_map
+            .get(name)
+            .is_some_and(|s| matches!(s, Symbol::Variable(_)))
+    }
+
     fn contains(&self, name: &'a str) -> bool {
         self.symbol_map.contains_key(name)
     }
@@ -213,6 +231,10 @@ impl TypeSymbol {
 
     pub fn is_mutable(&self) -> bool {
         self.option.mutable
+    }
+
+    pub fn is_reference(&self) -> bool {
+        self.option.reference
     }
 
     pub fn is_same_type(&self, ty: &Self) -> bool {

@@ -1,5 +1,6 @@
 use alloc::string::String;
 use alloc::vec::Vec;
+use musubu_desugar::errors::DesugarError;
 use musubu_name_space::errors::NameSpaceError;
 use musubu_scope::errors::ScopeError;
 use musubu_type_check::errors::TypeCheckError;
@@ -16,9 +17,11 @@ pub enum ResolveError {
     UnresolveTypes { names: Vec<String> },
     InvalidRetrunType,
     InvalidModuleScope,
+    ExpectedValuePathButFoundType,
     TypeCheckError(TypeCheckError),
     ScopeError(ScopeError),
     NameSpaceError(NameSpaceError),
+    DesugarError(DesugarError),
 }
 
 impl From<TypeCheckError> for ResolveError {
@@ -36,5 +39,11 @@ impl From<ScopeError> for ResolveError {
 impl From<NameSpaceError> for ResolveError {
     fn from(value: NameSpaceError) -> Self {
         Self::NameSpaceError(value)
+    }
+}
+
+impl From<DesugarError> for ResolveError {
+    fn from(value: DesugarError) -> Self {
+        Self::DesugarError(value)
     }
 }

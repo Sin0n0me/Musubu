@@ -14,7 +14,6 @@ use crate::resolver_collect::SymbolCollector;
 use errors::ResolveError;
 use musubu_ast::ASTNode;
 use musubu_desugar::Desugar;
-use musubu_hir::{HIRExpression, HIRFunction, HIRStatement};
 use musubu_scope::{Scope, ScopeControl, TypeSymbol, errors::ScopeError};
 use musubu_span::SpannedAsRef;
 use musubu_type_check::TypeChecker;
@@ -33,6 +32,12 @@ pub struct Resolver<'a> {
 pub struct Lowered<T> {
     type_symbol: TypeSymbol,
     hir: T,
+}
+
+impl<T> Lowered<T> {
+    fn split(self) -> (T, TypeSymbol) {
+        (self.hir, self.type_symbol)
+    }
 }
 
 impl<'a> Resolver<'a> {
@@ -70,9 +75,9 @@ impl<'a> Resolver<'a> {
     ) -> ResolveResult<Lowered<T>> {
         self.type_checker.enter_function(return_type);
 
-        let result = self.enter_scope(function)?;
+        let mut result = self.enter_scope(function)?;
 
-        self.type_checker.check_return(result.type_symbol)?;
+        result.type_symbol = self.type_checker.check_return(Some(result.type_symbol))?;
         self.type_checker.exit_function();
 
         Ok(result)
