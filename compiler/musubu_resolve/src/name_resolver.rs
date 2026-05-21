@@ -2,7 +2,7 @@ use crate::{ResolveResult, errors::ResolveError};
 use alloc::vec::Vec;
 use core::iter::once;
 use musubu_name_space::*;
-use musubu_primitive::{PrimitiveType, ToPrimitiveType};
+use musubu_primitive::PrimitiveType;
 use musubu_scope::errors::ScopeError;
 use musubu_scope::*;
 

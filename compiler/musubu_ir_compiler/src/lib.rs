@@ -1,6 +1,11 @@
+// TODO
+//#![no_std]
+
+extern crate alloc;
+
+use alloc::vec::Vec;
 use musubu_hir::*;
 use musubu_ir::*;
-use musubu_primitive::*;
 
 #[derive(Debug)]
 struct IRCompiler {
@@ -28,7 +33,7 @@ impl IRCompiler {
 }
 
 pub fn compile_module(module: &HIRModule) -> Vec<CompiledFunction> {
-    let mut functions = vec![];
+    let mut functions = Vec::new();
     for func in &module.functions {
         functions.push(compile_function(func));
     }
@@ -40,7 +45,6 @@ pub fn compile_function(func: &HIRFunction) -> CompiledFunction {
 
     compiler.next_reg = func.params.len();
     compiler.compile_block(&func.body);
-    //compiler.code.push(Instruction::Return { value: None });
 
     CompiledFunction {
         code: compiler.code,
@@ -50,28 +54,30 @@ pub fn compile_function(func: &HIRFunction) -> CompiledFunction {
 
 impl IRCompiler {
     fn compile_block(&mut self, block: &HIRBlock) -> Option<Register> {
+        let mut res = None;
         for statement in &block.statements {
-            self.compile_statement(statement);
+            res = self.compile_statement(statement);
         }
-
-        block.result.as_ref().map(|e| self.compile_expr(e))
+        res
     }
 
-    fn compile_statement(&mut self, statement: &HIRStatement) {
+    fn compile_statement(&mut self, statement: &HIRStatement) -> Option<Register> {
         match statement {
-            HIRStatement::Let { symbol, init, .. } => {
-                if let Some(expr) = init {
+            HIRStatement::Let {
+                symbol,
+                symbol_type,
+                initializer,
+            } => {
+                if let Some(expr) = initializer {
                     let r = self.compile_expr(expr);
                     self.code.push(Instruction::Move {
                         dst: Register(symbol.0 as usize),
                         src: r,
                     });
                 }
+                None
             }
-
-            HIRStatement::Expr(expr) => {
-                self.compile_expr(expr);
-            }
+            HIRStatement::Expr(expr) => Some(self.compile_expr(expr)),
         }
     }
 
@@ -88,11 +94,10 @@ impl IRCompiler {
                 dst
             }
 
-            HIRExpression::Variable(sym) => Register(sym.0 as usize),
+            HIRExpression::Variable { id, symbol_type } => Register(id as usize),
 
             HIRExpression::Store { target, value } => {
                 let val = self.compile_expr(value);
-
                 let dst = Register(target.0 as usize);
 
                 self.code.push(Instruction::Move { dst, src: val });
@@ -101,32 +106,30 @@ impl IRCompiler {
             }
 
             HIRExpression::BinOp { op, lhs, rhs } => {
-                let l = self.compile_expr(lhs);
-                let r = self.compile_expr(rhs);
-
+                let lhs = self.compile_expr(lhs);
+                let rhs = self.compile_expr(rhs);
                 let dst = self.alloc_register();
 
                 self.code.push(Instruction::BinOp {
                     dst,
                     op: op.clone(),
-                    lhs: l,
-                    rhs: r,
+                    lhs,
+                    rhs,
                 });
 
                 dst
             }
 
             HIRExpression::CmpOp { op, lhs, rhs } => {
-                let l = self.compile_expr(lhs);
-                let r = self.compile_expr(rhs);
-
+                let lhs = self.compile_expr(lhs);
+                let rhs = self.compile_expr(rhs);
                 let dst = self.alloc_register();
 
                 self.code.push(Instruction::Cmp {
                     dst,
                     op: op.clone(),
-                    lhs: l,
-                    rhs: r,
+                    lhs,
+                    rhs,
                 });
 
                 dst
@@ -156,7 +159,7 @@ impl IRCompiler {
 
                 dst
             }
-
+            HIRExpression::Block(block) => self.compile_block(block).unwrap_or(Register(0)),
             HIRExpression::If {
                 cond,
                 then_block,
@@ -164,7 +167,9 @@ impl IRCompiler {
             } => self.compile_if(cond, then_block, else_block.as_ref()),
 
             HIRExpression::Loop { body } => self.compile_loop(body),
-
+            HIRExpression::Continue => {
+                panic!("continue handling requires loop context")
+            }
             HIRExpression::Break(_) => {
                 panic!("break handling requires loop context")
             }

@@ -207,9 +207,7 @@ impl<'a> Resolver<'a> {
             }
             Expression::MethodCall(method) => self.resolve_method_call(method)?,
             Expression::Index { parent, index } => {
-                let p = self.resolve_expression(&parent.as_ref_spanned())?;
-                let i = self.resolve_expression(&index.as_ref_spanned())?;
-                p
+                self.resovle_index(parent.as_ref_spanned(), index.as_ref_spanned())?
             }
             Expression::Continue { label } => {
                 self.resolve_continue(label.as_ref().map(|s| s.as_str()))?
@@ -498,6 +496,17 @@ impl<'a> Resolver<'a> {
     ) -> ResolveResult<Lowered<HIRExpression>> {
         unimplemented!()
         //Ok(Lowered { type_symbol, hir })
+    }
+
+    fn resovle_index(
+        &mut self,
+        parent: Spanned<&'a Expression>,
+        index: Spanned<&'a Expression>,
+    ) -> ResolveResult<Lowered<HIRExpression>> {
+        let p = self.resolve_expression(&parent)?;
+        let i = self.resolve_expression(&index)?;
+
+        Ok(p)
     }
 
     fn resolve_path(

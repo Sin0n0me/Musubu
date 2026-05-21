@@ -1,22 +1,21 @@
-use std::collections::HashMap;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
-use std::sync::{OnceLock, RwLock};
-
+use alloc::collections::btree_map::BTreeMap;
+use alloc::vec::Vec;
 use musubu_ir::CompiledFunction;
 
-// first: function id
-type FunctionHashMap = HashMap<usize, CompiledFunction>;
+use crate::VMResult;
+use crate::errors::VMError;
 
-static FUNCTION_CACHE: OnceLock<RwLock<FunctionHashMap>> = OnceLock::new();
-
-pub fn get_cache() -> &'static RwLock<FunctionHashMap> {
-    FUNCTION_CACHE.get_or_init(|| RwLock::new(HashMap::new()))
+#[derive(Debug)]
+pub struct VMCache {
+    functions: BTreeMap<usize, CompiledFunction>,
 }
 
-//
-pub fn calc_hash<T: Hash>(value: &T) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    value.hash(&mut hasher);
-    hasher.finish()
+impl VMCache {
+    pub fn register_function(&mut self, id: usize, function: CompiledFunction) {
+        self.functions.insert(id, function);
+    }
+
+    pub fn get(&self, id: &usize) -> VMResult<&CompiledFunction> {
+        self.functions.get(id).ok_or(VMError::IllegalFunctionCall)
+    }
 }

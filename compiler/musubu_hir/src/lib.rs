@@ -4,6 +4,7 @@
 extern crate alloc;
 
 use alloc::boxed::Box;
+use alloc::collections::btree_map::BTreeMap;
 use alloc::vec::Vec;
 use musubu_primitive::*;
 
@@ -15,13 +16,14 @@ pub struct TypeId(pub usize);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct FunctionId {
-    pub id: FunctionType,
+    pub id: usize,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum FunctionType {
-    UserDefined(usize),
-    BuiltIn(usize),
+#[derive(Debug)]
+pub struct SymbolTable {
+    pub global_map: BTreeMap<SymbolId, SymbolId>,
+    pub variable_map: BTreeMap<SymbolId, SymbolId>,
+    pub function_map: BTreeMap<FunctionId, HIRFunction>,
 }
 
 #[derive(Debug, Clone)]
@@ -132,6 +134,7 @@ pub enum HIRExpression {
         args: Vec<HIRExpression>,
     },
 
+    // 条件分岐
     If {
         cond: Box<HIRExpression>,
         then_block: HIRBlock,
@@ -140,14 +143,15 @@ pub enum HIRExpression {
 
     Block(HIRBlock),
 
+    // 繰り返し
     Loop {
         body: HIRBlock,
     },
 
     Continue,
+
     Break(Option<Box<HIRExpression>>),
 
-    // return
     Return(Option<Box<HIRExpression>>),
 }
 
