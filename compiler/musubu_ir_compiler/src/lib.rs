@@ -7,6 +7,26 @@ use alloc::vec::Vec;
 use musubu_hir::*;
 use musubu_ir::*;
 
+pub fn compile_module(module: &HIRModule) -> Vec<CompiledFunction> {
+    let mut functions = Vec::new();
+    for func in &module.functions {
+        functions.push(compile_function(func));
+    }
+    functions
+}
+
+pub fn compile_function(func: &HIRFunction) -> CompiledFunction {
+    let mut compiler = IRCompiler::new();
+
+    compiler.next_reg = func.params.len();
+    compiler.compile_block(&func.body);
+
+    CompiledFunction {
+        code: compiler.code,
+        registers: compiler.next_reg,
+    }
+}
+
 #[derive(Debug)]
 struct IRCompiler {
     code: Vec<Instruction>,
@@ -32,26 +52,6 @@ impl IRCompiler {
     }
 }
 
-pub fn compile_module(module: &HIRModule) -> Vec<CompiledFunction> {
-    let mut functions = Vec::new();
-    for func in &module.functions {
-        functions.push(compile_function(func));
-    }
-    functions
-}
-
-pub fn compile_function(func: &HIRFunction) -> CompiledFunction {
-    let mut compiler = IRCompiler::new();
-
-    compiler.next_reg = func.params.len();
-    compiler.compile_block(&func.body);
-
-    CompiledFunction {
-        code: compiler.code,
-        registers: compiler.next_reg,
-    }
-}
-
 impl IRCompiler {
     fn compile_block(&mut self, block: &HIRBlock) -> Option<Register> {
         let mut res = None;
@@ -71,7 +71,7 @@ impl IRCompiler {
                 if let Some(expr) = initializer {
                     let r = self.compile_expr(expr);
                     self.code.push(Instruction::Move {
-                        dst: Register(symbol.0 as usize),
+                        dst: Register(symbol.id),
                         src: r,
                     });
                 }
@@ -94,11 +94,11 @@ impl IRCompiler {
                 dst
             }
 
-            HIRExpression::Variable { id, symbol_type } => Register(id as usize),
+            HIRExpression::Variable { id, symbol_type } => Register(id.id),
 
             HIRExpression::Store { target, value } => {
                 let val = self.compile_expr(value);
-                let dst = Register(target.0 as usize);
+                let dst = Register(target.id);
 
                 self.code.push(Instruction::Move { dst, src: val });
 
@@ -135,27 +135,33 @@ impl IRCompiler {
                 dst
             }
 
-            HIRExpression::Call { function, args } => {
-                let regs: Vec<_> = args.iter().map(|a| self.compile_expr(a)).collect();
-
+            HIRExpression::LogOp { op, lhs, rhs } => {
+                let lhs = self.compile_expr(lhs);
+                let rhs = self.compile_expr(rhs);
                 let dst = self.alloc_register();
 
-                match function.id {
-                    FunctionType::BuiltIn(id) => {
-                        self.code.push(Instruction::BuiltInCall {
-                            dst: Some(dst),
-                            func: id,
-                            args: regs,
-                        });
-                    }
-                    FunctionType::UserDefined(id) => {
-                        self.code.push(Instruction::Call {
-                            dst: Some(dst),
-                            func: id,
-                            args: regs,
-                        });
-                    }
-                }
+                // TODO
+                /*
+                self.code.push(Instruction:: {
+                    dst,
+                    op: op.clone(),
+                    lhs,
+                    rhs,
+                });
+                 * */
+
+                dst
+            }
+
+            HIRExpression::Call { function, args } => {
+                let regs: Vec<_> = args.iter().map(|a| self.compile_expr(a)).collect();
+                let dst = self.alloc_register();
+
+                self.code.push(Instruction::Call {
+                    dst: Some(dst),
+                    func: function.id,
+                    args: regs,
+                });
 
                 dst
             }

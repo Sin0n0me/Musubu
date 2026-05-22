@@ -223,7 +223,7 @@ impl PrimitiveType {
         });
     }
 
-    // 列を表し次に行を表す
+    // 最初は列を表し次に行を表す
     // mat3x3, mat4x3f32, mat4x4i32
     fn parse_matrix(postfix: &str) -> Option<Self> {
         let mut chars = postfix.chars();
@@ -777,4 +777,11 @@ pub enum ComparisonOperator {
     LessThanEqual,    // <=
     GreaterThan,      // >
     GreaterThanEqual, // >=
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum LogicalOperator {
+    Not, // !
+    And, // &&
+    Or,  // ||
 }

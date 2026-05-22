@@ -4,8 +4,8 @@ use crate::{
     lexer::token::MusubuOperator,
     parser::packrat::{PackratAndPrattParser, ParseResult},
 };
-use musubu_ast::{ASTNode, AssignOperator, Expression, LogicalOperator, NodeMaker};
-use musubu_primitive::{BinaryOperator, ComparisonOperator};
+use musubu_ast::{ASTNode, AssignOperator, Expression, NodeMaker};
+use musubu_primitive::{BinaryOperator, ComparisonOperator, LogicalOperator};
 use musubu_span::{Span, SpannedBox};
 use std::rc::Rc;
 

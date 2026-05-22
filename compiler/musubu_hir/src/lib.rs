@@ -9,7 +9,9 @@ use alloc::vec::Vec;
 use musubu_primitive::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SymbolId(pub usize);
+pub struct SymbolId {
+    pub id: usize,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TypeId(pub usize);
@@ -128,9 +130,16 @@ pub enum HIRExpression {
         rhs: Box<HIRExpression>,
     },
 
+    // 論理
+    LogOp {
+        op: LogicalOperator,
+        lhs: Box<HIRExpression>,
+        rhs: Box<HIRExpression>,
+    },
+
     // 関数呼び出し
     Call {
-        function: Box<HIRExpression>,
+        function: FunctionId,
         args: Vec<HIRExpression>,
     },
 
@@ -174,6 +183,7 @@ impl ToPrimitiveType for HIRExpression {
             Self::Variable { id: _, symbol_type } => symbol_type.clone(),
             Self::CmpOp { op: _, lhs, rhs: _ } => lhs.to_type(),
             Self::BinOp { op: _, lhs, rhs: _ } => lhs.to_type(),
+            Self::LogOp { op: _, lhs, rhs: _ } => lhs.to_type(),
             Self::Return(expr) => expr.as_ref().map_or(PrimitiveType::Unit, |e| e.to_type()),
             Self::Literal(v) => PrimitiveType::Unit, // TODO
             Self::Continue => PrimitiveType::Unit,
@@ -185,7 +195,10 @@ impl ToPrimitiveType for HIRExpression {
                 then_block,
                 else_block: _,
             } => then_block.to_type(),
-            Self::Call { function, args: _ } => function.to_type(),
+            Self::Call {
+                function: _,
+                args: _,
+            } => PrimitiveType::Unit,
         }
     }
 }

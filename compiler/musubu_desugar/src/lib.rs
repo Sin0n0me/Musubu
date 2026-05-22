@@ -43,7 +43,9 @@ impl<'a> Desugar<'a> {
             return *id;
         }
 
-        let id = SymbolId(self.next_symbol);
+        let id = SymbolId {
+            id: self.next_symbol,
+        };
         self.next_symbol += 1;
         self.variables.insert(name, id);
         id
@@ -59,21 +61,11 @@ impl<'a> Desugar<'a> {
         }
 
         let id = FunctionId {
-            id: FunctionType::UserDefined(self.next_function),
+            id: self.next_function,
         };
         self.next_function += 1;
         self.functions.insert(name, id);
         id
-    }
-
-    fn resolve_built_in(&self, name: &str) -> FunctionId {
-        // TODO: 別Crateで定義して呼び出す形に(VM側も)
-        let id = match name {
-            "matrix" => FunctionType::BuiltIn(0),
-            _ => panic!("undefined function name: {name:?}"),
-        };
-
-        FunctionId { id }
     }
 
     fn resolve_function(&self, name: &str) -> FunctionId {
@@ -81,7 +73,9 @@ impl<'a> Desugar<'a> {
             return *func;
         }
 
-        self.resolve_built_in(name)
+        // self.resolve_built_in(name)
+
+        FunctionId { id: 0usize }
     }
 
     /*
@@ -169,6 +163,7 @@ impl<'a> Desugar<'a> {
         Ok(Some(hir))
     }
 
+    // バイナリ演算はそのまま変換
     pub fn lower_binary_operator(
         &mut self,
         operator: BinaryOperator,
@@ -222,16 +217,13 @@ impl<'a> Desugar<'a> {
         };
         let hir = HIRExpression::Store {
             target,
-            value: Box::new(HIRExpression::BinOp {
-                op: operator,
-                lhs: Box::new(lhs),
-                rhs: Box::new(rhs),
-            }),
+            value: Box::new(self.lower_binary_operator(operator, lhs, rhs)?),
         };
 
         Ok(hir)
     }
 
+    // 比較演算子もそのまま変換
     pub fn lower_comparison_operator(
         &mut self,
         operator: ComparisonOperator,
@@ -246,12 +238,22 @@ impl<'a> Desugar<'a> {
         Ok(hir)
     }
 
+    // 論理演算子は変換
+    // 比較演算子と条件分岐に分解
+    //
+    //
     pub fn lower_logical_operator(
         &mut self,
         operator: LogicalOperator,
         lhs: HIRExpression,
         rhs: HIRExpression,
     ) -> DesugarResult<HIRExpression> {
+        match operator {
+            LogicalOperator::Or => {}
+            LogicalOperator::Not => {}
+            LogicalOperator::And => {}
+        }
+
         // TODO
         unimplemented!();
 
@@ -264,6 +266,9 @@ impl<'a> Desugar<'a> {
         Ok(hir)
     }
 
+    // Expression
+    // Pathであれば定義された関数の呼び出し
+    // 直接構築された関数であればその展開
     pub fn lower_call(
         &mut self,
         function: HIRExpression,
@@ -275,12 +280,17 @@ impl<'a> Desugar<'a> {
         };
          * */
 
-        let hir = HIRExpression::Call {
-            function: Box::new(function),
-            args: arguments,
-        };
+        match function {
+            HIRExpression::Variable { id, symbol_type } => {
+                let hir = HIRExpression::Call {
+                    function: FunctionId { id: id.id },
+                    args: arguments,
+                };
 
-        Ok(hir)
+                Ok(hir)
+            }
+            _ => Err(DesugarError::NotFunction),
+        }
     }
 
     pub fn lower_array(&mut self) -> DesugarResult<HIRExpression> {
@@ -305,6 +315,7 @@ impl<'a> Desugar<'a> {
         Ok(hir)
     }
 
+    // loopはそのまま
     pub fn lower_loop(&mut self, body: HIRBlock) -> DesugarResult<HIRExpression> {
         let hir = HIRExpression::Loop { body };
         Ok(hir)
@@ -353,16 +364,12 @@ impl<'a> Desugar<'a> {
         iterator: HIRExpression,
         body: HIRBlock,
     ) -> DesugarResult<HIRExpression> {
+        unimplemented!();
+
         // TODO
-        let initializer = Some(HIRExpression::Call {
-            function: Box::new(HIRExpression::Continue),
-            args: Vec::new(),
-        });
+        let initializer = Some(HIRExpression::Continue);
         let iter = self.lower_let_statement(pattern, initializer)?;
-        let condition = HIRExpression::Call {
-            function: Box::new(HIRExpression::Continue),
-            args: Vec::new(),
-        };
+        let condition = HIRExpression::Continue;
         let then_body = body;
         let else_body = HIRExpression::Break(None).to_block();
         let if_expr = self.lower_if_statement(condition, then_body, Some(else_body))?;

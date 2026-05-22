@@ -1,5 +1,5 @@
 use alloc::{vec, vec::Vec};
-use musubu_ir::Instruction;
+use musubu_ir::{Instruction, Register};
 use musubu_primitive::{Integer, Value};
 
 //const HALT: usize = usize::MAX;
@@ -33,11 +33,5 @@ impl<'a> Frame<'a> {
 
         self.registers[args_len..].fill(Value::Integer(Integer::Int32(0)));
         self.ip = INITIAL_IP;
-    }
-
-    pub fn next(&mut self) -> Option<&Instruction> {
-        let ins = self.code.get(self.ip)?;
-        self.ip += 1;
-        Some(ins)
     }
 }

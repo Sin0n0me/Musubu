@@ -5,7 +5,7 @@ use musubu_ast::*;
 use musubu_hir::{HIRBlock, HIRExpression, HIRFunction, HIRStatement};
 use musubu_name_space::errors::NameSpaceError;
 use musubu_name_space::{FunctionItem, ItemStoreReader};
-use musubu_primitive::{BinaryOperator, ComparisonOperator};
+use musubu_primitive::{BinaryOperator, ComparisonOperator, LogicalOperator};
 use musubu_scope::{SymbolStore, TypeOption, TypeRequirement, TypeSymbol};
 use musubu_span::*;
 

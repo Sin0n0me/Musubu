@@ -6,23 +6,29 @@ extern crate alloc;
 pub mod cache;
 pub mod errors;
 
-mod built_in;
+// TODO: 削除(issue#4で対応予定)
+// mod built_in;
 mod frame;
 
 use crate::cache::VMCache;
 use crate::errors::VMError;
 use crate::frame::Frame;
-use alloc::collections::btree_map::BTreeMap;
 use alloc::{vec, vec::Vec};
-use built_in::*;
 use musubu_ir::*;
 use musubu_primitive::*;
 
 pub type VMResult<T> = Result<T, VMError>;
 
+// TODO デバッグ用のスタックトレース
 pub struct VM<'a> {
     cache: &'a VMCache,
-    stack: Vec<(Frame<'a>, usize)>,
+    stack: Vec<VMFrame<'a>>,
+}
+
+#[derive(Debug)]
+pub struct VMFrame<'a> {
+    frame: Frame<'a>,
+    caller_reg_dst: Option<Register>,
 }
 
 impl<'a> VM<'a> {
@@ -33,30 +39,56 @@ impl<'a> VM<'a> {
         }
     }
 
-    pub fn debug_run() {}
+    pub fn run_function(&mut self, func_id: usize, args: Vec<Value>) -> VMResult<Option<Value>> {
+        self.stack.push(VMFrame {
+            frame: self.load_function(func_id, args)?,
+            caller_reg_dst: None,
+        });
 
-    pub fn run_function(&self, func_id: usize, args: Vec<Value>) -> VMResult<Option<Value>> {
-        let mut frame = self.load_function(func_id, args)?;
+        while let Some(frame) = self.stack.pop() {
+            self.execute_frame(frame.frame)?;
+        }
 
+        Ok(None)
+    }
+
+    fn execute_frame(&mut self, frame: Frame<'a>) -> VMResult<Option<Value>> {
         // 順次実行
+        let mut frame = frame;
         loop {
-            let Some((frame, ret_dst)) = self.stack.last_mut() else {
-                return Ok(None);
+            let Some(inst) = frame.code.get(frame.ip) else {
+                break Ok(None);
+            };
+            frame.ip += 1;
+
+            // 0: break flag
+            let (true, reg) = self.next(&mut frame, inst)? else {
+                continue;
             };
 
-            self.execute_instruction(frame, *ret_dst)?;
+            let Some(reg) = reg else {
+                break Ok(None);
+            };
+
+            let val = frame.registers[reg.0].clone();
+            let Some(vm_frame) = self.stack.last_mut() else {
+                break Ok(Some(val)); // 呼び出し元が最上位の場合
+            };
+
+            // 呼び出し元に戻り値を返す場合(指定のレジスタに格納)
+            if let Some(ret_dst) = vm_frame.caller_reg_dst {
+                vm_frame.frame.registers[ret_dst.0] = val;
+            };
+
+            break Ok(None);
         }
     }
 
-    fn execute_instruction(
+    fn next(
         &mut self,
         frame: &mut Frame<'a>,
-        ret_dst: usize,
-    ) -> VMResult<Option<Value>> {
-        let Some(inst) = frame.next() else {
-            return Ok(None);
-        };
-
+        inst: &'a Instruction,
+    ) -> VMResult<(bool, Option<&'a Register>)> {
         match inst {
             Instruction::LoadConst { dst, value } => {
                 frame.registers[dst.0] = value.clone();
@@ -89,40 +121,36 @@ impl<'a> VM<'a> {
                 }
 
                 let func = self.load_function(*func, call_args)?;
-                let ret = self.run_function(*func, call_args);
+                self.stack.push(VMFrame {
+                    frame: func,
+                    caller_reg_dst: dst.clone(),
+                });
 
-                if let (Some(dst), Some(val)) = (dst, ret) {
-                    frame.registers[dst.0] = val;
-                }
-
-                self.stack.push();
+                return Ok((true, None));
             }
             Instruction::Return { value } => {
-                let Some(reg) = value else {
-                    return Ok(None);
-                };
-                frame.registers[ret_dst] = frame.registers[reg.0].clone();
-
-                let Some(caller) = self.stack.last_mut() else {
-                    return;
-                };
+                return Ok((true, value.as_ref()));
             }
 
-            // TODO 削除
+            // TODO: 削除
+            // Callと統合する
             Instruction::BuiltInCall { dst, func, args } => {
-                let mut call_args = Vec::with_capacity(args.len());
-                for reg in args {
-                    call_args.push(frame.registers[reg.0].clone());
-                }
+                // TODO: 削除(issue#4で対応予定)
+                /*
+                   let mut call_args = Vec::with_capacity(args.len());
+                   for reg in args {
+                       call_args.push(frame.registers[reg.0].clone());
+                   }
 
-                let ret = self.call_built_in(*func, call_args);
-                if let (Some(dst), Some(val)) = (dst, ret) {
-                    frame.registers[dst.0] = val;
-                }
+                   let ret = self.call_built_in(*func, call_args);
+                   if let (Some(dst), Some(val)) = (dst, ret) {
+                       frame.registers[dst.0] = val;
+                   }
+                * */
             }
-        };
+        }
 
-        Ok(None)
+        Ok((false, None))
     }
 
     fn load_function(&self, func_id: usize, args: Vec<Value>) -> VMResult<Frame<'a>> {
@@ -160,6 +188,8 @@ impl<'a> VM<'a> {
         }
     }
 
+    // TODO: 削除(issue#4で対応予定)
+    /*
     fn call_built_in(&self, func_id: usize, args: Vec<Value>) -> Option<Value> {
         // TODO: 専用クレートの作成(Desugerもマジックナンバー状態なので)
         // デモ用
@@ -168,4 +198,5 @@ impl<'a> VM<'a> {
             _ => None,
         }
     }
+     * */
 }

@@ -1,6 +1,13 @@
+// TODO
+//#![no_std]
+
+extern crate alloc;
+
+use alloc::boxed::Box;
+use alloc::string::{String, ToString};
+use alloc::{vec, vec::Vec};
 use musubu_primitive::*;
 use musubu_span::*;
-use std::string::ToString;
 
 pub trait NodeMaker {
     fn make_node(self, span: Span) -> ASTNode;
@@ -342,13 +349,6 @@ pub enum AssignOperator {
     XorAssign,
     LeftShiftAssign,
     RightShiftAssign,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum LogicalOperator {
-    Not, // !
-    And, // &&
-    Or,  // ||
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

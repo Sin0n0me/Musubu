@@ -1,3 +1,6 @@
+// TODO
+//#![no_std]
+
 mod common;
 mod errors;
 mod lexer;

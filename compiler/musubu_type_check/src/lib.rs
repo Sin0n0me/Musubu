@@ -8,7 +8,7 @@ pub mod errors;
 use crate::errors::TypeCheckError;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
-use musubu_ast::{AssignOperator, Expression, Literal, LogicalOperator, Path, Pattern, TypeKind};
+use musubu_ast::{AssignOperator, Literal, Path, Pattern, TypeKind};
 use musubu_primitive::*;
 use musubu_scope::errors::ScopeError;
 use musubu_scope::{Scope, ScopeControl, SymbolStore, TypeSymbol};

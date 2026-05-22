@@ -14,22 +14,56 @@ use crate::resolver_collect::SymbolCollector;
 use errors::ResolveError;
 use musubu_ast::ASTNode;
 use musubu_desugar::Desugar;
+use musubu_hir::HIRModule;
 use musubu_scope::{Scope, ScopeControl, TypeSymbol, errors::ScopeError};
 use musubu_span::SpannedAsRef;
 use musubu_type_check::TypeChecker;
 
 pub type ResolveResult<T> = Result<T, ResolveError>;
 
+// TODO 分割したコードをまとめて取り込めるように
+
+// 逐次解決
+pub fn resolve_sequential(
+    project_name: &str,
+    module_name: &str,
+    ast_items: &[&ASTNode],
+) -> ResolveResult<HIRModule> {
+    let mut hir = HIRModule::new();
+    let mut resolver = Resolver::new(project_name, &mut hir);
+
+    resolver.resolve(module_name, ast_items)?;
+
+    Ok(hir)
+}
+
+// 完全な解決
+// 推論を強力にするならresolve内のdesuger部分の分離が必要
+pub fn resolve_unordered(
+    project_name: &str,
+    module_name: &str,
+    ast_items: &[&ASTNode],
+) -> ResolveResult<HIRModule> {
+    let mut hir = HIRModule::new();
+    let mut resolver = Resolver::new(project_name, &mut hir);
+
+    resolver.import(module_name, ast_items)?;
+    resolver.resolve(module_name, ast_items)?;
+
+    Ok(hir)
+}
+
 #[derive(Debug)]
-pub struct Resolver<'a> {
-    pub name_resolver: NameResolver<'a>,
+struct Resolver<'a> {
+    name_resolver: NameResolver<'a>,
+    hir_module: &'a mut HIRModule,
     type_checker: TypeChecker,
     collector: SymbolCollector<'a>,
     desuger: Desugar<'a>,
 }
 
 #[derive(Debug)]
-pub struct Lowered<T> {
+struct Lowered<T> {
     type_symbol: TypeSymbol,
     hir: T,
 }
@@ -41,9 +75,10 @@ impl<T> Lowered<T> {
 }
 
 impl<'a> Resolver<'a> {
-    pub fn new(project_name: &'a str) -> Self {
+    pub fn new(project_name: &'a str, hir_module: &'a mut HIRModule) -> Self {
         Self {
             name_resolver: NameResolver::new(project_name),
+            hir_module,
             type_checker: TypeChecker::new(),
             collector: SymbolCollector::new(),
             desuger: Desugar::new(),

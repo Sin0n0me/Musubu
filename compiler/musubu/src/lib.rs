@@ -12,6 +12,14 @@ use std::os::raw::c_char;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 #[unsafe(no_mangle)]
+pub extern "C" fn init() -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn uninit() {}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn compile(code_ptr: *const c_char, len: usize) -> bool {
     let result = catch_unwind(AssertUnwindSafe(|| {
         if code_ptr.is_null() {
@@ -29,6 +37,15 @@ pub extern "C" fn compile(code_ptr: *const c_char, len: usize) -> bool {
 
     result.unwrap_or(false)
 }
+
+#[unsafe(no_mangle)]
+pub extern "C" fn call_function() {}
+
+// 初期化せずに使用する場合
+// キャッシュを使用しないので毎回
+// 字句解析->構文解析->意味解析->脱糖->命令化
+// の流れが発生するので重い
+pub extern "C" fn run_script() {}
 
 // デモ用
 /*
