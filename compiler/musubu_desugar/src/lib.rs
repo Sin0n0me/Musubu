@@ -78,39 +78,6 @@ impl<'a> Desugar<'a> {
         FunctionId { id: 0usize }
     }
 
-    /*
-    fn lower_function(
-        &mut self,
-        name: &'a str,
-        params: &[&FunctionParam],
-        body: Option<HIRBlock>,
-    ) -> DesugarResult<HIRFunction> {
-        const DEFAULT_TYPE: TypeId = TypeId(0);
-
-        let func_id = self.alloc_function(&name);
-        let mut hir_params = Vec::new();
-
-        for param in params {
-            let Some(pattern) = &param.pattern else {
-                unreachable!();
-            };
-
-            if let Pattern::Identifier { ident, .. } = &pattern.node {
-                let sym = self.alloc_symbol(&ident);
-                hir_params.push((sym, DEFAULT_TYPE));
-            }
-        }
-        let hir = HIRFunction {
-            id: func_id,
-            params: hir_params,
-            return_type: DEFAULT_TYPE,
-            body,
-        };
-
-        Ok(hir)
-    }
-     * */
-
     pub fn lower_block(&mut self, body: Vec<HIRStatement>) -> DesugarResult<HIRBlock> {
         let hir = HIRBlock { statements: body };
         Ok(hir)
@@ -238,27 +205,15 @@ impl<'a> Desugar<'a> {
         Ok(hir)
     }
 
-    // 論理演算子は変換
-    // 比較演算子と条件分岐に分解
-    //
-    //
     pub fn lower_logical_operator(
         &mut self,
         operator: LogicalOperator,
         lhs: HIRExpression,
         rhs: HIRExpression,
     ) -> DesugarResult<HIRExpression> {
-        match operator {
-            LogicalOperator::Or => {}
-            LogicalOperator::Not => {}
-            LogicalOperator::And => {}
-        }
-
-        // TODO
-        unimplemented!();
-
-        let hir = HIRExpression::CmpOp {
-            op: ComparisonOperator::Equal,
+        // TODO 条件分岐に変換
+        let hir = HIRExpression::LogOp {
+            op: operator,
             lhs: Box::new(lhs),
             rhs: Box::new(rhs),
         };
