@@ -90,7 +90,8 @@ impl<'a> Resolver<'a> {
             s.resolve_expression(body_expr)
         })?;
 
-        //self.desuger.alloc_function(name);
+        //let full_name = self.name_resolver.get_full_path(name);
+        //let module = self.desuger.alloc_function(name);
 
         Ok(())
     }
@@ -433,7 +434,7 @@ impl<'a> Resolver<'a> {
         };
 
         let type_symbol = self.type_checker.check_return(expr_ty)?;
-        let hir = self.desuger.lower_retrun(expr_hir)?;
+        let hir = self.desuger.lower_return(expr_hir)?;
 
         Ok(Lowered { type_symbol, hir })
     }

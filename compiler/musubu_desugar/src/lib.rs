@@ -103,7 +103,7 @@ impl<'a> Desugar<'a> {
         Ok(hir)
     }
 
-    pub fn lower_retrun(&mut self, expr: Option<HIRExpression>) -> DesugarResult<HIRExpression> {
+    pub fn lower_return(&mut self, expr: Option<HIRExpression>) -> DesugarResult<HIRExpression> {
         let hir = HIRExpression::Return(expr.map(|hir| Box::new(hir)));
         Ok(hir)
     }
