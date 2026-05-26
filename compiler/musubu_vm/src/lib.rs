@@ -22,73 +22,39 @@ pub type VMResult<T> = Result<T, VMError>;
 // TODO デバッグ用のスタックトレース
 pub struct VM<'a> {
     cache: &'a VMCache,
-    stack: Vec<VMFrame<'a>>,
-}
-
-#[derive(Debug)]
-pub struct VMFrame<'a> {
-    frame: Frame<'a>,
-    caller_reg_dst: Option<Register>,
 }
 
 impl<'a> VM<'a> {
     pub fn new(cache: &'a VMCache) -> Self {
-        Self {
-            cache,
-            stack: Vec::new(),
-        }
+        Self { cache }
     }
 
     pub fn run_function(&mut self, func_id: usize, args: Vec<Value>) -> VMResult<Option<Value>> {
-        self.stack.push(VMFrame {
-            frame: self.load_function(func_id, args)?,
-            caller_reg_dst: None,
-        });
-
-        while let Some(frame) = self.stack.pop() {
-            self.execute_frame(frame.frame)?;
-        }
-
-        Ok(None)
+        let frame = self.load_function(func_id, args)?;
+        self.execute_frame(frame)
     }
 
     fn execute_frame(&mut self, frame: Frame<'a>) -> VMResult<Option<Value>> {
         // 順次実行
-        let mut frame = frame;
+        let mut frame_stack = vec![frame];
         loop {
-            let Some(inst) = frame.code.get(frame.ip) else {
-                break Ok(None);
-            };
-            frame.ip += 1;
-
-            // 0: break flag
-            let (true, reg) = self.next(&mut frame, inst)? else {
-                continue;
-            };
-
-            let Some(reg) = reg else {
-                break Ok(None);
-            };
-
-            let val = frame.registers[reg.0].clone();
-            let Some(vm_frame) = self.stack.last_mut() else {
-                break Ok(Some(val)); // 呼び出し元が最上位の場合
-            };
-
-            // 呼び出し元に戻り値を返す場合(指定のレジスタに格納)
-            if let Some(ret_dst) = vm_frame.caller_reg_dst {
-                vm_frame.frame.registers[ret_dst.0] = val;
-            };
-
-            break Ok(None);
+            let ret = self.next(&mut frame_stack)?;
+            if frame_stack.is_empty() {
+                return Ok(ret);
+            }
         }
     }
 
-    fn next(
-        &mut self,
-        frame: &mut Frame<'a>,
-        inst: &'a Instruction,
-    ) -> VMResult<(bool, Option<&'a Register>)> {
+    fn next(&self, frame_stack: &mut Vec<Frame<'a>>) -> VMResult<Option<Value>> {
+        let Some(frame) = frame_stack.last_mut() else {
+            return Ok(None);
+        };
+        let Some(inst) = frame.code.get(frame.ip) else {
+            frame_stack.pop();
+            return Ok(None);
+        };
+        frame.ip += 1;
+
         match inst {
             Instruction::LoadConst { dst, value } => {
                 frame.registers[dst.0] = value.clone();
@@ -115,21 +81,33 @@ impl<'a> VM<'a> {
                 frame.ip = *target;
             }
             Instruction::Call { dst, func, args } => {
+                if let Some(dst) = dst {
+                    frame.next_reg = dst.0;
+                };
+
                 let mut call_args = Vec::with_capacity(args.len());
                 for reg in args {
                     call_args.push(frame.registers[reg.0].clone());
                 }
 
                 let func = self.load_function(*func, call_args)?;
-                self.stack.push(VMFrame {
-                    frame: func,
-                    caller_reg_dst: dst.clone(),
-                });
-
-                return Ok((true, None));
+                frame_stack.push(func);
             }
             Instruction::Return { value } => {
-                return Ok((true, value.as_ref()));
+                let Some(value) = value else {
+                    return Ok(None);
+                };
+                let value = frame.registers[value.0].clone();
+
+                let Some(caller_index) = frame_stack.len().checked_sub(2) else {
+                    return Ok(Some(value));
+                };
+                let Some(caller) = frame_stack.get_mut(caller_index) else {
+                    return Ok(None);
+                };
+
+                // 呼び出し元に戻り値を返す(指定のレジスタに格納)
+                caller.registers[caller.next_reg] = value;
             }
 
             // TODO: 削除
@@ -150,7 +128,7 @@ impl<'a> VM<'a> {
             }
         }
 
-        Ok((false, None))
+        Ok(None)
     }
 
     fn load_function(&self, func_id: usize, args: Vec<Value>) -> VMResult<Frame<'a>> {
