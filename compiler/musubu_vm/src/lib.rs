@@ -99,11 +99,12 @@ impl<'a> VM<'a> {
                 };
                 let value = frame.registers[value.0].clone();
 
-                let Some(caller_index) = frame_stack.len().checked_sub(2) else {
+                // 呼び出し元の取得
+                let Some(caller_index) = frame_stack.len().checked_sub(1) else {
                     return Ok(Some(value));
                 };
                 let Some(caller) = frame_stack.get_mut(caller_index) else {
-                    return Ok(None);
+                    return Err(VMError::UnreachableIndexOutOfBounds); // ここに到達することはありえない
                 };
 
                 // 呼び出し元に戻り値を返す(指定のレジスタに格納)
