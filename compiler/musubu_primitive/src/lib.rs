@@ -95,6 +95,10 @@ impl PrimitiveType {
         matches!(self, Self::Boolean)
     }
 
+    pub fn is_function(&self) -> bool {
+        matches!(self, Self::Function { .. })
+    }
+
     pub fn is_struct(&self) -> bool {
         matches!(self, Self::Struct { .. })
     }

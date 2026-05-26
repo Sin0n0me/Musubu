@@ -7,7 +7,7 @@ use musubu_scope::errors::ScopeError;
 use musubu_scope::*;
 
 #[derive(Debug)]
-pub struct NameResolver<'a> {
+pub(crate) struct NameResolver<'a> {
     root_module: Module<'a>,           // 定義済みモジュール
     current_module_path: Vec<&'a str>, // 現在 stack
     scope_stack: Vec<Scope<'a>>,       // 一時
@@ -157,15 +157,19 @@ impl<'a> NameResolver<'a> {
         None
     }
 
-    pub(crate) fn get_scope(&self) -> Option<&Scope<'a>> {
+    pub fn get_item(&self, name: &'a str) -> Option<&ItemSymbol<'a>> {
+        self.get_name_space()?.get_item(name)
+    }
+
+    pub fn get_scope(&self) -> Option<&Scope<'a>> {
         self.scope_stack.last()
     }
 
-    pub(crate) fn get_mut_scope(&mut self) -> Option<&mut Scope<'a>> {
+    pub fn get_mut_scope(&mut self) -> Option<&mut Scope<'a>> {
         self.scope_stack.last_mut()
     }
 
-    pub(crate) fn get_full_path(&self, name: &'a str) -> Vec<&'a str> {
+    pub fn get_full_path(&self, name: &'a str) -> Vec<&'a str> {
         self.current_module_path
             .iter()
             .copied()

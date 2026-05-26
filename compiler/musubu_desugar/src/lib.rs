@@ -12,16 +12,14 @@ use alloc::{vec, vec::Vec};
 use musubu_ast::*;
 use musubu_hir::*;
 use musubu_primitive::*;
-use musubu_span::*;
 
 pub type DesugarResult<T> = Result<T, DesugarError>;
 
 #[derive(Debug)]
 pub struct Desugar<'a> {
     next_symbol: usize,
-    next_function: usize,
-    pub variables: BTreeMap<&'a str, SymbolId>,
-    pub functions: BTreeMap<&'a str, FunctionId>,
+    next_function: uszie,
+    root_module: &'a mut HIRModule,
 }
 
 // HIRに変換するだけ
@@ -29,67 +27,51 @@ pub struct Desugar<'a> {
 impl<'a> Desugar<'a> {
     const INITIAL_ID: usize = 0;
 
-    pub fn new() -> Self {
+    pub fn new(module: &'a mut HIRModule) -> Self {
         Self {
             next_symbol: Self::INITIAL_ID,
             next_function: Self::INITIAL_ID,
-            variables: BTreeMap::new(),
-            functions: BTreeMap::new(),
+            root_module: module,
         }
     }
 
-    fn alloc_symbol(&mut self, name: &'a str) -> SymbolId {
-        if let Some(id) = self.variables.get(name) {
-            return *id;
-        }
-
-        let id = SymbolId {
-            id: self.next_symbol,
-        };
-        self.next_symbol += 1;
-        self.variables.insert(name, id);
-        id
-    }
-
-    fn resolve_symbol(&self, name: &str) -> SymbolId {
-        *self.variables.get(name).expect("undefined variable")
-    }
-
-    pub fn alloc_function(&mut self, name: &'a str) -> FunctionId {
-        if let Some(id) = self.functions.get(name) {
-            return *id;
-        }
-
+    pub fn alloc_function(&mut self) -> FunctionId {
         let id = FunctionId {
             id: self.next_function,
         };
         self.next_function += 1;
-        self.functions.insert(name, id);
+
         id
     }
 
-    fn resolve_function(&self, name: &str) -> FunctionId {
-        if let Some(func) = self.functions.get(name) {
-            return *func;
-        }
+    pub fn alloc_function_to_module(&mut self, id: FunctionId, function: HIRFunction) {
+        self.root_module.add_function(id, function);
+    }
 
-        // self.resolve_built_in(name)
+    pub fn alloc_symbol(&mut self) -> SymbolId {
+        let id = SymbolId {
+            id: self.next_symbol,
+        };
+        self.next_symbol += 1;
 
-        FunctionId { id: 0usize }
+        id
+    }
+
+    pub fn lower_function(
+        &mut self,
+        params: Vec<(SymbolId, PrimitiveType)>,
+        return_type: PrimitiveType,
+        body: HIRBlock,
+    ) -> DesugarResult<HIRFunction> {
+        Ok(HIRFunction {
+            params,
+            return_type,
+            body,
+        })
     }
 
     pub fn lower_block(&mut self, body: Vec<HIRStatement>) -> DesugarResult<HIRBlock> {
         let hir = HIRBlock { statements: body };
-        Ok(hir)
-    }
-
-    pub fn lower_path(
-        &mut self,
-        name: &'a str,
-        symbol_type: PrimitiveType,
-    ) -> DesugarResult<HIRExpression> {
-        let id = self.resolve_symbol(name);
-        let hir = HIRExpression::Variable { id, symbol_type };
         Ok(hir)
     }
 
@@ -110,13 +92,13 @@ impl<'a> Desugar<'a> {
 
     pub fn lower_let_statement(
         &mut self,
-        pattern: &'a Pattern,
+        pattern: &Pattern,
         initializer: Option<HIRExpression>,
     ) -> DesugarResult<Option<HIRStatement>> {
-        let Pattern::Identifier { ident, .. } = pattern else {
+        let Pattern::Identifier { .. } = pattern else {
             return Ok(None);
         };
-        let symbol = self.alloc_symbol(&ident);
+        let symbol = self.alloc_symbol();
         let symbol_type = initializer
             .as_ref()
             .map_or(PrimitiveType::Unit, |e| e.to_type());
@@ -229,14 +211,22 @@ impl<'a> Desugar<'a> {
         function: HIRExpression,
         arguments: Vec<HIRExpression>,
     ) -> DesugarResult<HIRExpression> {
-        /*
-        let HIRExpression::Variable { id, symbol_type } = function else {
-            return Err(DesugarError::NotFunction);
-        };
-         * */
+        let mut function = function;
+        match &mut function {
+            HIRExpression::Call { function: _, args } => {
+                *args = arguments;
+                Ok(function)
+            }
 
-        match function {
+            // 関数ポインタ
             HIRExpression::Variable { id, symbol_type } => {
+                let PrimitiveType::Function {
+                    return_type: _,
+                    arguments: _,
+                } = symbol_type
+                else {
+                    return Err(DesugarError::NotFunction);
+                };
                 let hir = HIRExpression::Call {
                     function: FunctionId { id: id.id },
                     args: arguments,
@@ -315,7 +305,7 @@ impl<'a> Desugar<'a> {
     // }
     pub fn lower_for(
         &mut self,
-        pattern: &'a Pattern,
+        pattern: &Pattern,
         iterator: HIRExpression,
         body: HIRBlock,
     ) -> DesugarResult<HIRExpression> {
@@ -348,7 +338,7 @@ impl<'a> Desugar<'a> {
             }),
             Literal::Bool(b) => Value::Bool(*b),
             Literal::String { value, .. } => Value::String(value.clone()),
-            _ => unimplemented!(),
+            _ => unimplemented!(), // TODO
         };
 
         Ok(HIRExpression::Literal(value))

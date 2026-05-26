@@ -4,8 +4,8 @@ use alloc::string::ToString;
 use musubu_ast::*;
 use musubu_hir::{HIRBlock, HIRExpression, HIRFunction, HIRStatement};
 use musubu_name_space::errors::NameSpaceError;
-use musubu_name_space::{FunctionItem, ItemStoreReader};
-use musubu_primitive::{BinaryOperator, ComparisonOperator, LogicalOperator};
+use musubu_name_space::{FunctionItem, ItemStoreReader, ItemSymbol};
+use musubu_primitive::{BinaryOperator, ComparisonOperator, LogicalOperator, ToPrimitiveType};
 use musubu_scope::{SymbolStore, TypeOption, TypeRequirement, TypeSymbol};
 use musubu_span::*;
 
@@ -52,6 +52,7 @@ impl<'a> Resolver<'a> {
         }
 
         let FunctionItem {
+            id: _,
             name: _,
             return_type,
             arguments,
@@ -89,9 +90,6 @@ impl<'a> Resolver<'a> {
 
             s.resolve_expression(body_expr)
         })?;
-
-        //let full_name = self.name_resolver.get_full_path(name);
-        //let module = self.desuger.alloc_function(name);
 
         Ok(())
     }
@@ -131,7 +129,9 @@ impl<'a> Resolver<'a> {
             Expression::Path(path) => {
                 let (hir, type_symbol) = self.resolve_path(path.as_ref_spanned())?.split();
                 let Some(hir) = hir else {
-                    return Err(ResolveError::ExpectedValuePathButFoundType);
+                    return Err(ResolveError::ExpectedValuePathButFoundType {
+                        name: path.get_node().to_string(),
+                    });
                 };
                 Lowered { type_symbol, hir }
             }
@@ -339,12 +339,6 @@ impl<'a> Resolver<'a> {
             .map(|arg| self.resolve_expression(&arg))
             .collect::<Result<Vec<_>, ResolveError>>()?;
 
-        let function = function.get_node();
-        let arguments = arguments
-            .iter()
-            .map(|arg| arg.get_node())
-            .collect::<Vec<_>>();
-
         let type_symbol = self.type_checker.check_function_call(
             &call.type_symbol,
             args.iter()
@@ -517,17 +511,15 @@ impl<'a> Resolver<'a> {
         //
         let path = path.node;
         let name = path.last_ident();
+        let full_path = self.name_resolver.get_full_path(name);
 
         let Some(type_symbol) = self.name_resolver.get_type(name).cloned() else {
-            return Err(ResolveError::UnresolvePath {
+            return Err(ResolveError::UnresolvedPath {
                 name: name.to_string(),
             });
         };
 
         if self.name_resolver.is_variable(name) {
-            let hir = self
-                .desuger
-                .lower_path(name, type_symbol.type_kind.clone())?;
             return Ok(Lowered {
                 type_symbol,
                 hir: Some(hir),
@@ -541,9 +533,21 @@ impl<'a> Resolver<'a> {
             });
         }
 
-        Err(ResolveError::UnresolvePath {
-            name: name.to_string(),
-        })
+        let Some(item) = self.name_resolver.get_item(name) else {
+            return Err(ResolveError::UnresolvedPath {
+                name: name.to_string(),
+            });
+        };
+
+        let hir = match item {
+            ItemSymbol::Function(function_item) => {
+                function_item.id;
+            }
+            ItemSymbol::Enumeration(enum_item) => None,
+            ItemSymbol::Struct(struct_item) => None,
+        };
+
+        Ok(Lowered { type_symbol, hir })
     }
 
     fn resolve_literal(

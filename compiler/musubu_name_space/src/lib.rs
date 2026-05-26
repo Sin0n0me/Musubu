@@ -10,6 +10,7 @@ use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use core::hash::BuildHasherDefault;
+use musubu_hir::{FunctionId, SymbolId};
 use musubu_primitive::{PrimitiveType, ToPrimitiveType};
 use musubu_scope::TypeSymbol;
 use twox_hash::XxHash64;
@@ -45,8 +46,12 @@ impl<'a> SymbolTable<'a> {
         }
     }
 
-    fn get_type(&self, _: &'a str) -> Option<&TypeSymbol> {
-        Some(&self.type_symbol)
+    fn get_type(&self) -> &TypeSymbol {
+        &self.type_symbol
+    }
+
+    fn get_item(&self) -> &ItemSymbol<'a> {
+        &self.item_symbol
     }
 }
 
@@ -165,7 +170,11 @@ impl<'a> Module<'a> {
     }
 
     pub fn get_type(&self, name: &'a str) -> Option<&TypeSymbol> {
-        self.items.get(name)?.get_type("")
+        Some(self.items.get(name)?.get_type())
+    }
+
+    pub fn get_item(&self, name: &'a str) -> Option<&ItemSymbol<'a>> {
+        Some(self.items.get(name)?.get_item())
     }
 
     pub fn get_mut_child_module(&mut self, name: &'a str) -> Option<&mut Self> {
@@ -257,14 +266,16 @@ impl<'a> ToPrimitiveType for ItemSymbol<'a> {
 
 #[derive(Debug)]
 pub struct FunctionItem<'a> {
+    pub id: FunctionId,
     pub name: &'a str,
     pub return_type: TypeSymbol,
     pub arguments: Vec<TypeSymbol>,
 }
 
 impl<'a> FunctionItem<'a> {
-    pub fn new(name: &'a str, return_type: TypeSymbol) -> Self {
+    pub fn new(id: FunctionId, name: &'a str, return_type: TypeSymbol) -> Self {
         Self {
+            id,
             name,
             return_type,
             arguments: Vec::new(),

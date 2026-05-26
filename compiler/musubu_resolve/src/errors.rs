@@ -10,14 +10,14 @@ use musubu_type_check::errors::TypeCheckError;
 
 #[derive(Debug)]
 pub enum ResolveError {
-    UnresolvePath { name: String },
+    UnresolvedPath { name: String },
     UndefinedVariable { name: String },
     DuplicateDefinition { name: String },
     UnresolveType { name: String },
     UnresolveTypes { names: Vec<String> },
     InvalidRetrunType,
     InvalidModuleScope,
-    ExpectedValuePathButFoundType,
+    ExpectedValuePathButFoundType { name: String },
     TypeCheckError(TypeCheckError),
     ScopeError(ScopeError),
     NameSpaceError(NameSpaceError),

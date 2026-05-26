@@ -56,7 +56,6 @@ pub fn resolve_unordered(
 #[derive(Debug)]
 struct Resolver<'a> {
     name_resolver: NameResolver<'a>,
-    hir_module: &'a mut HIRModule,
     type_checker: TypeChecker,
     collector: SymbolCollector<'a>,
     desuger: Desugar<'a>,
@@ -78,10 +77,9 @@ impl<'a> Resolver<'a> {
     pub fn new(project_name: &'a str, hir_module: &'a mut HIRModule) -> Self {
         Self {
             name_resolver: NameResolver::new(project_name),
-            hir_module,
             type_checker: TypeChecker::new(),
             collector: SymbolCollector::new(),
-            desuger: Desugar::new(),
+            desuger: Desugar::new(hir_module),
         }
     }
 

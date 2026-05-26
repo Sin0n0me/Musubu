@@ -8,52 +8,45 @@ use alloc::collections::btree_map::BTreeMap;
 use alloc::vec::Vec;
 use musubu_primitive::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct SymbolId {
     pub id: usize,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TypeId(pub usize);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct FunctionId {
     pub id: usize,
 }
 
-#[derive(Debug)]
-pub struct SymbolTable {
-    pub global_map: BTreeMap<SymbolId, SymbolId>,
-    pub variable_map: BTreeMap<SymbolId, SymbolId>,
-    pub function_map: BTreeMap<FunctionId, HIRFunction>,
-}
-
 #[derive(Debug, Clone)]
 pub struct HIRModule {
-    pub functions: Vec<HIRFunction>,
+    pub functions: BTreeMap<FunctionId, HIRFunction>,
     pub globals: Vec<HIRGlobal>,
 }
 
 impl HIRModule {
     pub fn new() -> Self {
         Self {
-            functions: Vec::new(),
+            functions: BTreeMap::new(),
             globals: Vec::new(),
         }
     }
 
-    pub fn add_function(&mut self, function: HIRFunction) {
-        self.functions.push(function);
+    pub fn add_function(&mut self, id: FunctionId, function: HIRFunction) {
+        self.functions.insert(id, function);
     }
 
     pub fn add_global(&mut self, global: HIRGlobal) {
         self.globals.push(global);
     }
+
+    pub fn get_function(&self, function_id: &FunctionId) -> Option<&HIRFunction> {
+        self.functions.get(function_id)
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct HIRFunction {
-    pub id: FunctionId,
     pub params: Vec<(SymbolId, PrimitiveType)>,
     pub return_type: PrimitiveType,
     pub body: HIRBlock,

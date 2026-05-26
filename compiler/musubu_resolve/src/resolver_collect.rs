@@ -126,7 +126,8 @@ impl<'a> Resolver<'a> {
             TypeSymbol::default()
         };
 
-        let mut function_item = FunctionItem::new(name, return_type);
+        let func_id = self.desuger.alloc_function();
+        let mut function_item = FunctionItem::new(func_id, name, return_type);
 
         // 引数
         for param in params {
