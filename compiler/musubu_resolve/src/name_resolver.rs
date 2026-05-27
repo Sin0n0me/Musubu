@@ -1,6 +1,7 @@
 use crate::{ResolveResult, errors::ResolveError};
 use alloc::vec::Vec;
 use core::iter::once;
+use musubu_hir::SymbolId;
 use musubu_name_space::*;
 use musubu_primitive::PrimitiveType;
 use musubu_scope::errors::ScopeError;
@@ -101,11 +102,24 @@ impl<'a> SymbolStore<'a, ResolveError> for NameResolver<'a> {
             .resolve_variable_type(name, ty)?)
     }
 
-    fn add_variable(&mut self, name: &'a str, ty: TypeRequirement) -> Result<(), ResolveError> {
+    fn add_variable(
+        &mut self,
+        id: SymbolId,
+        name: &'a str,
+        ty: TypeRequirement,
+    ) -> Result<(), ResolveError> {
         Ok(self
             .get_mut_scope()
             .ok_or(ScopeError::InvalidScope)?
-            .add_variable(name, ty)?)
+            .add_variable(id, name, ty)?)
+    }
+
+    fn get_variable_id(&self, name: &'a str) -> Option<&SymbolId> {
+        self.get_scope()?.get_variable_id(name)
+    }
+
+    fn get_symbol(&self, name: &'a str) -> Option<&Symbol> {
+        self.get_scope()?.get_symbol(name)
     }
 
     fn add_type(&mut self, name: &'a str, ty: TypeRequirement) -> Result<(), ResolveError> {

@@ -15,8 +15,8 @@ pub type IRCompileResult<T> = Result<T, IRCompileError>;
 
 pub fn compile_module(module: &HIRModule) -> Vec<CompiledFunction> {
     let mut functions = Vec::new();
-    for func in &module.functions {
-        functions.push(compile_function(func));
+    for (id, hir) in &module.functions {
+        functions.push(compile_function(hir));
     }
     functions
 }

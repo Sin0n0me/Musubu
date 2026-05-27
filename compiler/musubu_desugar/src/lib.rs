@@ -18,7 +18,7 @@ pub type DesugarResult<T> = Result<T, DesugarError>;
 #[derive(Debug)]
 pub struct Desugar<'a> {
     next_symbol: usize,
-    next_function: uszie,
+    next_function: usize,
     root_module: &'a mut HIRModule,
 }
 
@@ -44,7 +44,7 @@ impl<'a> Desugar<'a> {
         id
     }
 
-    pub fn alloc_function_to_module(&mut self, id: FunctionId, function: HIRFunction) {
+    pub fn add_function_to_module(&mut self, id: FunctionId, function: HIRFunction) {
         self.root_module.add_function(id, function);
     }
 
@@ -63,11 +63,32 @@ impl<'a> Desugar<'a> {
         return_type: PrimitiveType,
         body: HIRBlock,
     ) -> DesugarResult<HIRFunction> {
-        Ok(HIRFunction {
+        let hir = HIRFunction {
             params,
             return_type,
             body,
-        })
+        };
+
+        Ok(hir)
+    }
+
+    pub fn lower_function_symbol(&self, id: FunctionId) -> DesugarResult<HIRExpression> {
+        let hir = HIRExpression::Call {
+            function: id,
+            args: Vec::new(),
+        };
+
+        Ok(hir)
+    }
+
+    pub fn lower_symbol(
+        &mut self,
+        id: SymbolId,
+        symbol_type: PrimitiveType,
+    ) -> DesugarResult<HIRExpression> {
+        let hir = HIRExpression::Variable { id, symbol_type };
+
+        Ok(hir)
     }
 
     pub fn lower_block(&mut self, body: Vec<HIRStatement>) -> DesugarResult<HIRBlock> {

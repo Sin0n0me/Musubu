@@ -264,7 +264,7 @@ impl<'a> ToPrimitiveType for ItemSymbol<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FunctionItem<'a> {
     pub id: FunctionId,
     pub name: &'a str,

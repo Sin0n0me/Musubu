@@ -105,15 +105,15 @@ impl<'a> Resolver<'a> {
         &mut self,
         return_type: TypeSymbol,
         function: impl Fn(&mut Self) -> ResolveResult<Lowered<T>>,
-    ) -> ResolveResult<Lowered<T>> {
+    ) -> ResolveResult<T> {
         self.type_checker.enter_function(return_type);
 
         let mut result = self.enter_scope(function)?;
 
-        result.type_symbol = self.type_checker.check_return(Some(result.type_symbol))?;
+        self.type_checker.check_return(Some(&result.type_symbol))?;
         self.type_checker.exit_function();
 
-        Ok(result)
+        Ok(result.hir)
     }
 
     pub(crate) fn enter_module(

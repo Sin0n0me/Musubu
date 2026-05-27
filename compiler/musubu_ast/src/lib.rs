@@ -292,7 +292,7 @@ impl NodeMaker for TypeKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FunctionParam {
-    pub pattern: Option<Spanned<Pattern>>,
+    pub pattern: Spanned<Pattern>,
     pub param_type: Spanned<TypeKind>,
 }
 

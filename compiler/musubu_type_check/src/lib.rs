@@ -270,21 +270,28 @@ impl TypeChecker {
         Ok(then_body)
     }
 
-    pub fn check_return(&mut self, return_type: Option<TypeSymbol>) -> TypeCheckResult<TypeSymbol> {
-        let expected = self
+    pub fn check_return(&self, return_type: Option<&TypeSymbol>) -> TypeCheckResult<()> {
+        let expect = self
             .function_return_stack
             .last()
             .ok_or(TypeCheckError::InvalidReturnScope)?;
 
-        let return_type = return_type.unwrap_or_default();
-        if !expected.is_same_type(&return_type) {
+        let is_same = if let Some(return_type) = return_type {
+            expect.is_same_type(&return_type)
+        } else {
+            expect.type_kind.is_unit()
+        };
+
+        if !is_same {
             return Err(TypeCheckError::FunctionReturnMismatch {
-                expected: expected.type_kind.clone(),
-                found: return_type.type_kind,
+                expected: expect.type_kind.clone(),
+                found: return_type
+                    .map(|s| s.type_kind.clone())
+                    .unwrap_or(PrimitiveType::Unit),
             });
         }
 
-        Ok(return_type)
+        Ok(())
     }
 
     pub fn check_type<'a>(

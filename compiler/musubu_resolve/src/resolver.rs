@@ -52,13 +52,14 @@ impl<'a> Resolver<'a> {
         }
 
         let FunctionItem {
-            id: _,
+            id,
             name: _,
             return_type,
             arguments,
         } = self
             .name_resolver
             .get_function(name)
+            .cloned() // 後でcloneした要素を渡すので丸ごとcloneして構わない
             .ok_or(ResolveError::NameSpaceError(
                 NameSpaceError::UnresolveFunction {
                     name: name.to_string(),
@@ -73,23 +74,35 @@ impl<'a> Resolver<'a> {
         if arguments.len() != params.len() {
             unreachable!()
         }
-        let params = arguments
-            .clone() // 後でcloneした要素を渡すので丸ごとcloneして構わない
-            .into_iter()
-            .zip(params);
+        let params = arguments.into_iter().zip(params);
 
         // 関数本体
-        self.enter_function(return_type.clone(), |s| {
+        let hir = self.enter_function(return_type.clone(), |s| {
             // 引数
+            let mut args = Vec::with_capacity(params.len());
             for (resolved_type, param) in params.clone() {
-                let param = &param.node;
-                if let Some(ref pattern) = param.pattern {
-                    s.resolve_pattern(&pattern.as_ref_spanned(), Some(&resolved_type))?;
+                let param = param.get_node();
+                let pattern = param.pattern.as_ref_spanned();
+
+                let type_requirement = s.resolve_pattern(&pattern, Some(&resolved_type))?;
+                let Some(ty) = type_requirement.get_type().cloned() else {
+                    unimplemented!()
                 };
+                let id = s.desuger.alloc_symbol();
+
+                args.push((id, ty));
             }
 
-            s.resolve_expression(body_expr)
+            let type_symbol = return_type.clone();
+            let return_type = return_type.type_kind.clone();
+            let body = s.resolve_expression(body_expr)?.hir.to_block();
+
+            let hir = s.desuger.lower_function(args, return_type, body)?;
+
+            Ok(Lowered { type_symbol, hir })
         })?;
+
+        self.desuger.add_function_to_module(id, hir);
 
         Ok(())
     }
@@ -427,7 +440,8 @@ impl<'a> Resolver<'a> {
             (None, None)
         };
 
-        let type_symbol = self.type_checker.check_return(expr_ty)?;
+        self.type_checker.check_return(expr_ty.as_ref())?;
+        let type_symbol = expr_ty.unwrap_or_default();
         let hir = self.desuger.lower_return(expr_hir)?;
 
         Ok(Lowered { type_symbol, hir })
@@ -511,7 +525,6 @@ impl<'a> Resolver<'a> {
         //
         let path = path.node;
         let name = path.last_ident();
-        let full_path = self.name_resolver.get_full_path(name);
 
         let Some(type_symbol) = self.name_resolver.get_type(name).cloned() else {
             return Err(ResolveError::UnresolvedPath {
@@ -519,7 +532,11 @@ impl<'a> Resolver<'a> {
             });
         };
 
-        if self.name_resolver.is_variable(name) {
+        if let Some(id) = self.name_resolver.get_variable_id(name) {
+            let hir = self
+                .desuger
+                .lower_symbol(id.clone(), type_symbol.type_kind.clone())?;
+
             return Ok(Lowered {
                 type_symbol,
                 hir: Some(hir),
@@ -541,7 +558,9 @@ impl<'a> Resolver<'a> {
 
         let hir = match item {
             ItemSymbol::Function(function_item) => {
-                function_item.id;
+                let id = function_item.id.clone();
+                let hir = self.desuger.lower_function_symbol(id)?;
+                Some(hir)
             }
             ItemSymbol::Enumeration(enum_item) => None,
             ItemSymbol::Struct(struct_item) => None,
@@ -685,7 +704,8 @@ impl<'a> Resolver<'a> {
                     TypeRequirement::Inferring(option)
                 };
 
-                self.name_resolver.add_variable(ident, ty.clone())?;
+                self.name_resolver
+                    .add_variable(self.desuger.alloc_symbol(), ident, ty.clone())?;
                 ty
             }
             Pattern::Multiply(patterns) => {

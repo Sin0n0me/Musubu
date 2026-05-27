@@ -38,7 +38,10 @@ pub fn compile(code: &str) -> bool {
     let functions = compile_module(&hir);
 
     // VMに関数登録
-    for function in functions {}
+    for function in functions {
+        println!("-----");
+        println!("{function:#?}");
+    }
 
     println!("build sucess");
 

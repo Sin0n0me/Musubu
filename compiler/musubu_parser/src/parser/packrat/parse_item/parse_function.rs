@@ -3,7 +3,7 @@ use crate::{
     lexer::{musubu_keywords::MusubuKeyword, token::MusubuOperator},
     parser::packrat::{PackratAndPrattParser, ParseResult},
 };
-use musubu_ast::{ASTNode, FunctionParam, Item, Visibility};
+use musubu_ast::{ASTNode, FunctionParam, Item, Pattern, Visibility};
 use musubu_span::Spanned;
 use std::rc::Rc;
 
@@ -162,7 +162,10 @@ impl<'a> PackratAndPrattParser<'a> {
         let param = match node.as_ref().clone() {
             ASTNode::Type(param_type) => Spanned {
                 node: FunctionParam {
-                    pattern: None,
+                    pattern: Spanned {
+                        node: Pattern::None,
+                        span: span.clone(),
+                    },
                     param_type,
                 },
                 span,
@@ -191,7 +194,6 @@ impl<'a> PackratAndPrattParser<'a> {
         let ASTNode::Pattern(pattern) = node else {
             unreachable!();
         };
-        let pattern = Some(pattern);
 
         // `:`
         let Some(MusubuOperator::Colon) = self.tokens.get_operator() else {
