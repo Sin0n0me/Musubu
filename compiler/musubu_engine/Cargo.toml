@@ -1,0 +1,9 @@
+[package]
+name = "musubu_engine"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+musubu_ir = { version = "0.1.0", path = "../musubu_ir" }
+musubu_primitive = { version = "0.1.0", path = "../musubu_primitive" }
+musubu_vm = { version = "0.1.0", path = "../musubu_vm" }

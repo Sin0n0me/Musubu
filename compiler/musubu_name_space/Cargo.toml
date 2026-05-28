@@ -8,3 +8,4 @@ musubu_primitive = { version = "0.1.0", path = "../musubu_primitive" }
 musubu_scope = { version = "0.1.0", path = "../musubu_scope" }
 indexmap = { version = "2.14.0", default-features = false }
 twox-hash = { version = "2.1.2", default-features = false, features = ["xxhash64"] }
+musubu_hir = { version = "0.1.0", path = "../musubu_hir" }
