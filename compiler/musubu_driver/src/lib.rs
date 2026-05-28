@@ -27,6 +27,7 @@ pub fn compile(engine: &mut MusubuEngine, code: &str) -> bool {
     };
 
     // スコープ, 型などの解決
+    // TODO: project, module名を任意に
     let ast_items = ast_items.iter().map(|ast| ast.as_ref()).collect::<Vec<_>>();
     let result = resolve_unordered("Musubu", "musubu", &ast_items);
     let hir = match result {
@@ -51,8 +52,6 @@ pub fn compile(engine: &mut MusubuEngine, code: &str) -> bool {
     for (id, function) in functions {
         engine.register_function(id, function);
     }
-
-    println!("build sucess");
 
     true
 }
