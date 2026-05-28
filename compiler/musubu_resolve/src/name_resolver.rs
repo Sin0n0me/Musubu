@@ -28,7 +28,7 @@ impl<'a> ScopeControl<ResolveError> for NameResolver<'a> {
 
         let inffering_names = scope.get_inferring_names();
         if !inffering_names.is_empty() {
-            return Err(ResolveError::UnresolveTypes {
+            return Err(ResolveError::UnresolvedTypes {
                 names: inffering_names,
             });
         }

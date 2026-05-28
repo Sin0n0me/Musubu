@@ -212,7 +212,7 @@ impl<'a> Resolver<'a> {
 
         self.name_resolver
             .get_type(name)
-            .ok_or(ResolveError::UnresolveType {
+            .ok_or(ResolveError::UnresolvedType {
                 name: name.to_string(),
             })
             .cloned()

@@ -159,7 +159,7 @@ impl<'a> Desugar<'a> {
         rhs: HIRExpression,
     ) -> DesugarResult<HIRExpression> {
         let HIRExpression::Store { target, value: _ } = lhs else {
-            return Err(DesugarError::UnsupportAssignTarget);
+            return Err(DesugarError::UnsupportedAssignTarget);
         };
 
         let operator = match operator {

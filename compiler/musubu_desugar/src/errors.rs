@@ -1,5 +1,5 @@
 #[derive(Debug)]
 pub enum DesugarError {
-    UnsupportAssignTarget,
+    UnsupportedAssignTarget,
     NotFunction,
 }
