@@ -260,7 +260,7 @@ impl IRCompiler {
         self.code.push(instruction);
 
         // break文があった場合ジャンプ位置の修正
-        let loop_end = self.code.len() + 1;
+        let loop_end = self.code.len();
         for point in loop_statement.break_point {
             let Instruction::Jump { target } = &mut self.code[point] else {
                 return Err(IRCompileError::IllegalBreak);
