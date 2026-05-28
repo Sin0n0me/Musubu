@@ -95,8 +95,7 @@ impl<'a> VM<'a> {
             }
             Instruction::Return { value } => {
                 // 実行が継続しないように終端へ
-                let code_len = frame.code.len();
-                frame.ip = code_len;
+                frame.ip = frame.code.len();
 
                 let Some(value) = value else {
                     return Ok(None);
@@ -104,7 +103,7 @@ impl<'a> VM<'a> {
                 let value = frame.registers[value.0].clone();
 
                 // 呼び出し元の取得
-                let Some(caller_index) = code_len.checked_sub(2) else {
+                let Some(caller_index) = frame_stack.len().checked_sub(2) else {
                     return Ok(Some(value));
                 };
                 let Some(caller) = frame_stack.get_mut(caller_index) else {
