@@ -38,7 +38,7 @@ pub fn resolve_sequential(
 }
 
 // 完全な解決
-// 推論を強力にするならresolve内のdesuger部分の分離が必要
+// 推論を強力にするならresolve内のdesugar部分の分離が必要
 pub fn resolve_unordered(
     project_name: &str,
     module_name: &str,
@@ -58,7 +58,7 @@ struct Resolver<'a> {
     name_resolver: NameResolver<'a>,
     type_checker: TypeChecker,
     collector: SymbolCollector<'a>,
-    desuger: Desugar<'a>,
+    desugar: Desugar<'a>,
 }
 
 #[derive(Debug)]
@@ -79,7 +79,7 @@ impl<'a> Resolver<'a> {
             name_resolver: NameResolver::new(project_name),
             type_checker: TypeChecker::new(),
             collector: SymbolCollector::new(),
-            desuger: Desugar::new(hir_module),
+            desugar: Desugar::new(hir_module),
         }
     }
 

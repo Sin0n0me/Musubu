@@ -88,7 +88,7 @@ impl<'a> Resolver<'a> {
                 let Some(ty) = type_requirement.get_type().cloned() else {
                     unimplemented!()
                 };
-                let id = s.desuger.alloc_symbol();
+                let id = s.desugar.alloc_symbol();
 
                 args.push((id, ty));
             }
@@ -97,12 +97,12 @@ impl<'a> Resolver<'a> {
             let return_type = return_type.type_kind.clone();
             let body = s.resolve_expression(body_expr)?.hir.to_block();
 
-            let hir = s.desuger.lower_function(args, return_type, body)?;
+            let hir = s.desugar.lower_function(args, return_type, body)?;
 
             Ok(Lowered { type_symbol, hir })
         })?;
 
-        self.desuger.add_function_to_module(id, hir);
+        self.desugar.add_function_to_module(id, hir);
 
         Ok(())
     }
@@ -248,7 +248,7 @@ impl<'a> Resolver<'a> {
         };
 
         let type_symbol = expr_type.unwrap_or_default();
-        let hir = self.desuger.lower_break(expr_hir)?;
+        let hir = self.desugar.lower_break(expr_hir)?;
 
         Ok(Lowered { type_symbol, hir })
     }
@@ -258,7 +258,7 @@ impl<'a> Resolver<'a> {
         _label: Option<&'a str>,
     ) -> ResolveResult<Lowered<HIRExpression>> {
         let type_symbol = TypeSymbol::default();
-        let hir = self.desuger.lower_continue()?;
+        let hir = self.desugar.lower_continue()?;
 
         Ok(Lowered { type_symbol, hir })
     }
@@ -276,7 +276,7 @@ impl<'a> Resolver<'a> {
             self.type_checker
                 .check_binary_operator(operator, lhs.type_symbol, rhs.type_symbol)?;
         let hir = self
-            .desuger
+            .desugar
             .lower_binary_operator(operator.clone(), lhs.hir, rhs.hir)?;
 
         Ok(Lowered { type_symbol, hir })
@@ -295,7 +295,7 @@ impl<'a> Resolver<'a> {
             self.type_checker
                 .check_assign_operator(operator, lhs.type_symbol, rhs.type_symbol)?;
         let hir = self
-            .desuger
+            .desugar
             .lower_assign_operator(operator.clone(), lhs.hir, rhs.hir)?;
 
         Ok(Lowered { type_symbol, hir })
@@ -316,7 +316,7 @@ impl<'a> Resolver<'a> {
             rhs.type_symbol,
         )?;
         let hir = self
-            .desuger
+            .desugar
             .lower_comparison_operator(operator.clone(), lhs.hir, rhs.hir)?;
 
         Ok(Lowered { type_symbol, hir })
@@ -335,7 +335,7 @@ impl<'a> Resolver<'a> {
             self.type_checker
                 .check_logical_operator(operator, lhs.type_symbol, rhs.type_symbol)?;
         let hir = self
-            .desuger
+            .desugar
             .lower_logical_operator(operator.clone(), lhs.hir, rhs.hir)?;
 
         Ok(Lowered { type_symbol, hir })
@@ -360,7 +360,7 @@ impl<'a> Resolver<'a> {
                 .as_slice(),
         )?;
         let hir = self
-            .desuger
+            .desugar
             .lower_call(call.hir, args.into_iter().map(|l| l.hir).collect())?;
 
         Ok(Lowered { type_symbol, hir })
@@ -420,7 +420,7 @@ impl<'a> Resolver<'a> {
             then_body.type_symbol,
             else_body_type,
         )?;
-        let hir = self.desuger.lower_if_statement(
+        let hir = self.desugar.lower_if_statement(
             condition.hir,
             then_body.hir.to_block(),
             else_body_hir.map(|l| l.to_block()),
@@ -442,7 +442,7 @@ impl<'a> Resolver<'a> {
 
         self.type_checker.check_return(expr_ty.as_ref())?;
         let type_symbol = expr_ty.unwrap_or_default();
-        let hir = self.desuger.lower_return(expr_hir)?;
+        let hir = self.desugar.lower_return(expr_hir)?;
 
         Ok(Lowered { type_symbol, hir })
     }
@@ -534,7 +534,7 @@ impl<'a> Resolver<'a> {
 
         if let Some(id) = self.name_resolver.get_variable_id(name) {
             let hir = self
-                .desuger
+                .desugar
                 .lower_symbol(id.clone(), type_symbol.type_kind.clone())?;
 
             return Ok(Lowered {
@@ -559,7 +559,7 @@ impl<'a> Resolver<'a> {
         let hir = match item {
             ItemSymbol::Function(function_item) => {
                 let id = function_item.id.clone();
-                let hir = self.desuger.lower_function_symbol(id)?;
+                let hir = self.desugar.lower_function_symbol(id)?;
                 Some(hir)
             }
             ItemSymbol::Enumeration(enum_item) => None,
@@ -586,7 +586,7 @@ impl<'a> Resolver<'a> {
 
         let scope = self.get_scope()?;
         let type_symbol = self.type_checker.check_literal(scope, literal)?;
-        let hir = self.desuger.lower_literal(literal)?;
+        let hir = self.desugar.lower_literal(literal)?;
 
         Ok(Lowered { type_symbol, hir })
     }
@@ -665,7 +665,7 @@ impl<'a> Resolver<'a> {
             variable_type,
         )?;
         let hir = self
-            .desuger
+            .desugar
             .lower_let_statement(pattern.get_node(), initializer_hir)?;
 
         // TODO: 推論中
@@ -705,7 +705,7 @@ impl<'a> Resolver<'a> {
                 };
 
                 self.name_resolver
-                    .add_variable(self.desuger.alloc_symbol(), ident, ty.clone())?;
+                    .add_variable(self.desugar.alloc_symbol(), ident, ty.clone())?;
                 ty
             }
             Pattern::Multiply(patterns) => {
@@ -758,7 +758,7 @@ impl<'a> Resolver<'a> {
 
         let scope = self.get_scope()?;
         let type_symbol = self.type_checker.check_loop_expr(scope, body_ty)?;
-        let hir = self.desuger.lower_loop(body_hir.to_block())?;
+        let hir = self.desugar.lower_loop(body_hir.to_block())?;
 
         Ok(Lowered { type_symbol, hir })
     }
@@ -776,7 +776,7 @@ impl<'a> Resolver<'a> {
             .type_checker
             .check_while_expr(scope, condition_ty, body_ty)?;
         let hir = self
-            .desuger
+            .desugar
             .lower_while(condition_hir, body_hir.to_block())?;
 
         Ok(Lowered { type_symbol, hir })
@@ -797,7 +797,7 @@ impl<'a> Resolver<'a> {
             .type_checker
             .check_for_expr(scope, iterrator_ty, body_ty)?;
         let hir = self
-            .desuger
+            .desugar
             .lower_for(pattern.get_node(), iterrator_hir, body_hir.to_block())?;
 
         Ok(Lowered { type_symbol, hir })

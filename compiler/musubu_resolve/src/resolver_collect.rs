@@ -126,7 +126,7 @@ impl<'a> Resolver<'a> {
             TypeSymbol::default()
         };
 
-        let func_id = self.desuger.alloc_function();
+        let func_id = self.desugar.alloc_function();
         let mut function_item = FunctionItem::new(func_id, name, return_type);
 
         // 引数
