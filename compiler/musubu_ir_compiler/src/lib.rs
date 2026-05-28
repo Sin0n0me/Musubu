@@ -13,24 +13,29 @@ use musubu_ir::*;
 
 pub type IRCompileResult<T> = Result<T, IRCompileError>;
 
-pub fn compile_module(module: &HIRModule) -> Vec<CompiledFunction> {
+pub fn compile_module(module: &HIRModule) -> IRCompileResult<Vec<(usize, CompiledFunction)>> {
     let mut functions = Vec::new();
     for (id, hir) in &module.functions {
-        functions.push(compile_function(hir));
+        let code = compile_function(hir)?;
+        let id = id.id;
+        functions.push((id, code));
     }
-    functions
+
+    Ok(functions)
 }
 
-pub fn compile_function(func: &HIRFunction) -> CompiledFunction {
+pub fn compile_function(func: &HIRFunction) -> IRCompileResult<CompiledFunction> {
     let mut compiler = IRCompiler::new();
 
     compiler.next_reg = func.params.len();
-    compiler.compile_block(&func.body);
+    compiler.compile_block(&func.body)?;
 
-    CompiledFunction {
+    let code = CompiledFunction {
         code: compiler.code,
         registers: compiler.next_reg,
-    }
+    };
+
+    Ok(code)
 }
 
 #[derive(Debug)]

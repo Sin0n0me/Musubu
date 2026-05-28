@@ -3,25 +3,47 @@
 
 extern crate alloc;
 
-mod compiler;
-
 #[cfg(test)]
 mod tests;
 
+use musubu_engine::MusubuEngine;
 use std::os::raw::c_char;
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::ptr;
 
 #[unsafe(no_mangle)]
-pub extern "C" fn init() -> bool {
+pub extern "C" fn init(output: *mut *mut MusubuEngine) -> bool {
+    if output.is_null() {
+        return false;
+    }
+
+    // Box を生ポインタ化して所有権を FFI 側へ渡す
+    let engine = Box::new(MusubuEngine::new());
+    let raw = Box::into_raw(engine);
+    unsafe {
+        ptr::write(output, raw);
+    }
+
     true
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn uninit() {}
+pub extern "C" fn uninit(engine: *mut MusubuEngine) {
+    if engine.is_null() {
+        return;
+    }
+
+    // Boxに戻した時点で所有権をRustに戻す
+    unsafe {
+        drop(Box::from_raw(engine));
+    }
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn compile(code_ptr: *const c_char, len: usize) -> bool {
+pub extern "C" fn compile(engine: *mut MusubuEngine, code_ptr: *const c_char, len: usize) -> bool {
     let result = catch_unwind(AssertUnwindSafe(|| {
+        let engine = unsafe { &mut *engine };
+
         if code_ptr.is_null() {
             return false;
         }
@@ -32,7 +54,7 @@ pub extern "C" fn compile(code_ptr: *const c_char, len: usize) -> bool {
             Err(_) => return false,
         };
 
-        compiler::compile(code)
+        musubu_driver::compile(engine, code)
     }));
 
     result.unwrap_or(false)

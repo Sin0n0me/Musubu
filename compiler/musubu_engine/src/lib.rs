@@ -17,6 +17,12 @@ pub struct MusubuEngine {
 }
 
 impl MusubuEngine {
+    pub fn new() -> Self {
+        Self {
+            cache: VMCache::new(),
+        }
+    }
+
     pub fn register_function(&mut self, function_id: usize, function: CompiledFunction) {
         self.cache.register_function(function_id, function);
     }
