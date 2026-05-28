@@ -109,6 +109,9 @@ impl<'a> VM<'a> {
 
                 // 呼び出し元に戻り値を返す(指定のレジスタに格納)
                 caller.registers[caller.next_reg] = value;
+
+                // 実行が継続しないように終端へ
+                frame.ip = frame.code.len();
             }
 
             // TODO: 削除
