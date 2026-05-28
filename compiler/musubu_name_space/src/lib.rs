@@ -362,7 +362,7 @@ impl<'a> EnumItem<'a> {
 
     pub fn add_variant(&mut self, variant_name: &'a str) -> NameSpaceResult<()> {
         self.variants.insert(variant_name, make_index_map()).ok_or(
-            NameSpaceError::DuplicateEnumeVariant {
+            NameSpaceError::DuplicateEnumVariant {
                 name: variant_name.to_string(),
             },
         )?;
@@ -384,7 +384,7 @@ impl<'a> EnumItem<'a> {
 
         variant
             .insert(field_name, field_type)
-            .ok_or(NameSpaceError::DuplicateEnumeVariant {
+            .ok_or(NameSpaceError::DuplicateEnumVariant {
                 name: field_name.to_string(),
             })?;
 

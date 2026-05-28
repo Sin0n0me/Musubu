@@ -3,7 +3,7 @@ pub enum NameSpaceError {
     DuplicateFunction { name: String },
     DuplicateFunctionArgument { name: String },
     DuplicateEnumeration { name: String },
-    DuplicateEnumeVariant { name: String },
+    DuplicateEnumVariant { name: String },
     DuplicateStruct { name: String },
     DuplicateStructField { name: String },
     UnresolvedFunction { name: String },
