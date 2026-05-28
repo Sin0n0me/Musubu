@@ -276,10 +276,17 @@ impl IRCompiler {
         if self.loop_statement.is_empty() {
             return Err(IRCompileError::IllegalBreak);
         }
+
+        let break_position = self.code.len(); // 現在の命令位置
         let instruction = Instruction::Jump {
             target: self.code.len() + 1,
         };
         self.code.push(instruction);
+
+        // 後でbreak時の飛び先を決めるためにスタックに保持
+        if let Some(loop_info) = self.loop_statement.last_mut() {
+            loop_info.break_point.push(break_position);
+        }
 
         Ok(Register(0))
     }
