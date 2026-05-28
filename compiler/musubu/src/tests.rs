@@ -6,7 +6,7 @@ mod tests {
 
     #[test]
     fn test_full() {
-        let content = fs::read_to_string("test.msb").unwrap();
+        let content = fs::read_to_string("../../test.msb").unwrap();
         let mut engine = MusubuEngine::new();
 
         assert!(compile(&mut engine, content.as_str()))

@@ -1,5 +1,6 @@
 #[cfg(test)]
 pub(crate) mod tests {
+
     use crate::*;
     use musubu_lexer::{
         Tokens,
@@ -40,8 +41,8 @@ pub(crate) mod tests {
     pub fn parsed<'a>(src: &'a str) -> ASTNode {
         PackratAndPrattParser::new(tokenize_from_str(src))
             .parse()
-            .as_deref()
-            .unwrap()
+            .unwrap()[0]
+            .as_ref()
             .clone()
     }
 }

@@ -759,9 +759,7 @@ mod tests {
         assert_eq!(name, "add");
         assert_eq!(params.len(), 1);
 
-        let Pattern::Identifier { ident, .. } =
-            params[0].node.pattern.as_ref().cloned().unwrap().node
-        else {
+        let Pattern::Identifier { ident, .. } = params[0].node.pattern.get_node() else {
             panic!()
         };
 
