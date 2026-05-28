@@ -16,11 +16,12 @@ pub(crate) struct Frame<'a> {
 impl<'a> Frame<'a> {
     pub fn new(registers: usize, code: &'a [Instruction], args: Vec<Value>) -> Self {
         let mut frame = Self {
-            registers: Vec::with_capacity(registers),
+            registers: vec![Value::Integer(Integer::Int32(0)); registers],
             ip: INITIAL_IP,
             code,
             next_reg: args.len() + 1,
         };
+
         frame.init(args);
         frame
     }
