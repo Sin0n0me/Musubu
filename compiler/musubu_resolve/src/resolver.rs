@@ -221,7 +221,7 @@ impl<'a> Resolver<'a> {
             }
             Expression::MethodCall(method) => self.resolve_method_call(method)?,
             Expression::Index { parent, index } => {
-                self.resovle_index(parent.as_ref_spanned(), index.as_ref_spanned())?
+                self.resolve_index(parent.as_ref_spanned(), index.as_ref_spanned())?
             }
             Expression::Continue { label } => {
                 self.resolve_continue(label.as_ref().map(|s| s.as_str()))?
@@ -507,7 +507,7 @@ impl<'a> Resolver<'a> {
         //Ok(Lowered { type_symbol, hir })
     }
 
-    fn resovle_index(
+    fn resolve_index(
         &mut self,
         parent: Spanned<&'a Expression>,
         index: Spanned<&'a Expression>,
