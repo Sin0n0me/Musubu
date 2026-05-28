@@ -42,6 +42,9 @@ pub extern "C" fn uninit(engine: *mut MusubuEngine) {
 #[unsafe(no_mangle)]
 pub extern "C" fn compile(engine: *mut MusubuEngine, code_ptr: *const c_char, len: usize) -> bool {
     let result = catch_unwind(AssertUnwindSafe(|| {
+        if engine.is_null() {
+            return false;
+        }
         let engine = unsafe { &mut *engine };
 
         if code_ptr.is_null() {
