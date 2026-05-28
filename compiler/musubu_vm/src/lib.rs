@@ -94,13 +94,17 @@ impl<'a> VM<'a> {
                 frame_stack.push(func);
             }
             Instruction::Return { value } => {
+                // 実行が継続しないように終端へ
+                let code_len = frame.code.len();
+                frame.ip = code_len;
+
                 let Some(value) = value else {
                     return Ok(None);
                 };
                 let value = frame.registers[value.0].clone();
 
                 // 呼び出し元の取得
-                let Some(caller_index) = frame_stack.len().checked_sub(2) else {
+                let Some(caller_index) = code_len.checked_sub(2) else {
                     return Ok(Some(value));
                 };
                 let Some(caller) = frame_stack.get_mut(caller_index) else {
@@ -109,9 +113,6 @@ impl<'a> VM<'a> {
 
                 // 呼び出し元に戻り値を返す(指定のレジスタに格納)
                 caller.registers[caller.next_reg] = value;
-
-                // 実行が継続しないように終端へ
-                frame.ip = frame.code.len();
             }
 
             // TODO: 削除
