@@ -15,7 +15,6 @@ pub enum ResolveError {
     DuplicateDefinition { name: String },
     UnresolveType { name: String },
     UnresolveTypes { names: Vec<String> },
-    InvalidRetrunType,
     InvalidModuleScope,
     ExpectedValuePathButFoundType { name: String },
     TypeCheckError(TypeCheckError),
