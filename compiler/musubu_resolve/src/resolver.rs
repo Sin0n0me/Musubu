@@ -61,7 +61,7 @@ impl<'a> Resolver<'a> {
             .get_function(name)
             .cloned() // 後でcloneした要素を渡すので丸ごとcloneして構わない
             .ok_or(ResolveError::NameSpaceError(
-                NameSpaceError::UnresolveFunction {
+                NameSpaceError::UnresolvedFunction {
                     name: name.to_string(),
                 },
             ))?;
