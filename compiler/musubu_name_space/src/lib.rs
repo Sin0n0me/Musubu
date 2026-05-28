@@ -377,7 +377,7 @@ impl<'a> EnumItem<'a> {
         field_type: TypeSymbol,
     ) -> NameSpaceResult<()> {
         let Some(variant) = self.variants.get_mut(variant_name) else {
-            return Err(NameSpaceError::UnresolveEnumVariant {
+            return Err(NameSpaceError::UnresolvedEnumVariant {
                 name: variant_name.to_string(),
             });
         };
