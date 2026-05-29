@@ -4,8 +4,10 @@
 extern crate alloc;
 
 pub mod errors;
+mod register_allocator;
 
 use crate::errors::IRCompileError;
+use crate::register_allocator::RegisterAllocator;
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use musubu_hir::*;
@@ -30,7 +32,7 @@ pub fn compile_function(func: &HIRFunction) -> IRCompileResult<CompiledFunction>
 
     let code = CompiledFunction {
         code: compiler.code,
-        registers: compiler.register_size,
+        registers: compiler.register_allocator.get_size(),
     };
 
     Ok(code)
@@ -39,8 +41,7 @@ pub fn compile_function(func: &HIRFunction) -> IRCompileResult<CompiledFunction>
 #[derive(Debug)]
 struct IRCompiler {
     code: Vec<Instruction>,
-    register_size: usize,
-    register_stack: Vec<Vec<usize>>, // レジスタの最大値を決めるために使用
+    register_allocator: RegisterAllocator,
     loop_statement: Vec<LoopStatement>,
 }
 
@@ -65,49 +66,25 @@ impl IRCompiler {
     pub fn new() -> Self {
         Self {
             code: Vec::new(),
-            register_size: 0,
-            register_stack: Vec::new(),
+            register_allocator: RegisterAllocator::new(),
             loop_statement: Vec::new(),
         }
     }
 
     fn alloc_register(&mut self) -> Register {
-        const STEP: usize = 1;
-
-        let reg = if let Some(reg_stack) = self.register_stack.last_mut() {
-            let reg = reg_stack
-                .last()
-                .map(|r| *r + STEP)
-                .unwrap_or(Self::INITIAL_REGISTER);
-            reg_stack.push(reg);
-
-            reg
-        } else {
-            let reg = Self::INITIAL_REGISTER;
-            self.register_stack.push(vec![reg]);
-
-            reg
-        };
-
-        Register(reg)
+        self.register_allocator.alloc()
     }
-}
 
-impl IRCompiler {
     fn compile_block(&mut self, block: &HIRBlock) -> IRCompileResult<Option<Register>> {
-        self.register_stack.push(Vec::new());
+        self.register_allocator.enter_block();
 
         let mut res = None;
         for statement in &block.statements {
             res = self.compile_statement(statement)?;
         }
 
-        // pop前にレジスタサイズの更新
-        let reg_size = self.register_stack.iter().map(|v| v.len()).sum();
-        if self.register_size < reg_size {
-            self.register_size = reg_size;
-        }
-        self.register_stack.pop();
+        // 使用済みレジスタの解放
+        self.register_allocator.exit_block();
 
         Ok(res)
     }
