@@ -152,7 +152,11 @@ impl<'a> Desugar<'a> {
         lhs: HIRExpression,
         rhs: HIRExpression,
     ) -> DesugarResult<HIRExpression> {
-        let HIRExpression::Store { target, value: _ } = lhs else {
+        let HIRExpression::Variable {
+            id: target,
+            symbol_type: _,
+        } = lhs
+        else {
             return Err(DesugarError::UnsupportedAssignTarget);
         };
 
