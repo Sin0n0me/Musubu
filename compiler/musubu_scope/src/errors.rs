@@ -13,10 +13,10 @@ pub enum ScopeError {
         expected: String,
         found: String,
     },
-    UnresolvePath {
+    UnresolvedPath {
         name: String,
     },
-    UnresolveVariable {
+    UnresolvedVariable {
         name: String,
     },
     NotVariable {

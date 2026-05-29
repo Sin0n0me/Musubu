@@ -147,7 +147,7 @@ impl<'a> SymbolStore<'a, ScopeError> for Scope<'a> {
         primitive_type: PrimitiveType,
     ) -> Result<(), ScopeError> {
         let Some(symbol) = self.symbol_map.get(name) else {
-            return Err(ScopeError::UnresolveVariable {
+            return Err(ScopeError::UnresolvedVariable {
                 name: name.to_string(),
             });
         };
