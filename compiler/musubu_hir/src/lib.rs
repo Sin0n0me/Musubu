@@ -168,7 +168,7 @@ impl ToPrimitiveType for HIRExpression {
             Self::BinOp { op: _, lhs, rhs: _ } => lhs.to_type(),
             Self::LogOp { op: _, lhs, rhs: _ } => lhs.to_type(),
             Self::Return(expr) => expr.as_ref().map_or(PrimitiveType::Unit, |e| e.to_type()),
-            Self::Literal(v) => PrimitiveType::Unit, // TODO
+            Self::Literal(v) => v.to_type(),
             Self::Continue => PrimitiveType::Unit,
             Self::Loop { body } => body.to_type(),
             Self::Break(expr) => expr.as_ref().map_or(PrimitiveType::Unit, |e| e.to_type()),
