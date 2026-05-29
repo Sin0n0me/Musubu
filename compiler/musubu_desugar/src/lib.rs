@@ -202,17 +202,28 @@ impl<'a> Desugar<'a> {
         Ok(hir)
     }
 
+    // 論理演算は条件分岐に変換
     pub fn lower_logical_operator(
         &mut self,
         operator: LogicalOperator,
         lhs: HIRExpression,
         rhs: HIRExpression,
     ) -> DesugarResult<HIRExpression> {
-        // TODO 条件分岐に変換
-        let hir = HIRExpression::LogOp {
-            op: operator,
-            lhs: Box::new(lhs),
-            rhs: Box::new(rhs),
+        let hir = match operator {
+            LogicalOperator::Or => {
+                let then_body = self.lower_literal(&Literal::Bool(true))?.to_block();
+                let else_body = rhs.to_block();
+                self.lower_if_statement(lhs, then_body, Some(else_body))?
+            }
+            LogicalOperator::And => {
+                let then_body = rhs.to_block();
+                let else_body = self.lower_literal(&Literal::Bool(false))?.to_block();
+                self.lower_if_statement(lhs, then_body, Some(else_body))?
+            }
+            LogicalOperator::Not => {
+                // TODO ASTの構築部分がまだなので
+                unimplemented!()
+            }
         };
 
         Ok(hir)
