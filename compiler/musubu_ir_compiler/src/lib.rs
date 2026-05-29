@@ -17,8 +17,7 @@ pub fn compile_module(module: &HIRModule) -> IRCompileResult<Vec<(usize, Compile
     let mut functions = Vec::new();
     for (id, hir) in &module.functions {
         let code = compile_function(hir)?;
-        let id = id.id;
-        functions.push((id, code));
+        functions.push((*id, code));
     }
 
     Ok(functions)
@@ -99,7 +98,7 @@ impl IRCompiler {
                 if let Some(expr) = initializer {
                     let reg = self.compile_expr(expr)?;
                     self.code.push(Instruction::Move {
-                        dst: Register(symbol.id),
+                        dst: Register(*symbol),
                         src: reg,
                     });
                 }
@@ -122,11 +121,11 @@ impl IRCompiler {
                 dst
             }
 
-            HIRExpression::Variable { id, symbol_type } => Register(id.id),
+            HIRExpression::Variable { id, symbol_type } => Register(*id),
 
             HIRExpression::Store { target, value } => {
                 let val = self.compile_expr(value)?;
-                let dst = Register(target.id);
+                let dst = Register(*target);
                 self.code.push(Instruction::Move { dst, src: val });
                 dst
             }
@@ -182,7 +181,7 @@ impl IRCompiler {
                 let dst = self.alloc_register();
                 self.code.push(Instruction::Call {
                     dst: Some(dst),
-                    func: function.id,
+                    func: *function,
                     args: regs,
                 });
                 dst

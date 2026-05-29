@@ -10,7 +10,6 @@ use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use core::hash::BuildHasherDefault;
-use musubu_hir::{FunctionId, SymbolId};
 use musubu_primitive::{PrimitiveType, ToPrimitiveType};
 use musubu_scope::TypeSymbol;
 use twox_hash::XxHash64;
@@ -266,14 +265,14 @@ impl<'a> ToPrimitiveType for ItemSymbol<'a> {
 
 #[derive(Debug, Clone)]
 pub struct FunctionItem<'a> {
-    pub id: FunctionId,
+    pub id: usize,
     pub name: &'a str,
     pub return_type: TypeSymbol,
     pub arguments: Vec<TypeSymbol>,
 }
 
 impl<'a> FunctionItem<'a> {
-    pub fn new(id: FunctionId, name: &'a str, return_type: TypeSymbol) -> Self {
+    pub fn new(id: usize, name: &'a str, return_type: TypeSymbol) -> Self {
         Self {
             id,
             name,

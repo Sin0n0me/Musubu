@@ -13,6 +13,7 @@ use crate::name_resolver::NameResolver;
 use crate::resolver_collect::SymbolCollector;
 use errors::ResolveError;
 use musubu_ast::ASTNode;
+use musubu_cache::Allocator;
 use musubu_desugar::Desugar;
 use musubu_hir::HIRModule;
 use musubu_scope::{Scope, ScopeControl, TypeSymbol, errors::ScopeError};
@@ -28,9 +29,10 @@ pub fn resolve_sequential(
     project_name: &str,
     module_name: &str,
     ast_items: &[&ASTNode],
+    allocator: &mut impl Allocator,
 ) -> ResolveResult<HIRModule> {
     let mut hir = HIRModule::new();
-    let mut resolver = Resolver::new(project_name, &mut hir);
+    let mut resolver = Resolver::new(project_name, &mut hir, allocator);
 
     resolver.resolve(module_name, ast_items)?;
 
@@ -43,9 +45,10 @@ pub fn resolve_unordered(
     project_name: &str,
     module_name: &str,
     ast_items: &[&ASTNode],
+    allocator: &mut impl Allocator,
 ) -> ResolveResult<HIRModule> {
     let mut hir = HIRModule::new();
-    let mut resolver = Resolver::new(project_name, &mut hir);
+    let mut resolver = Resolver::new(project_name, &mut hir, allocator);
 
     resolver.import(module_name, ast_items)?;
     resolver.resolve(module_name, ast_items)?;
@@ -74,12 +77,16 @@ impl<T> Lowered<T> {
 }
 
 impl<'a> Resolver<'a> {
-    pub fn new(project_name: &'a str, hir_module: &'a mut HIRModule) -> Self {
+    pub fn new(
+        project_name: &'a str,
+        hir_module: &'a mut HIRModule,
+        allocator: &'a mut impl Allocator,
+    ) -> Self {
         Self {
             name_resolver: NameResolver::new(project_name),
             type_checker: TypeChecker::new(),
             collector: SymbolCollector::new(),
-            desugar: Desugar::new(hir_module),
+            desugar: Desugar::new(hir_module, allocator),
         }
     }
 

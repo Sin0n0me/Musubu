@@ -1,7 +1,6 @@
 use crate::{ResolveResult, errors::ResolveError};
 use alloc::vec::Vec;
 use core::iter::once;
-use musubu_hir::SymbolId;
 use musubu_name_space::*;
 use musubu_primitive::PrimitiveType;
 use musubu_scope::errors::ScopeError;
@@ -104,7 +103,7 @@ impl<'a> SymbolStore<'a, ResolveError> for NameResolver<'a> {
 
     fn add_variable(
         &mut self,
-        id: SymbolId,
+        id: usize,
         name: &'a str,
         ty: TypeRequirement,
     ) -> Result<(), ResolveError> {
@@ -114,7 +113,7 @@ impl<'a> SymbolStore<'a, ResolveError> for NameResolver<'a> {
             .add_variable(id, name, ty)?)
     }
 
-    fn get_variable_id(&self, name: &'a str) -> Option<&SymbolId> {
+    fn get_variable_id(&self, name: &'a str) -> Option<&usize> {
         self.get_scope()?.get_variable_id(name)
     }
 

@@ -8,19 +8,9 @@ use alloc::collections::btree_map::BTreeMap;
 use alloc::vec::Vec;
 use musubu_primitive::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
-pub struct SymbolId {
-    pub id: usize,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
-pub struct FunctionId {
-    pub id: usize,
-}
-
 #[derive(Debug, Clone)]
 pub struct HIRModule {
-    pub functions: BTreeMap<FunctionId, HIRFunction>,
+    pub functions: BTreeMap<usize, HIRFunction>,
     pub globals: Vec<HIRGlobal>,
 }
 
@@ -32,7 +22,7 @@ impl HIRModule {
         }
     }
 
-    pub fn add_function(&mut self, id: FunctionId, function: HIRFunction) {
+    pub fn add_function(&mut self, id: usize, function: HIRFunction) {
         self.functions.insert(id, function);
     }
 
@@ -40,21 +30,21 @@ impl HIRModule {
         self.globals.push(global);
     }
 
-    pub fn get_function(&self, function_id: &FunctionId) -> Option<&HIRFunction> {
+    pub fn get_function(&self, function_id: &usize) -> Option<&HIRFunction> {
         self.functions.get(function_id)
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct HIRFunction {
-    pub params: Vec<(SymbolId, PrimitiveType)>,
+    pub params: Vec<(usize, PrimitiveType)>,
     pub return_type: PrimitiveType,
     pub body: HIRBlock,
 }
 
 #[derive(Debug, Clone)]
 pub struct HIRGlobal {
-    pub symbol: SymbolId,
+    pub symbol: usize,
     pub symbol_type: PrimitiveType,
     pub initializer: Option<HIRExpression>,
 }
@@ -62,7 +52,7 @@ pub struct HIRGlobal {
 #[derive(Debug, Clone)]
 pub enum HIRStatement {
     Let {
-        symbol: SymbolId,
+        symbol: usize,
         symbol_type: PrimitiveType,
         initializer: Option<HIRExpression>,
     },
@@ -99,13 +89,13 @@ pub enum HIRExpression {
 
     // 変数参照
     Variable {
-        id: SymbolId,
+        id: usize,
         symbol_type: PrimitiveType,
     },
 
     // 代入
     Store {
-        target: SymbolId,
+        target: usize,
         value: Box<HIRExpression>,
     },
 
@@ -132,7 +122,7 @@ pub enum HIRExpression {
 
     // 関数呼び出し
     Call {
-        function: FunctionId,
+        function: usize,
         args: Vec<HIRExpression>,
     },
 

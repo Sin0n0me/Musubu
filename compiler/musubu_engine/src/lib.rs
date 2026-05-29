@@ -31,4 +31,8 @@ impl MusubuEngine {
         let mut vm = VM::new(&self.cache);
         vm.run_function(function_id, args)
     }
+
+    pub fn get_cache(&mut self) -> &mut Cache {
+        &mut self.cache
+    }
 }

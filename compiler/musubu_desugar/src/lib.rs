@@ -10,6 +10,7 @@ use alloc::boxed::Box;
 use alloc::collections::btree_map::BTreeMap;
 use alloc::{vec, vec::Vec};
 use musubu_ast::*;
+use musubu_cache::Allocator;
 use musubu_hir::*;
 use musubu_primitive::*;
 
@@ -18,8 +19,8 @@ pub type DesugarResult<T> = Result<T, DesugarError>;
 #[derive(Debug)]
 pub struct Desugar<'a> {
     next_symbol: usize,
-    next_function: usize,
     root_module: &'a mut HIRModule,
+    function_allocator: &'a mut dyn Allocator,
 }
 
 // HIRに変換するだけ
@@ -27,31 +28,24 @@ pub struct Desugar<'a> {
 impl<'a> Desugar<'a> {
     const INITIAL_ID: usize = 0;
 
-    pub fn new(module: &'a mut HIRModule) -> Self {
+    pub fn new(module: &'a mut HIRModule, allocator: &'a mut impl Allocator) -> Self {
         Self {
             next_symbol: Self::INITIAL_ID,
-            next_function: Self::INITIAL_ID,
             root_module: module,
+            function_allocator: allocator,
         }
     }
 
-    pub fn alloc_function(&mut self) -> FunctionId {
-        let id = FunctionId {
-            id: self.next_function,
-        };
-        self.next_function += 1;
-
-        id
+    pub fn alloc_function(&mut self, name: String) -> usize {
+        self.function_allocator.alloc(name)
     }
 
-    pub fn add_function_to_module(&mut self, id: FunctionId, function: HIRFunction) {
+    pub fn add_function_to_module(&mut self, id: usize, function: HIRFunction) {
         self.root_module.add_function(id, function);
     }
 
-    pub fn alloc_symbol(&mut self) -> SymbolId {
-        let id = SymbolId {
-            id: self.next_symbol,
-        };
+    pub fn alloc_symbol(&mut self) -> usize {
+        let id = self.next_symbol;
         self.next_symbol += 1;
 
         id
@@ -59,7 +53,7 @@ impl<'a> Desugar<'a> {
 
     pub fn lower_function(
         &mut self,
-        params: Vec<(SymbolId, PrimitiveType)>,
+        params: Vec<(usize, PrimitiveType)>,
         return_type: PrimitiveType,
         body: HIRBlock,
     ) -> DesugarResult<HIRFunction> {
@@ -72,7 +66,7 @@ impl<'a> Desugar<'a> {
         Ok(hir)
     }
 
-    pub fn lower_function_symbol(&self, id: FunctionId) -> DesugarResult<HIRExpression> {
+    pub fn lower_function_symbol(&self, id: usize) -> DesugarResult<HIRExpression> {
         let hir = HIRExpression::Call {
             function: id,
             args: Vec::new(),
@@ -83,7 +77,7 @@ impl<'a> Desugar<'a> {
 
     pub fn lower_symbol(
         &mut self,
-        id: SymbolId,
+        id: usize,
         symbol_type: PrimitiveType,
     ) -> DesugarResult<HIRExpression> {
         let hir = HIRExpression::Variable { id, symbol_type };
@@ -249,7 +243,7 @@ impl<'a> Desugar<'a> {
                     return Err(DesugarError::NotFunction);
                 };
                 let hir = HIRExpression::Call {
-                    function: FunctionId { id: id.id },
+                    function: *id,
                     args: arguments,
                 };
 

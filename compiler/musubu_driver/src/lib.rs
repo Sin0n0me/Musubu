@@ -29,7 +29,8 @@ pub fn compile(engine: &mut MusubuEngine, code: &str) -> bool {
     // スコープ, 型などの解決
     // TODO: project, module名を任意に
     let ast_items = ast_items.iter().map(|ast| ast.as_ref()).collect::<Vec<_>>();
-    let result = resolve_unordered("Musubu", "musubu", &ast_items);
+    let allocator = engine.get_cache().get_function_allocator();
+    let result = resolve_unordered("Musubu", "musubu", &ast_items, allocator);
     let hir = match result {
         Err(e) => {
             println!("resolve error: {e:?}");

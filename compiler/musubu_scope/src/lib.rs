@@ -9,7 +9,6 @@ use self::errors::ScopeError;
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
-use musubu_hir::SymbolId;
 use musubu_primitive::PrimitiveType;
 
 pub type ScopeId = u64;
@@ -23,9 +22,9 @@ pub trait ScopeControl<E> {
 }
 
 pub trait SymbolStore<'a, E> {
-    fn add_variable(&mut self, id: SymbolId, name: &'a str, ty: TypeRequirement) -> Result<(), E>;
+    fn add_variable(&mut self, id: usize, name: &'a str, ty: TypeRequirement) -> Result<(), E>;
 
-    fn get_variable_id(&self, name: &'a str) -> Option<&SymbolId>;
+    fn get_variable_id(&self, name: &'a str) -> Option<&usize>;
 
     fn add_type(&mut self, name: &'a str, ty: TypeRequirement) -> Result<(), E>;
 
@@ -126,14 +125,14 @@ impl<'a> SymbolStore<'a, ScopeError> for Scope<'a> {
 
     fn add_variable(
         &mut self,
-        id: SymbolId,
+        id: usize,
         name: &'a str,
         ty: TypeRequirement,
     ) -> Result<(), ScopeError> {
         self.add_symbol(name, Symbol::Variable { id, ty })
     }
 
-    fn get_variable_id(&self, name: &'a str) -> Option<&SymbolId> {
+    fn get_variable_id(&self, name: &'a str) -> Option<&usize> {
         let Symbol::Variable { id, ty: _ } = self.get_symbol(name)? else {
             return None;
         };
@@ -231,7 +230,7 @@ impl<'a> SymbolStore<'a, ScopeError> for Scope<'a> {
 
 #[derive(Debug, Clone)]
 pub enum Symbol {
-    Variable { id: SymbolId, ty: TypeRequirement },
+    Variable { id: usize, ty: TypeRequirement },
     Type(TypeRequirement),
 }
 
