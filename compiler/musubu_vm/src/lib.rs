@@ -3,17 +3,16 @@
 
 extern crate alloc;
 
-pub mod cache;
 pub mod errors;
 
 // TODO: 削除(issue#4で対応予定)
 // mod built_in;
 mod frame;
 
-use crate::cache::VMCache;
 use crate::errors::VMError;
 use crate::frame::Frame;
 use alloc::{vec, vec::Vec};
+use musubu_cache::Cache;
 use musubu_ir::*;
 use musubu_primitive::*;
 
@@ -21,11 +20,11 @@ pub type VMResult<T> = Result<T, VMError>;
 
 // TODO デバッグ用のスタックトレース
 pub struct VM<'a> {
-    cache: &'a VMCache,
+    cache: &'a Cache,
 }
 
 impl<'a> VM<'a> {
-    pub fn new(cache: &'a VMCache) -> Self {
+    pub fn new(cache: &'a Cache) -> Self {
         Self { cache }
     }
 
@@ -114,10 +113,9 @@ impl<'a> VM<'a> {
                 caller.registers[caller.next_reg] = value;
             }
 
-            // TODO: 削除
+            // TODO: 削除(issue#4で対応予定)
             // Callと統合する
-            Instruction::BuiltInCall { dst, func, args } => {
-                // TODO: 削除(issue#4で対応予定)
+            Instruction::BuiltInCall { .. } => {
                 /*
                    let mut call_args = Vec::with_capacity(args.len());
                    for reg in args {
@@ -137,7 +135,10 @@ impl<'a> VM<'a> {
 
     fn load_function(&self, func_id: usize, args: Vec<Value>) -> VMResult<Frame<'a>> {
         // フレーム作成
-        let func = self.cache.get(&func_id)?;
+        let func = self
+            .cache
+            .get_function(&func_id)
+            .ok_or(VMError::IllegalFunctionCall)?;
         let frame = Frame::new(func.registers, &func.code, args);
         Ok(frame)
     }

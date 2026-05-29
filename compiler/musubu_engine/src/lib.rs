@@ -3,9 +3,9 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
+use musubu_cache::Cache;
 use musubu_ir::CompiledFunction;
 use musubu_primitive::Value;
-use musubu_vm::cache::VMCache;
 use musubu_vm::{VM, VMResult};
 
 // 外部で保持してもらう
@@ -13,13 +13,13 @@ use musubu_vm::{VM, VMResult};
 #[derive(Debug)]
 #[repr(C)]
 pub struct MusubuEngine {
-    cache: VMCache,
+    cache: Cache,
 }
 
 impl MusubuEngine {
     pub fn new() -> Self {
         Self {
-            cache: VMCache::new(),
+            cache: Cache::new(),
         }
     }
 

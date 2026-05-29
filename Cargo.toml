@@ -16,6 +16,10 @@ members = [
   "compiler/musubu_scope",
   "compiler/musubu_span",
   "compiler/musubu_infer",
-  "compiler/musubu_builtin", "compiler/musubu_name_space",
+  "compiler/musubu_builtin",
+  "compiler/musubu_name_space",
+  "compiler/musubu_engine",
+  "compiler/musubu_driver",
+  "compiler/musubu_cache",
 ]
 

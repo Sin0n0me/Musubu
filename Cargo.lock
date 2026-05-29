@@ -139,9 +139,9 @@ checksum = "f70749695b063ecbf6b62949ccccde2e733ec3ecbbd71d467dca4e5c6c97cca0"
 
 [[package]]
 name = "hashbrown"
-version = "0.17.0"
+version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f467dd6dccf739c208452f8014c75c18bb8301b050ad1cfb27153803edb0f51"
+checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 
 [[package]]
 name = "indexmap"
@@ -167,14 +167,9 @@ dependencies = [
 name = "musubu"
 version = "0.1.0"
 dependencies = [
- "musubu_ast",
- "musubu_desugar",
- "musubu_ir_compiler",
- "musubu_lexer",
- "musubu_parser",
+ "musubu_driver",
+ "musubu_engine",
  "musubu_primitive",
- "musubu_resolve",
- "musubu_type_check",
  "musubu_vm",
  "nalgebra",
 ]
@@ -192,14 +187,43 @@ name = "musubu_builtin"
 version = "0.1.0"
 
 [[package]]
+name = "musubu_cache"
+version = "0.1.0"
+dependencies = [
+ "musubu_ir",
+ "musubu_primitive",
+]
+
+[[package]]
 name = "musubu_desugar"
 version = "0.1.0"
 dependencies = [
  "musubu_ast",
  "musubu_hir",
  "musubu_primitive",
- "musubu_resolve",
  "musubu_span",
+]
+
+[[package]]
+name = "musubu_driver"
+version = "0.1.0"
+dependencies = [
+ "musubu_ast",
+ "musubu_engine",
+ "musubu_ir_compiler",
+ "musubu_lexer",
+ "musubu_parser",
+ "musubu_resolve",
+]
+
+[[package]]
+name = "musubu_engine"
+version = "0.1.0"
+dependencies = [
+ "musubu_cache",
+ "musubu_ir",
+ "musubu_primitive",
+ "musubu_vm",
 ]
 
 [[package]]
@@ -244,6 +268,7 @@ name = "musubu_name_space"
 version = "0.1.0"
 dependencies = [
  "indexmap",
+ "musubu_hir",
  "musubu_primitive",
  "musubu_scope",
  "twox-hash",
@@ -271,6 +296,8 @@ name = "musubu_resolve"
 version = "0.1.0"
 dependencies = [
  "musubu_ast",
+ "musubu_desugar",
+ "musubu_hir",
  "musubu_name_space",
  "musubu_primitive",
  "musubu_scope",
@@ -283,6 +310,7 @@ name = "musubu_scope"
 version = "0.1.0"
 dependencies = [
  "musubu_ast",
+ "musubu_hir",
  "musubu_primitive",
  "musubu_span",
 ]
@@ -306,6 +334,7 @@ dependencies = [
 name = "musubu_vm"
 version = "0.1.0"
 dependencies = [
+ "musubu_cache",
  "musubu_hir",
  "musubu_ir",
  "musubu_primitive",
