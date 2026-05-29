@@ -179,10 +179,6 @@ impl<'a> Desugar<'a> {
             }
         };
 
-        let lhs = HIRExpression::Variable {
-            id: target,
-            symbol_type: lhs.to_type(),
-        };
         let hir = HIRExpression::Store {
             target,
             value: Box::new(self.lower_binary_operator(operator, lhs, rhs)?),
