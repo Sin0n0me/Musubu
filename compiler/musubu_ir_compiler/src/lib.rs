@@ -61,8 +61,6 @@ impl LoopStatement {
 }
 
 impl IRCompiler {
-    const INITIAL_REGISTER: usize = 0;
-
     pub fn new() -> Self {
         Self {
             code: Vec::new(),
@@ -156,24 +154,6 @@ impl IRCompiler {
                 });
                 dst
             }
-
-            HIRExpression::LogOp { op, lhs, rhs } => {
-                let lhs = self.compile_expr(lhs)?;
-                let rhs = self.compile_expr(rhs)?;
-                let dst = self.alloc_register();
-
-                // TODO
-                /*
-                self.code.push(Instruction:: {
-                    dst,
-                    op: op.clone(),
-                    lhs,
-                    rhs,
-                });
-                 * */
-                dst
-            }
-
             HIRExpression::Call { function, args } => {
                 let regs = args
                     .iter()

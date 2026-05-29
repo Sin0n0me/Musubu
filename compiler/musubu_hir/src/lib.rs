@@ -113,13 +113,6 @@ pub enum HIRExpression {
         rhs: Box<HIRExpression>,
     },
 
-    // 論理
-    LogOp {
-        op: LogicalOperator,
-        lhs: Box<HIRExpression>,
-        rhs: Box<HIRExpression>,
-    },
-
     // 関数呼び出し
     Call {
         function: usize,
@@ -166,7 +159,6 @@ impl ToPrimitiveType for HIRExpression {
             Self::Variable { id: _, symbol_type } => symbol_type.clone(),
             Self::CmpOp { op: _, lhs, rhs: _ } => lhs.to_type(),
             Self::BinOp { op: _, lhs, rhs: _ } => lhs.to_type(),
-            Self::LogOp { op: _, lhs, rhs: _ } => lhs.to_type(),
             Self::Return(expr) => expr.as_ref().map_or(PrimitiveType::Unit, |e| e.to_type()),
             Self::Literal(v) => v.to_type(),
             Self::Continue => PrimitiveType::Unit,
