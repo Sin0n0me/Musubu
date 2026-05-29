@@ -26,12 +26,11 @@ pub fn compile_module(module: &HIRModule) -> IRCompileResult<Vec<(usize, Compile
 pub fn compile_function(func: &HIRFunction) -> IRCompileResult<CompiledFunction> {
     let mut compiler = IRCompiler::new();
 
-    compiler.next_reg = func.params.len();
     compiler.compile_block(&func.body)?;
 
     let code = CompiledFunction {
         code: compiler.code,
-        registers: compiler.next_reg,
+        registers: compiler.register_size,
     };
 
     Ok(code)
@@ -40,7 +39,8 @@ pub fn compile_function(func: &HIRFunction) -> IRCompileResult<CompiledFunction>
 #[derive(Debug)]
 struct IRCompiler {
     code: Vec<Instruction>,
-    next_reg: usize,
+    register_size: usize,
+    register_stack: Vec<Vec<usize>>, // レジスタの最大値を決めるために使用
     loop_statement: Vec<LoopStatement>,
 }
 
@@ -60,12 +60,13 @@ impl LoopStatement {
 }
 
 impl IRCompiler {
-    const INITIAL_REG: usize = 0;
+    const INITIAL_REGISTER: usize = 0;
 
     pub fn new() -> Self {
         Self {
             code: Vec::new(),
-            next_reg: Self::INITIAL_REG,
+            register_size: 0,
+            register_stack: Vec::new(),
             loop_statement: Vec::new(),
         }
     }
@@ -73,18 +74,41 @@ impl IRCompiler {
     fn alloc_register(&mut self) -> Register {
         const STEP: usize = 1;
 
-        let r = Register(self.next_reg);
-        self.next_reg += STEP;
-        r
+        let reg = if let Some(reg_stack) = self.register_stack.last_mut() {
+            let reg = reg_stack
+                .last()
+                .map(|r| *r + STEP)
+                .unwrap_or(Self::INITIAL_REGISTER);
+            reg_stack.push(reg);
+
+            reg
+        } else {
+            let reg = Self::INITIAL_REGISTER;
+            self.register_stack.push(vec![reg]);
+
+            reg
+        };
+
+        Register(reg)
     }
 }
 
 impl IRCompiler {
     fn compile_block(&mut self, block: &HIRBlock) -> IRCompileResult<Option<Register>> {
+        self.register_stack.push(Vec::new());
+
         let mut res = None;
         for statement in &block.statements {
             res = self.compile_statement(statement)?;
         }
+
+        // pop前にレジスタサイズの更新
+        let reg_size = self.register_stack.iter().map(|v| v.len()).sum();
+        if self.register_size < reg_size {
+            self.register_size = reg_size;
+        }
+        self.register_stack.pop();
+
         Ok(res)
     }
 
