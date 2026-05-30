@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 
+[lib]
+crate-type = ["cdylib"]
+
 [dependencies]
 musubu_vm = { version = "0.1.0", path = "../musubu_vm" }
 musubu_primitive = { version = "0.1.0", path = "../musubu_primitive" }
