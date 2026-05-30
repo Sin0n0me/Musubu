@@ -74,6 +74,10 @@ impl IRCompiler {
     }
 
     fn compile_block(&mut self, block: &HIRBlock) -> IRCompileResult<Option<Register>> {
+        // TODO
+        // 戻り値がない場合無駄に割り当てるので無駄を省きたい
+        let dst = self.alloc_register();
+
         self.register_allocator.enter_block();
 
         let mut res = None;
@@ -81,10 +85,18 @@ impl IRCompiler {
             res = self.compile_statement(statement)?;
         }
 
+        // 戻り値があれば代入
+        let ret = if let Some(src) = res {
+            self.code.push(Instruction::Move { dst, src });
+            Some(dst)
+        } else {
+            None
+        };
+
         // 使用済みレジスタの解放
         self.register_allocator.exit_block();
 
-        Ok(res)
+        Ok(ret)
     }
 
     fn compile_statement(&mut self, statement: &HIRStatement) -> IRCompileResult<Option<Register>> {
