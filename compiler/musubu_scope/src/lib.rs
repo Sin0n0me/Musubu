@@ -63,8 +63,8 @@ impl<'a> Scope<'a> {
         }
     }
 
-    pub fn set_return_type(&mut self, retrun_type: TypeSymbol) {
-        self.return_type = retrun_type;
+    pub fn set_return_type(&mut self, return_type: TypeSymbol) {
+        self.return_type = return_type;
     }
 
     pub fn get_return_type(&self) -> &TypeSymbol {
