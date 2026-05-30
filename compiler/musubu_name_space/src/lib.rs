@@ -323,11 +323,11 @@ impl<'a> StructItem<'a> {
     }
 
     pub fn add_field(&mut self, name: &'a str, type_symbol: TypeSymbol) -> NameSpaceResult<()> {
-        self.fields
-            .insert(name, type_symbol)
-            .ok_or(NameSpaceError::DuplicateStructField {
+        if self.fields.insert(name, type_symbol).is_some() {
+            return Err(NameSpaceError::DuplicateStructField {
                 name: name.to_string(),
-            })?;
+            });
+        }
 
         Ok(())
     }
@@ -381,11 +381,11 @@ impl<'a> EnumItem<'a> {
             });
         };
 
-        variant
-            .insert(field_name, field_type)
-            .ok_or(NameSpaceError::DuplicateEnumVariant {
+        if variant.insert(field_name, field_type).is_some() {
+            return Err(NameSpaceError::DuplicateEnumVariant {
                 name: field_name.to_string(),
-            })?;
+            });
+        }
 
         Ok(())
     }
