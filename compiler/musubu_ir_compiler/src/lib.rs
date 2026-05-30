@@ -154,8 +154,12 @@ impl IRCompiler {
                 });
                 dst
             }
-            HIRExpression::Call { function, args } => {
-                let regs = args
+            HIRExpression::Call {
+                function,
+                return_type,
+                arguments,
+            } => {
+                let regs = arguments
                     .iter()
                     .map(|a| self.compile_expr(a))
                     .collect::<Result<Vec<_>, IRCompileError>>()?;

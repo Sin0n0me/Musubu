@@ -116,7 +116,8 @@ pub enum HIRExpression {
     // 関数呼び出し
     Call {
         function: usize,
-        args: Vec<HIRExpression>,
+        return_type: PrimitiveType,
+        arguments: Vec<HIRExpression>,
     },
 
     // 条件分岐
@@ -172,8 +173,9 @@ impl ToPrimitiveType for HIRExpression {
             } => then_block.to_type(),
             Self::Call {
                 function: _,
-                args: _,
-            } => PrimitiveType::Unit,
+                return_type,
+                arguments: _,
+            } => return_type.clone(),
         }
     }
 }

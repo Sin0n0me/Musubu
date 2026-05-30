@@ -66,10 +66,15 @@ impl<'a> Desugar<'a> {
         Ok(hir)
     }
 
-    pub fn lower_function_symbol(&self, id: usize) -> DesugarResult<HIRExpression> {
+    pub fn lower_function_symbol(
+        &self,
+        id: usize,
+        return_type: PrimitiveType,
+    ) -> DesugarResult<HIRExpression> {
         let hir = HIRExpression::Call {
             function: id,
-            args: Vec::new(),
+            return_type,
+            arguments: Vec::new(),
         };
 
         Ok(hir)
@@ -239,7 +244,11 @@ impl<'a> Desugar<'a> {
     ) -> DesugarResult<HIRExpression> {
         let mut function = function;
         match &mut function {
-            HIRExpression::Call { function: _, args } => {
+            HIRExpression::Call {
+                function: _,
+                return_type: _,
+                arguments: args,
+            } => {
                 *args = arguments;
                 Ok(function)
             }
@@ -247,7 +256,7 @@ impl<'a> Desugar<'a> {
             // 関数ポインタ
             HIRExpression::Variable { id, symbol_type } => {
                 let PrimitiveType::Function {
-                    return_type: _,
+                    return_type,
                     arguments: _,
                 } = symbol_type
                 else {
@@ -255,7 +264,8 @@ impl<'a> Desugar<'a> {
                 };
                 let hir = HIRExpression::Call {
                     function: *id,
-                    args: arguments,
+                    return_type: return_type.as_ref().clone(),
+                    arguments,
                 };
 
                 Ok(hir)

@@ -559,7 +559,8 @@ impl<'a> Resolver<'a> {
         let hir = match item {
             ItemSymbol::Function(function_item) => {
                 let id = function_item.id.clone();
-                let hir = self.desugar.lower_function_symbol(id)?;
+                let return_type = function_item.return_type.type_kind.clone();
+                let hir = self.desugar.lower_function_symbol(id, return_type)?;
                 Some(hir)
             }
             ItemSymbol::Enumeration(enum_item) => None,
