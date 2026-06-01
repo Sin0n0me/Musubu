@@ -126,14 +126,10 @@ impl LinearAllocator {
 
 impl Allocator for LinearAllocator {
     fn alloc(&mut self, name: String) -> usize {
-        if let Some(id) = self.name_map.get(&name) {
-            return *id;
-        }
-
-        let id = self.next;
-        self.name_map.insert(name, id);
-
-        self.next += 1;
-        id
+        *self.name_map.entry(name).or_insert_with(|| {
+            let id = self.next;
+            self.next += 1;
+            id
+        })
     }
 }
