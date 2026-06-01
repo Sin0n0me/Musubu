@@ -168,6 +168,9 @@ impl PrimitiveType {
         if let Some(postfix) = name.strip_prefix("i") {
             let mut chars = postfix.chars();
             let bit_width = Self::parse_number(&mut chars)?;
+            if !chars.as_str().is_empty() {
+                return None;
+            }
             let byte = Self::get_byte(bit_width)?;
             return Some(Self::Integer { signed: true, byte });
         }
@@ -175,6 +178,9 @@ impl PrimitiveType {
         if let Some(postfix) = name.strip_prefix("u") {
             let mut chars = postfix.chars();
             let bit_width = Self::parse_number(&mut chars)?;
+            if !chars.as_str().is_empty() {
+                return None;
+            }
             let byte = Self::get_byte(bit_width)?;
             return Some(Self::Integer {
                 signed: false,
@@ -185,6 +191,9 @@ impl PrimitiveType {
         if let Some(postfix) = name.strip_prefix("f") {
             let mut chars = postfix.chars();
             let bit_width = Self::parse_number(&mut chars)?;
+            if !chars.as_str().is_empty() {
+                return None;
+            }
             let byte = Self::get_byte(bit_width)?;
             return Some(Self::Float { byte });
         }
