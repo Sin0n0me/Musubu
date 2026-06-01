@@ -93,20 +93,17 @@ impl<'a> VM<'a> {
                 frame_stack.push(func);
             }
             Instruction::Return { value } => {
-                // 実行が継続しないように終端へ
-                frame.ip = frame.code.len();
-
+                let Some(frame) = frame_stack.pop() else {
+                    return Ok(None);
+                };
                 let Some(value) = value else {
                     return Ok(None);
                 };
                 let value = frame.registers[value.0].clone();
 
                 // 呼び出し元の取得
-                let Some(caller_index) = frame_stack.len().checked_sub(2) else {
+                let Some(caller) = frame_stack.last_mut() else {
                     return Ok(Some(value));
-                };
-                let Some(caller) = frame_stack.get_mut(caller_index) else {
-                    return Err(VMError::UnreachableIndexOutOfBounds); // ここに到達することはありえない
                 };
 
                 // 呼び出し元に戻り値を返す(指定のレジスタに格納)
