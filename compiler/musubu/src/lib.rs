@@ -13,30 +13,36 @@ use std::ptr;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn init(output: *mut *mut MusubuEngine) -> bool {
-    if output.is_null() {
-        return false;
-    }
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        if output.is_null() {
+            return false;
+        }
 
-    // Box を生ポインタ化して所有権を FFI 側へ渡す
-    let engine = Box::new(MusubuEngine::new());
-    let raw = Box::into_raw(engine);
-    unsafe {
-        ptr::write(output, raw);
-    }
+        // Box を生ポインタ化して所有権を FFI 側へ渡す
+        let engine = Box::new(MusubuEngine::new());
+        let raw = Box::into_raw(engine);
+        unsafe {
+            ptr::write(output, raw);
+        }
 
-    true
+        true
+    }));
+
+    result.unwrap_or(false)
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn uninit(engine: *mut MusubuEngine) {
-    if engine.is_null() {
-        return;
-    }
+    let _result = catch_unwind(AssertUnwindSafe(|| {
+        if engine.is_null() {
+            return;
+        }
 
-    // Boxに戻した時点で所有権をRustに戻す
-    unsafe {
-        drop(Box::from_raw(engine));
-    }
+        // Boxに戻した時点で所有権をRustに戻す
+        unsafe {
+            drop(Box::from_raw(engine));
+        }
+    }));
 }
 
 #[unsafe(no_mangle)]
