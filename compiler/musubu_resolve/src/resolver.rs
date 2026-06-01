@@ -666,7 +666,7 @@ impl<'a> Resolver<'a> {
         // パターン
         let pattern = name.as_ref_spanned();
         let type_kind = variable_type.as_ref().or(initializer_type.as_ref());
-        let _ = self.resolve_pattern(&pattern, type_kind)?;
+        let (id, symbol_type) = self.resolve_pattern(&pattern, type_kind)?;
 
         // 型チェック
         let scope = self.get_scope()?;
@@ -676,14 +676,15 @@ impl<'a> Resolver<'a> {
             initializer_type,
             variable_type,
         )?;
-        let hir = self
-            .desugar
-            .lower_let_statement(pattern.get_node(), initializer_hir)?;
 
         // TODO: 推論中
         let Some(type_symbol) = type_symbol else {
             unimplemented!();
         };
+
+        let hir =
+            self.desugar
+                .lower_let_statement(id, type_symbol.type_kind.clone(), initializer_hir)?;
 
         Ok(Lowered { type_symbol, hir })
     }
@@ -802,15 +803,20 @@ impl<'a> Resolver<'a> {
     ) -> ResolveResult<Lowered<HIRExpression>> {
         let (iterator_hir, iterator_ty) = self.resolve_expression(&iterator)?.split();
         let (body_hir, body_ty) = self.resolve_expression(&body)?.split();
-        let _ = self.resolve_pattern(&pattern, None)?; // TODO
+        let (id, symbol_type) = self.resolve_pattern(&pattern, None)?; // TODO
+
+        let TypeRequirement::Expect(symbol_type) = symbol_type else {
+            // TODO
+            unimplemented!()
+        };
 
         let scope = self.get_scope()?;
         let type_symbol = self
             .type_checker
             .check_for_expr(scope, iterator_ty, body_ty)?;
-        let hir = self
-            .desugar
-            .lower_for(pattern.get_node(), iterator_hir, body_hir.to_block())?;
+        let hir =
+            self.desugar
+                .lower_for(id, symbol_type.type_kind, iterator_hir, body_hir.to_block())?;
 
         Ok(Lowered { type_symbol, hir })
     }

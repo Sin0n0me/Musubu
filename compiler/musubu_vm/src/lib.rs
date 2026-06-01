@@ -81,7 +81,7 @@ impl<'a> VM<'a> {
             }
             Instruction::Call { dst, func, args } => {
                 if let Some(dst) = dst {
-                    frame.next_reg = dst.0;
+                    frame.next_reg = Some(dst.0);
                 };
 
                 let mut call_args = Vec::with_capacity(args.len());
@@ -99,6 +99,7 @@ impl<'a> VM<'a> {
                 let Some(value) = value else {
                     return Ok(None);
                 };
+
                 let value = frame.registers[value.0].clone();
 
                 // 呼び出し元の取得
@@ -107,7 +108,12 @@ impl<'a> VM<'a> {
                 };
 
                 // 呼び出し元に戻り値を返す(指定のレジスタに格納)
-                caller.registers[caller.next_reg] = value;
+                let Some(ret_reg) = caller.next_reg else {
+                    // IRコンパイル時点で保障されているはずなので
+                    // 本来ならここの到達はあり得ない
+                    return Err(VMError::InvalidDestinationAddressException);
+                };
+                caller.registers[ret_reg] = value;
             }
 
             // TODO: 削除(issue#4で対応予定)

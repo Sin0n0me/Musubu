@@ -2,6 +2,7 @@
 pub enum VMError {
     StackOverflow,
     IllegalFunctionCall,
+    InvalidDestinationAddressException,
     IndexOutOfBounds,
 
     UnreachableIndexOutOfBounds,

@@ -10,7 +10,7 @@ pub(crate) struct Frame<'a> {
     pub registers: Vec<Value>,
     pub ip: usize,
     pub code: &'a [Instruction],
-    pub next_reg: usize,
+    pub next_reg: Option<usize>,
 }
 
 impl<'a> Frame<'a> {
@@ -19,7 +19,7 @@ impl<'a> Frame<'a> {
             registers: vec![Value::Integer(Integer::Int32(0)); registers],
             ip: INITIAL_IP,
             code,
-            next_reg: args.len() + 1,
+            next_reg: None,
         };
 
         frame.init(args);
