@@ -23,7 +23,7 @@ impl RegisterAllocator {
         let reg = self.current_register;
         self.current_register += 1;
 
-        if self.register_size < reg {
+        if self.register_size < self.current_register {
             self.register_size = reg;
         }
 
