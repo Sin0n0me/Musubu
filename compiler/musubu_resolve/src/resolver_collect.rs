@@ -126,11 +126,7 @@ impl<'a> Resolver<'a> {
             TypeSymbol::default()
         };
 
-        let full_name = self
-            .name_resolver
-            .get_full_path(name)
-            .into_iter()
-            .collect::<String>();
+        let full_name = self.name_resolver.get_full_path(name).join("::");
         let func_id = self.desugar.alloc_function(full_name);
         let mut function_item = FunctionItem::new(func_id, name, return_type);
 
