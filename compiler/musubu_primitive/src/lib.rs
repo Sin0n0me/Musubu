@@ -340,7 +340,7 @@ pub enum Value {
     Integer(Integer),
     Float(Float),
     Bool(bool),
-    Pointer(),
+    Pointer,
     String(String),
     Vector(Vector),
     Matrix(Matrix),
