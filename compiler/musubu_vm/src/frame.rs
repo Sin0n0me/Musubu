@@ -7,7 +7,7 @@ const INITIAL_IP: usize = 0;
 
 #[derive(Debug)]
 pub(crate) struct Frame<'a> {
-    pub registers: Vec<Value>,
+    pub registers: Vec<Value>, // TODO 初期化コストが重たいのでVM側に移動して1つのVecでやる(オフセットで位置を定められる)
     pub ip: usize,
     pub code: &'a [Instruction],
     pub next_reg: Option<usize>,
