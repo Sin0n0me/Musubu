@@ -121,19 +121,20 @@ impl<'a> Desugar<'a> {
 
     pub fn lower_let_statement(
         &mut self,
-        pattern: &Pattern,
+        id: usize,
+        symbol_type: PrimitiveType,
         initializer: Option<HIRExpression>,
     ) -> DesugarResult<Option<HIRStatement>> {
-        let Pattern::Identifier { .. } = pattern else {
-            return Ok(None);
-        };
-        let symbol = self.alloc_symbol();
-        let symbol_type = initializer
+        let initializer_type = initializer
             .as_ref()
             .map_or(PrimitiveType::Unit, |e| e.to_type());
 
+        if symbol_type != initializer_type {
+            return Err(DesugarError::NotFunction);
+        }
+
         let hir = HIRStatement::Let {
-            symbol,
+            symbol: id,
             symbol_type,
             initializer,
         };
@@ -350,7 +351,8 @@ impl<'a> Desugar<'a> {
     // }
     pub fn lower_for(
         &mut self,
-        pattern: &Pattern,
+        id: usize,
+        symbol_type: PrimitiveType,
         iterator: HIRExpression,
         body: HIRBlock,
     ) -> DesugarResult<HIRExpression> {
@@ -358,7 +360,7 @@ impl<'a> Desugar<'a> {
 
         // TODO
         let initializer = Some(HIRExpression::Continue);
-        let iter = self.lower_let_statement(pattern, initializer)?;
+        let iter = self.lower_let_statement(id, symbol_type, initializer)?;
         let condition = HIRExpression::Continue;
         let then_body = body;
         let else_body = HIRExpression::Break(None).to_block();
