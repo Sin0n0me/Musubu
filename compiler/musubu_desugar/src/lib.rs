@@ -130,7 +130,7 @@ impl<'a> Desugar<'a> {
             .map_or(PrimitiveType::Unit, |e| e.to_type());
 
         if symbol_type != initializer_type {
-            return Err(DesugarError::TypeMissMatch);
+            return Err(DesugarError::TypeMismatch);
         }
 
         let hir = HIRStatement::Let {

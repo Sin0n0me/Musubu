@@ -2,5 +2,5 @@
 pub enum DesugarError {
     UnsupportedAssignTarget,
     NotFunction,
-    TypeMissMatch,
+    TypeMismatch,
 }
