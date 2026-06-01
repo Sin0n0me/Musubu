@@ -24,7 +24,7 @@ impl RegisterAllocator {
         self.current_register += 1;
 
         if self.register_size < self.current_register {
-            self.register_size = reg;
+            self.register_size = self.current_register;
         }
 
         Register(reg)
