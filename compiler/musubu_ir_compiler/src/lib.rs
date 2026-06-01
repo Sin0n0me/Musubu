@@ -12,7 +12,7 @@ use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use musubu_hir::*;
 use musubu_ir::*;
-use musubu_primitive::PrimitiveType;
+use musubu_primitive::{PrimitiveType, ToPrimitiveType};
 
 pub type IRCompileResult<T> = Result<T, IRCompileError>;
 
@@ -84,23 +84,26 @@ impl IRCompiler {
     }
 
     fn compile_block(&mut self, block: &HIRBlock) -> IRCompileResult<Option<Register>> {
-        // TODO
-        // 戻り値がない場合無駄に割り当てるので無駄を省きたい
-        let dst = self.alloc_register();
+        let dst = if block.to_type().is_unit() {
+            None
+        } else {
+            Some(self.alloc_register())
+        };
 
         self.register_allocator.enter_block();
 
-        let mut res = None;
+        let mut src = None;
         for statement in &block.statements {
-            res = self.compile_statement(statement)?;
+            src = self.compile_statement(statement)?;
         }
 
         // 戻り値があれば代入
-        let ret = if let Some(src) = res {
-            self.code.push(Instruction::Move { dst, src });
-            Some(dst)
-        } else {
-            None
+        let ret = match (src, dst) {
+            (Some(src), Some(dst)) => {
+                self.code.push(Instruction::Move { dst, src });
+                Some(dst)
+            }
+            _ => None,
         };
 
         // 使用済みレジスタの解放
