@@ -800,17 +800,17 @@ impl<'a> Resolver<'a> {
         iterator: Spanned<&'a Expression>,
         body: Spanned<&'a Expression>,
     ) -> ResolveResult<Lowered<HIRExpression>> {
-        let (iterrator_hir, iterrator_ty) = self.resolve_expression(&iterator)?.split();
+        let (iterator_hir, iterator_ty) = self.resolve_expression(&iterator)?.split();
         let (body_hir, body_ty) = self.resolve_expression(&body)?.split();
         let _ = self.resolve_pattern(&pattern, None)?; // TODO
 
         let scope = self.get_scope()?;
         let type_symbol = self
             .type_checker
-            .check_for_expr(scope, iterrator_ty, body_ty)?;
+            .check_for_expr(scope, iterator_ty, body_ty)?;
         let hir = self
             .desugar
-            .lower_for(pattern.get_node(), iterrator_hir, body_hir.to_block())?;
+            .lower_for(pattern.get_node(), iterator_hir, body_hir.to_block())?;
 
         Ok(Lowered { type_symbol, hir })
     }
