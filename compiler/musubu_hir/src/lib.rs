@@ -37,9 +37,15 @@ impl HIRModule {
 
 #[derive(Debug, Clone)]
 pub struct HIRFunction {
-    pub params: Vec<(usize, PrimitiveType)>,
+    pub params: Vec<HIRFunctionParam>,
     pub return_type: PrimitiveType,
     pub body: HIRBlock,
+}
+
+#[derive(Debug, Clone)]
+pub struct HIRFunctionParam {
+    pub argument: usize,
+    pub argument_type: PrimitiveType,
 }
 
 #[derive(Debug, Clone)]

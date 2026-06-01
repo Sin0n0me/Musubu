@@ -13,12 +13,13 @@ use musubu_ast::*;
 use musubu_cache::Allocator;
 use musubu_hir::*;
 use musubu_primitive::*;
+use musubu_scope::ScopeControl;
 
 pub type DesugarResult<T> = Result<T, DesugarError>;
 
 #[derive(Debug)]
 pub struct Desugar<'a> {
-    next_symbol: usize,
+    symbol_allocator: SymbolAllocator,
     root_module: &'a mut HIRModule,
     function_allocator: &'a mut dyn Allocator,
 }
@@ -26,14 +27,16 @@ pub struct Desugar<'a> {
 // HIRに変換するだけ
 // あくまでASTからHIRできるかだけを見る
 impl<'a> Desugar<'a> {
-    const INITIAL_ID: usize = 0;
-
     pub fn new(module: &'a mut HIRModule, allocator: &'a mut impl Allocator) -> Self {
         Self {
-            next_symbol: Self::INITIAL_ID,
+            symbol_allocator: SymbolAllocator::new(),
             root_module: module,
             function_allocator: allocator,
         }
+    }
+
+    pub fn alloc_symbol(&mut self) -> usize {
+        self.symbol_allocator.alloc()
     }
 
     pub fn alloc_function(&mut self, name: String) -> usize {
@@ -44,16 +47,9 @@ impl<'a> Desugar<'a> {
         self.root_module.add_function(id, function);
     }
 
-    pub fn alloc_symbol(&mut self) -> usize {
-        let id = self.next_symbol;
-        self.next_symbol += 1;
-
-        id
-    }
-
     pub fn lower_function(
         &mut self,
-        params: Vec<(usize, PrimitiveType)>,
+        params: Vec<HIRFunctionParam>,
         return_type: PrimitiveType,
         body: HIRBlock,
     ) -> DesugarResult<HIRFunction> {
@@ -61,6 +57,19 @@ impl<'a> Desugar<'a> {
             params,
             return_type,
             body,
+        };
+
+        Ok(hir)
+    }
+
+    pub fn lower_function_argument(
+        &mut self,
+        id: usize,
+        argument_type: PrimitiveType,
+    ) -> DesugarResult<HIRFunctionParam> {
+        let hir = HIRFunctionParam {
+            argument: id,
+            argument_type,
         };
 
         Ok(hir)
@@ -378,5 +387,53 @@ impl<'a> Desugar<'a> {
         };
 
         Ok(HIRExpression::Literal(value))
+    }
+}
+
+impl<'a> ScopeControl<DesugarError> for Desugar<'a> {
+    fn on_enter_scope(&mut self) -> Result<(), DesugarError> {
+        self.symbol_allocator.on_enter_scope()
+    }
+
+    fn on_exit_scope(&mut self) -> Result<(), DesugarError> {
+        self.symbol_allocator.on_exit_scope()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct SymbolAllocator {
+    current_id: usize,
+    check_points: Vec<usize>,
+}
+
+impl SymbolAllocator {
+    const INITIAL_ID: usize = 0;
+
+    pub fn new() -> Self {
+        Self {
+            current_id: Self::INITIAL_ID,
+            check_points: Vec::new(),
+        }
+    }
+
+    pub fn alloc(&mut self) -> usize {
+        let id = self.current_id;
+        self.current_id += 1;
+        id
+    }
+}
+
+impl ScopeControl<DesugarError> for SymbolAllocator {
+    fn on_enter_scope(&mut self) -> Result<(), DesugarError> {
+        self.check_points.push(self.current_id);
+        Ok(())
+    }
+
+    fn on_exit_scope(&mut self) -> Result<(), DesugarError> {
+        if let Some(id) = self.check_points.pop() {
+            self.current_id = id;
+        }
+
+        Ok(())
     }
 }

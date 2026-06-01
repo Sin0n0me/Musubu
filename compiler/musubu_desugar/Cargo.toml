@@ -9,4 +9,5 @@ musubu_ast = { version = "0.1.0", path = "../musubu_ast" }
 musubu_cache = { version = "0.1.0", path = "../musubu_cache" }
 musubu_hir = { version = "0.1.0", path = "../musubu_hir" }
 musubu_primitive = { version = "0.1.0", path = "../musubu_primitive" }
+musubu_scope = { version = "0.1.0", path = "../musubu_scope" }
 musubu_span = { version = "0.1.0", path = "../musubu_span" }

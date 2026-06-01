@@ -12,6 +12,7 @@ use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use musubu_hir::*;
 use musubu_ir::*;
+use musubu_primitive::PrimitiveType;
 
 pub type IRCompileResult<T> = Result<T, IRCompileError>;
 
@@ -28,6 +29,7 @@ pub fn compile_module(module: &HIRModule) -> IRCompileResult<Vec<(usize, Compile
 pub fn compile_function(func: &HIRFunction) -> IRCompileResult<CompiledFunction> {
     let mut compiler = IRCompiler::new();
 
+    compiler.compile_arguments(&func.params)?;
     compiler.compile_block(&func.body)?;
 
     let code = CompiledFunction {
@@ -71,6 +73,14 @@ impl IRCompiler {
 
     fn alloc_register(&mut self) -> Register {
         self.register_allocator.alloc()
+    }
+
+    fn compile_arguments(&mut self, arguments: &[HIRFunctionParam]) -> IRCompileResult<()> {
+        for _ in arguments {
+            self.alloc_register();
+        }
+
+        Ok(())
     }
 
     fn compile_block(&mut self, block: &HIRBlock) -> IRCompileResult<Option<Register>> {

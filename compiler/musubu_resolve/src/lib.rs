@@ -115,7 +115,7 @@ impl<'a> Resolver<'a> {
     ) -> ResolveResult<T> {
         self.type_checker.enter_function(return_type);
 
-        let mut result = self.enter_scope(function)?;
+        let result = self.enter_scope(function)?;
 
         self.type_checker.check_return(Some(&result.type_symbol))?;
         self.type_checker.exit_function();
@@ -131,9 +131,11 @@ impl<'a> Resolver<'a> {
         self.name_resolver.enter_module(module_name)?;
         self.name_resolver.on_enter_scope()?;
         self.type_checker.on_enter_scope()?;
+        self.desugar.on_enter_scope()?;
 
         function(self)?;
 
+        self.desugar.on_exit_scope()?;
         self.type_checker.on_exit_scope()?;
         self.name_resolver.on_exit_scope()?;
         self.name_resolver.exit_module()?;
@@ -147,9 +149,11 @@ impl<'a> Resolver<'a> {
     ) -> ResolveResult<Lowered<T>> {
         self.name_resolver.on_enter_scope()?;
         self.type_checker.on_enter_scope()?;
+        self.desugar.on_enter_scope()?;
 
         let result = function(self)?;
 
+        self.desugar.on_exit_scope()?;
         self.type_checker.on_exit_scope()?;
         self.name_resolver.on_exit_scope()?;
 

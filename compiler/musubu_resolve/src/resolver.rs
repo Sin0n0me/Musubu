@@ -2,10 +2,12 @@ use crate::errors::ResolveError;
 use crate::{Lowered, ResolveResult, Resolver};
 use alloc::string::ToString;
 use musubu_ast::*;
-use musubu_hir::{HIRBlock, HIRExpression, HIRFunction, HIRStatement};
+use musubu_hir::{HIRBlock, HIRExpression, HIRFunction, HIRFunctionParam, HIRStatement};
 use musubu_name_space::errors::NameSpaceError;
 use musubu_name_space::{FunctionItem, ItemStoreReader, ItemSymbol};
-use musubu_primitive::{BinaryOperator, ComparisonOperator, LogicalOperator, ToPrimitiveType};
+use musubu_primitive::{
+    BinaryOperator, ComparisonOperator, LogicalOperator, PrimitiveType, ToPrimitiveType,
+};
 use musubu_scope::{SymbolStore, TypeOption, TypeRequirement, TypeSymbol};
 use musubu_span::*;
 
@@ -59,7 +61,7 @@ impl<'a> Resolver<'a> {
         } = self
             .name_resolver
             .get_function(name)
-            .cloned() // 後でcloneした要素を渡すので丸ごとcloneして構わない
+            .cloned()
             .ok_or(ResolveError::NameSpaceError(
                 NameSpaceError::UnresolvedFunction {
                     name: name.to_string(),
@@ -70,29 +72,15 @@ impl<'a> Resolver<'a> {
         let Some(body_expr) = &body else {
             return Ok(());
         };
-
         if arguments.len() != params.len() {
             unreachable!()
         }
-        let params = arguments.into_iter().zip(params);
+        let arguments = &arguments;
 
         // 関数本体
         let hir = self.enter_function(return_type.clone(), |s| {
-            // 引数
-            let mut args = Vec::with_capacity(params.len());
-            for (resolved_type, param) in params.clone() {
-                let param = param.get_node();
-                let pattern = param.pattern.as_ref_spanned();
-
-                let type_requirement = s.resolve_pattern(&pattern, Some(&resolved_type))?;
-                let Some(ty) = type_requirement.get_type().cloned() else {
-                    unimplemented!()
-                };
-                let id = s.desugar.alloc_symbol();
-
-                args.push((id, ty));
-            }
-
+            let params = arguments.into_iter().zip(params).collect::<Vec<_>>();
+            let args = s.resolve_arguments(params)?;
             let type_symbol = return_type.clone();
             let return_type = return_type.type_kind.clone();
             let body = s.resolve_expression(body_expr)?.hir.to_block();
@@ -105,6 +93,29 @@ impl<'a> Resolver<'a> {
         self.desugar.add_function_to_module(id, hir);
 
         Ok(())
+    }
+
+    fn resolve_arguments(
+        &mut self,
+        arguments: Vec<(&TypeSymbol, &'a Spanned<FunctionParam>)>,
+    ) -> ResolveResult<Vec<HIRFunctionParam>> {
+        let mut args = Vec::with_capacity(arguments.len());
+        for (resolved_type, param) in arguments {
+            let param = param.get_node();
+            let pattern = param.pattern.as_ref_spanned();
+
+            let (id, type_requirement) = self.resolve_pattern(&pattern, Some(&resolved_type))?;
+            let TypeRequirement::Expect(type_symbol) = type_requirement else {
+                unimplemented!()
+            };
+
+            args.push(HIRFunctionParam {
+                argument: id,
+                argument_type: type_symbol.type_kind,
+            });
+        }
+
+        Ok(args)
     }
 
     fn resolve_struct(
@@ -682,9 +693,10 @@ impl<'a> Resolver<'a> {
         &mut self,
         pattern: &Spanned<&'a Pattern>,
         type_kind: Option<&TypeSymbol>, // 事前に型が決まっている場合
-    ) -> ResolveResult<TypeRequirement> {
+    ) -> ResolveResult<(usize, TypeRequirement)> {
         let span = pattern.span;
         let pattern = &pattern.node;
+        let id = self.desugar.alloc_symbol(); // 変数の割り当て
 
         let ty = match pattern {
             Pattern::Identifier {
@@ -705,8 +717,7 @@ impl<'a> Resolver<'a> {
                     TypeRequirement::Inferring(option)
                 };
 
-                self.name_resolver
-                    .add_variable(self.desugar.alloc_symbol(), ident, ty.clone())?;
+                self.name_resolver.add_variable(id, ident, ty.clone())?;
                 ty
             }
             Pattern::Multiply(patterns) => {
@@ -727,7 +738,7 @@ impl<'a> Resolver<'a> {
             Pattern::None => TypeRequirement::Inferring(TypeOption::default()),
         };
 
-        Ok(ty)
+        Ok((id, ty))
     }
 
     fn resolve_loop(
