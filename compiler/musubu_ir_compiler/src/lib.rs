@@ -196,7 +196,13 @@ impl IRCompiler {
                 });
                 dst
             }
-            HIRExpression::Block(block) => self.compile_block(block)?.unwrap_or(Register(0)),
+            HIRExpression::Block(block) => {
+                if let Some(reg) = self.compile_block(block)? {
+                    reg
+                } else {
+                    self.alloc_register()
+                }
+            }
             HIRExpression::If {
                 cond,
                 then_block,
