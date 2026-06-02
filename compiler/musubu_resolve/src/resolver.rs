@@ -677,9 +677,11 @@ impl<'a> Resolver<'a> {
             variable_type,
         )?;
 
-        // TODO: 推論中
+        // TODO: 推論中の場合後回しに
         let Some(type_symbol) = type_symbol else {
-            unimplemented!();
+            return Err(ResolveError::UnresolvedType {
+                name: format!("{:?}", pattern.get_node()),
+            });
         };
 
         let hir =
