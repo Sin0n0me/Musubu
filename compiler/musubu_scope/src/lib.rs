@@ -146,7 +146,7 @@ impl<'a> SymbolStore<'a, ScopeError> for Scope<'a> {
         name: &'a str,
         primitive_type: PrimitiveType,
     ) -> Result<(), ScopeError> {
-        let Some(symbol) = self.symbol_map.get(name) else {
+        let Some(symbol) = self.symbol_map.get_mut(name) else {
             return Err(ScopeError::UnresolvedVariable {
                 name: name.to_string(),
             });
@@ -157,12 +157,13 @@ impl<'a> SymbolStore<'a, ScopeError> for Scope<'a> {
         let Symbol::Variable { id: _, ty } = symbol else {
             return Err(ScopeError::NotVariable {
                 name: name.to_string(),
-                found: "Type".to_string(), //
+                found: "Type".to_string(),
             });
         };
+
         // 推論中かどうかチェック
         // 事前に確定している場合はエラー
-        let TypeRequirement::Inferring(_) = ty else {
+        let TypeRequirement::Inferring(option) = ty.clone() else {
             return Err(ScopeError::TypeConflict {
                 name: name.to_string(),
                 expected: "Inferring".to_string(),
@@ -170,24 +171,10 @@ impl<'a> SymbolStore<'a, ScopeError> for Scope<'a> {
             });
         };
 
-        let Some(Symbol::Variable {
-            id,
-            ty: TypeRequirement::Inferring(option),
-        }) = self.symbol_map.remove(name)
-        else {
-            unreachable!()
-        };
-
-        self.symbol_map.insert(
-            name,
-            Symbol::Variable {
-                id,
-                ty: TypeRequirement::Expect(TypeSymbol {
-                    type_kind: primitive_type,
-                    option,
-                }),
-            },
-        );
+        *ty = TypeRequirement::Expect(TypeSymbol {
+            type_kind: primitive_type,
+            option,
+        });
 
         Ok(())
     }
