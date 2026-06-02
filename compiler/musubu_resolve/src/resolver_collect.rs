@@ -46,7 +46,11 @@ impl<'a> SymbolCollector<'a> {
 impl<'a> Resolver<'a> {
     // 先にrevoleveだけを呼び出すとCのようなに後に定義されたシンボルは定義されていないものとする
     // 先に定義だけを収集する用(その分少し重い)
-    pub fn import(&mut self, module_name: &'a str, nodes: &[&'a ASTNode]) -> ResolveResult<()> {
+    pub(crate) fn import(
+        &mut self,
+        module_name: &'a str,
+        nodes: &[&'a ASTNode],
+    ) -> ResolveResult<()> {
         self.enter_module(module_name, |s| {
             for node in nodes {
                 match node {

@@ -5,7 +5,7 @@ use musubu_engine::MusubuEngine;
 use musubu_ir_compiler::compile_module;
 use musubu_lexer::tokenize;
 use musubu_parser::parse;
-use musubu_resolve::resolve_unordered;
+use musubu_resolve::{resolve_sequential, resolve_unordered};
 
 extern crate alloc;
 
@@ -30,6 +30,7 @@ pub fn compile(engine: &mut MusubuEngine, code: &str) -> bool {
     // TODO: project, module名を任意に
     let ast_items = ast_items.iter().map(|ast| ast.as_ref()).collect::<Vec<_>>();
     let allocator = engine.get_cache().get_function_allocator();
+    //let result = resolve_sequential("Musubu", "musubu", &ast_items, allocator);
     let result = resolve_unordered("Musubu", "musubu", &ast_items, allocator);
     let hir = match result {
         Err(e) => {

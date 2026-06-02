@@ -49,7 +49,7 @@ impl<'a> Resolver<'a> {
         return_type: Option<Spanned<&'a TypeKind>>,
     ) -> ResolveResult<()> {
         // 事前importで解決済み
-        if !self.collector.remove(name) {
+        if !self.collector.remove(name) || self.resolve_mode.is_squential() {
             self.import_function(name, params, return_type)?;
         }
 
@@ -124,7 +124,7 @@ impl<'a> Resolver<'a> {
         fields: &'a [Spanned<StructField>],
     ) -> ResolveResult<()> {
         // 事前importで解決済み
-        if self.collector.remove(name) {
+        if self.collector.remove(name) || self.resolve_mode.is_squential() {
             return Ok(());
         }
 
@@ -137,7 +137,7 @@ impl<'a> Resolver<'a> {
         items: &'a [Spanned<EnumItem>],
     ) -> ResolveResult<()> {
         // 事前importで解決済み
-        if self.collector.remove(enum_name) {
+        if self.collector.remove(enum_name) || self.resolve_mode.is_squential() {
             return Ok(());
         }
 

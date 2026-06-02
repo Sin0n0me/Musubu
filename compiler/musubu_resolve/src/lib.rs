@@ -32,7 +32,7 @@ pub fn resolve_sequential(
     allocator: &mut impl Allocator,
 ) -> ResolveResult<HIRModule> {
     let mut hir = HIRModule::new();
-    let mut resolver = Resolver::new(project_name, &mut hir, allocator);
+    let mut resolver = Resolver::new(ResolveMode::Sequential, project_name, &mut hir, allocator);
 
     resolver.resolve(module_name, ast_items)?;
 
@@ -48,16 +48,32 @@ pub fn resolve_unordered(
     allocator: &mut impl Allocator,
 ) -> ResolveResult<HIRModule> {
     let mut hir = HIRModule::new();
-    let mut resolver = Resolver::new(project_name, &mut hir, allocator);
+    let mut resolver = Resolver::new(ResolveMode::Unordered, project_name, &mut hir, allocator);
 
-    resolver.import(module_name, ast_items)?;
     resolver.resolve(module_name, ast_items)?;
 
     Ok(hir)
 }
 
 #[derive(Debug)]
+enum ResolveMode {
+    Sequential,
+    Unordered,
+}
+
+impl ResolveMode {
+    fn is_squential(&self) -> bool {
+        matches!(self, Self::Sequential)
+    }
+
+    fn is_unordered(&self) -> bool {
+        matches!(self, Self::Unordered)
+    }
+}
+
+#[derive(Debug)]
 struct Resolver<'a> {
+    resolve_mode: ResolveMode,
     name_resolver: NameResolver<'a>,
     type_checker: TypeChecker,
     collector: SymbolCollector<'a>,
@@ -78,11 +94,13 @@ impl<T> Lowered<T> {
 
 impl<'a> Resolver<'a> {
     pub fn new(
+        resolve_mode: ResolveMode,
         project_name: &'a str,
         hir_module: &'a mut HIRModule,
         allocator: &'a mut impl Allocator,
     ) -> Self {
         Self {
+            resolve_mode,
             name_resolver: NameResolver::new(project_name),
             type_checker: TypeChecker::new(),
             collector: SymbolCollector::new(),
@@ -91,6 +109,10 @@ impl<'a> Resolver<'a> {
     }
 
     pub fn resolve(&mut self, module_name: &'a str, nodes: &[&'a ASTNode]) -> ResolveResult<()> {
+        if self.resolve_mode.is_unordered() {
+            self.import(module_name, nodes)?;
+        }
+
         self.enter_module(module_name, |s| {
             for node in nodes {
                 match node {
