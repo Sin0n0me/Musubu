@@ -80,9 +80,7 @@ impl<'a> VM<'a> {
                 frame.ip = *target;
             }
             Instruction::Call { dst, func, args } => {
-                if let Some(dst) = dst {
-                    frame.next_reg = Some(dst.0);
-                };
+                frame.next_reg = dst.map(|reg| reg.0);
 
                 let mut call_args = Vec::with_capacity(args.len());
                 for reg in args {
