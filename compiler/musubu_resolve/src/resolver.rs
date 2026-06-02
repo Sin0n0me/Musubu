@@ -533,9 +533,15 @@ impl<'a> Resolver<'a> {
         &mut self,
         path: Spanned<&'a Path>,
     ) -> ResolveResult<Lowered<Option<HIRExpression>>> {
-        //
         let path = path.node;
         let name = path.last_ident();
+
+        if let Some(type_kind) = PrimitiveType::from(name) {
+            return Ok(Lowered {
+                type_symbol: TypeSymbol::new(type_kind),
+                hir: None,
+            });
+        }
 
         let Some(type_symbol) = self.name_resolver.get_type(name).cloned() else {
             return Err(ResolveError::UnresolvedPath {
@@ -826,6 +832,7 @@ impl<'a> Resolver<'a> {
     fn resolve_type(&mut self, type_kind: Spanned<&'a TypeKind>) -> ResolveResult<TypeSymbol> {
         let type_kind = &type_kind.node;
         let scope = self.get_scope()?;
+
         let ty = self.type_checker.check_type(scope, type_kind)?;
 
         match type_kind {

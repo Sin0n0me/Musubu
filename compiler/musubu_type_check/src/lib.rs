@@ -334,6 +334,10 @@ impl TypeChecker {
 
         // TODO: パスの処理
         let name = path.last_ident();
+        if let Some(type_kind) = PrimitiveType::from(name) {
+            return Ok(TypeSymbol::new(type_kind));
+        }
+
         let ty = scope
             .get_type(name)
             .ok_or(TypeCheckError::UnknownType {
