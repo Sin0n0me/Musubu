@@ -125,12 +125,11 @@ impl<'a> Desugar<'a> {
         symbol_type: PrimitiveType,
         initializer: Option<HIRExpression>,
     ) -> DesugarResult<Option<HIRStatement>> {
-        let initializer_type = initializer
-            .as_ref()
-            .map_or(PrimitiveType::Unit, |e| e.to_type());
-
-        if symbol_type != initializer_type {
-            return Err(DesugarError::TypeMismatch);
+        // 初期化式がない場合は型チェックを行わない
+        if let Some(ref init) = initializer {
+            if symbol_type != init.to_type() {
+                return Err(DesugarError::TypeMismatch);
+            }
         }
 
         let hir = HIRStatement::Let {
