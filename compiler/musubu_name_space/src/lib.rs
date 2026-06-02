@@ -360,11 +360,15 @@ impl<'a> EnumItem<'a> {
     }
 
     pub fn add_variant(&mut self, variant_name: &'a str) -> NameSpaceResult<()> {
-        self.variants.insert(variant_name, make_index_map()).ok_or(
-            NameSpaceError::DuplicateEnumVariant {
+        if self
+            .variants
+            .insert(variant_name, make_index_map())
+            .is_some()
+        {
+            return Err(NameSpaceError::DuplicateEnumVariant {
                 name: variant_name.to_string(),
-            },
-        )?;
+            });
+        }
 
         Ok(())
     }
