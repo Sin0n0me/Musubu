@@ -1,3 +1,6 @@
+// TODO
+//#![no_std]
+
 mod common;
 mod errors;
 mod lexer;
@@ -11,7 +14,7 @@ use errors::ParseError;
 use musubu_ast::ASTNode;
 use musubu_lexer::Tokens;
 
-pub fn parse<'a>(tokens: &Tokens<'a>) -> Result<Rc<ASTNode>, ParseError> {
+pub fn parse<'a>(tokens: &Tokens<'a>) -> Result<Vec<Rc<ASTNode>>, ParseError> {
     let lexer = tokenize(tokens).unwrap();
     PackratAndPrattParser::new(lexer).parse()
 }

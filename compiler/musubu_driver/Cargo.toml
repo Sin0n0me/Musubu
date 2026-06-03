@@ -1,0 +1,13 @@
+[package]
+name = "musubu_driver"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[dependencies]
+musubu_ast = { version = "0.1.0", path = "../musubu_ast" }
+musubu_engine = { version = "0.1.0", path = "../musubu_engine" }
+musubu_ir_compiler = { version = "0.1.0", path = "../musubu_ir_compiler" }
+musubu_lexer = { version = "0.1.0", path = "../musubu_lexer" }
+musubu_parser = { version = "0.1.0", path = "../musubu_parser" }
+musubu_resolve = { version = "0.1.0", path = "../musubu_resolve" }

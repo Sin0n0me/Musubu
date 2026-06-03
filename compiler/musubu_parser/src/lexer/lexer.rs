@@ -3,7 +3,7 @@ use crate::{
     lexer::musubu_keywords::MusubuKeyword,
     lexer::token::{FloatLiteral, MusubuLiteral, MusubuOperator, MusubuToken, MusubuTokenKind},
 };
-use musubu_ast::{AssignOperator, LogicalOperator};
+use musubu_ast::AssignOperator;
 use musubu_lexer::{Tokens, token::*};
 use musubu_primitive::*;
 use std::{

@@ -1,3 +1,5 @@
+// TODO: 削除(issue#4で対応予定)
+
 use musubu_primitive::*;
 use nalgebra::Matrix4;
 

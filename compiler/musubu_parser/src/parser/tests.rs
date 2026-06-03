@@ -759,9 +759,7 @@ mod tests {
         assert_eq!(name, "add");
         assert_eq!(params.len(), 1);
 
-        let Pattern::Identifier { ident, .. } =
-            params[0].node.pattern.as_ref().cloned().unwrap().node
-        else {
+        let Pattern::Identifier { ident, .. } = params[0].node.pattern.get_node() else {
             panic!()
         };
 
@@ -1025,13 +1023,13 @@ mod tests {
     #[test]
     fn test_function_type() {
         let ty = TypeKind::Function {
-            params: vec![sp(TypeKind::Primitive(PrimitiveType::Unit))],
+            arguments: vec![sp(TypeKind::Primitive(PrimitiveType::Unit))],
             return_type: sp_box(TypeKind::Primitive(PrimitiveType::Unit)),
         };
 
         match ty {
-            TypeKind::Function { params, .. } => {
-                assert_eq!(params.len(), 1);
+            TypeKind::Function { arguments, .. } => {
+                assert_eq!(arguments.len(), 1);
             }
             _ => panic!(),
         }

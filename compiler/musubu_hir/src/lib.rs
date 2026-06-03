@@ -1,59 +1,91 @@
-use std::usize;
+// TODO
+//#![no_std]
 
+extern crate alloc;
+
+use alloc::boxed::Box;
+use alloc::collections::btree_map::BTreeMap;
+use alloc::vec::Vec;
 use musubu_primitive::*;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SymbolId(pub usize);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TypeId(pub usize);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct FunctionId {
-    pub id: FunctionType,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum FunctionType {
-    UserDefined(usize),
-    BuiltIn(usize),
-}
 
 #[derive(Debug, Clone)]
 pub struct HIRModule {
-    pub functions: Vec<HIRFunction>,
+    pub functions: BTreeMap<usize, HIRFunction>,
     pub globals: Vec<HIRGlobal>,
+}
+
+impl HIRModule {
+    pub fn new() -> Self {
+        Self {
+            functions: BTreeMap::new(),
+            globals: Vec::new(),
+        }
+    }
+
+    pub fn add_function(&mut self, id: usize, function: HIRFunction) {
+        self.functions.insert(id, function);
+    }
+
+    pub fn add_global(&mut self, global: HIRGlobal) {
+        self.globals.push(global);
+    }
+
+    pub fn get_function(&self, function_id: &usize) -> Option<&HIRFunction> {
+        self.functions.get(function_id)
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct HIRFunction {
-    pub id: FunctionId,
-    pub params: Vec<(SymbolId, TypeId)>,
-    pub return_type: TypeId,
+    pub params: Vec<HIRFunctionParam>,
+    pub return_type: PrimitiveType,
     pub body: HIRBlock,
 }
 
 #[derive(Debug, Clone)]
-pub struct HIRGlobal {
-    pub symbol: SymbolId,
-    pub type_id: TypeId,
-    pub initializer: Option<HIRExpression>,
+pub struct HIRFunctionParam {
+    pub argument: usize,
+    pub argument_type: PrimitiveType,
 }
 
 #[derive(Debug, Clone)]
-pub struct HIRBlock {
-    pub statements: Vec<HIRStatement>,
-    pub result: Option<Box<HIRExpression>>, // 式ブロック対応
+pub struct HIRGlobal {
+    pub symbol: usize,
+    pub symbol_type: PrimitiveType,
+    pub initializer: Option<HIRExpression>,
 }
 
 #[derive(Debug, Clone)]
 pub enum HIRStatement {
     Let {
-        symbol: SymbolId,
-        ty: TypeId,
-        init: Option<HIRExpression>,
+        symbol: usize,
+        symbol_type: PrimitiveType,
+        initializer: Option<HIRExpression>,
     },
     Expr(HIRExpression),
+}
+
+impl ToPrimitiveType for HIRStatement {
+    fn to_type(&self) -> PrimitiveType {
+        match self {
+            Self::Let { .. } => PrimitiveType::Unit,
+            Self::Expr(e) => e.to_type(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct HIRBlock {
+    pub statements: Vec<HIRStatement>,
+}
+
+impl ToPrimitiveType for HIRBlock {
+    fn to_type(&self) -> PrimitiveType {
+        self.statements
+            .last()
+            .cloned()
+            .map_or(PrimitiveType::Unit, |s| s.to_type())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -62,11 +94,14 @@ pub enum HIRExpression {
     Literal(Value),
 
     // 変数参照
-    Variable(SymbolId),
+    Variable {
+        id: usize,
+        symbol_type: PrimitiveType,
+    },
 
     // 代入
     Store {
-        target: SymbolId,
+        target: usize,
         value: Box<HIRExpression>,
     },
 
@@ -86,23 +121,67 @@ pub enum HIRExpression {
 
     // 関数呼び出し
     Call {
-        function: FunctionId,
-        args: Vec<HIRExpression>,
+        function: usize,
+        return_type: PrimitiveType,
+        arguments: Vec<HIRExpression>,
     },
 
+    // 条件分岐
     If {
         cond: Box<HIRExpression>,
         then_block: HIRBlock,
         else_block: Option<HIRBlock>,
     },
 
+    Block(HIRBlock),
+
+    // 繰り返し
     Loop {
         body: HIRBlock,
     },
 
-    // break
+    Continue,
+
     Break(Option<Box<HIRExpression>>),
 
-    // return
     Return(Option<Box<HIRExpression>>),
+}
+
+impl HIRExpression {
+    pub fn to_statement(self) -> HIRStatement {
+        HIRStatement::Expr(self)
+    }
+
+    pub fn to_block(self) -> HIRBlock {
+        HIRBlock {
+            statements: vec![self.to_statement()],
+        }
+    }
+}
+
+impl ToPrimitiveType for HIRExpression {
+    fn to_type(&self) -> PrimitiveType {
+        match self {
+            Self::Store { target: _, value } => value.to_type(),
+            Self::Variable { id: _, symbol_type } => symbol_type.clone(),
+            Self::CmpOp { op: _, lhs, rhs: _ } => lhs.to_type(),
+            Self::BinOp { op: _, lhs, rhs: _ } => lhs.to_type(),
+            Self::Return(expr) => expr.as_ref().map_or(PrimitiveType::Unit, |e| e.to_type()),
+            Self::Literal(v) => v.to_type(),
+            Self::Continue => PrimitiveType::Unit,
+            Self::Loop { body } => body.to_type(),
+            Self::Break(expr) => expr.as_ref().map_or(PrimitiveType::Unit, |e| e.to_type()),
+            Self::Block(b) => b.to_type(),
+            Self::If {
+                cond: _,
+                then_block,
+                else_block: _,
+            } => then_block.to_type(),
+            Self::Call {
+                function: _,
+                return_type,
+                arguments: _,
+            } => return_type.clone(),
+        }
+    }
 }

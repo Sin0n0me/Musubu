@@ -1,0 +1,16 @@
+[package]
+name = "musubu"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+musubu_vm = { version = "0.1.0", path = "../musubu_vm" }
+musubu_primitive = { version = "0.1.0", path = "../musubu_primitive" }
+nalgebra = "0.34.1"
+musubu_driver = { version = "0.1.0", path = "../musubu_driver" }
+musubu_engine = { version = "0.1.0", path = "../musubu_engine" }
+

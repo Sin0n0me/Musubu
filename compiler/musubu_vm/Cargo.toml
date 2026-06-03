@@ -5,6 +5,7 @@ edition = "2024"
 license = "MIT"
 
 [dependencies]
+musubu_cache = { version = "0.1.0", path = "../musubu_cache" }
 musubu_hir = { version = "0.1.0", path = "../musubu_hir" }
 musubu_ir = { version = "0.1.0", path = "../musubu_ir" }
 musubu_primitive = { version = "0.1.0", path = "../musubu_primitive" }

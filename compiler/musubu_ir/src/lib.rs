@@ -1,3 +1,9 @@
+// TODO
+//#![no_std]
+
+extern crate alloc;
+
+use alloc::vec::Vec;
 use musubu_primitive::*;
 
 #[derive(Debug, Clone)]
@@ -60,7 +66,7 @@ pub enum Instruction {
         value: Option<Register>,
     },
 
-    // Callへ統合できるならしたいね
+    // Callへ統合し削除
     BuiltInCall {
         dst: Option<Register>,
         func: usize,

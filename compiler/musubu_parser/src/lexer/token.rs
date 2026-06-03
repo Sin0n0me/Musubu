@@ -1,4 +1,4 @@
-use musubu_ast::{AssignOperator, Literal, LogicalOperator, TypeKind};
+use musubu_ast::{AssignOperator, Literal, TypeKind};
 use musubu_primitive::*;
 use musubu_span::*;
 use std::hash::Hash;

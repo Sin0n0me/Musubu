@@ -70,29 +70,24 @@ impl<'a> PackratAndPrattParser<'a> {
             tokens,
             max_read_position: 0,
             last_fail_rule: None,
-            bp_stack: vec![0],
+            bp_stack: vec![],
         }
     }
 
-    pub fn parse(&mut self) -> Result<Rc<ASTNode>, ParseError> {
+    pub fn parse(&mut self) -> Result<Vec<Rc<ASTNode>>, ParseError> {
         self.memo.clear();
 
-        let item = self
-            .parse_item()
-            .map(|memo| memo.get_node().ok_or(ParseError::UnexpectedAST));
+        let mut ast_items = vec![];
+        while self.tokens.get().is_some() {
+            let item = self
+                .parse_item()?
+                .get_node()
+                .ok_or(ParseError::UnexpectedAST)?;
 
-        let pos = self.max_read_position;
-        self.tokens.set_position(pos);
+            ast_items.push(item);
+        }
 
-        #[cfg(test)]
-        println!(
-            "position: {:?}, rule: {:?}, token: {:?}",
-            pos,
-            self.last_fail_rule,
-            self.tokens.get()
-        );
-
-        item?
+        Ok(ast_items)
     }
 
     // Item ::= VisItem
