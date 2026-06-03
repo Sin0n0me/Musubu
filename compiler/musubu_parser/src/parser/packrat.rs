@@ -5,18 +5,26 @@ mod parse_type;
 mod pratt;
 
 use crate::{TokenStream, errors::ParseError, lexer::token::BindingPower};
-use alloc::collections::btree_map::BTreeMap;
 use alloc::rc::Rc;
 use alloc::{vec, vec::Vec};
+use core::hash::BuildHasherDefault;
 use musubu_ast::*;
 use musubu_span::*;
+use twox_hash::XxHash64;
+
+pub(crate) type Hasher = BuildHasherDefault<XxHash64>;
+pub(crate) type IndexMap<K, V> = indexmap::IndexMap<K, V, Hasher>;
+
+pub(crate) fn make_index_map<K, V>() -> IndexMap<K, V> {
+    IndexMap::with_hasher(Hasher::default())
+}
 
 #[derive(Debug, Clone)]
 pub(crate) enum Memo {
     ASTNode(Rc<ASTNode>),
 }
 
-#[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub(crate) struct MemoKey<'a> {
     rule: &'a str,
     position: usize,
@@ -51,7 +59,7 @@ impl MemoResult {
 
 #[derive(Debug)]
 pub(crate) struct PackratAndPrattParser<'a> {
-    memo: BTreeMap<MemoKey<'a>, MemoResult>,
+    memo: IndexMap<MemoKey<'a>, MemoResult>,
     tokens: TokenStream,
     max_read_position: usize,
     last_fail_rule: Option<&'a str>,
@@ -68,7 +76,7 @@ pub(crate) type ParseResult = Result<MemoResult, ParseError>;
 impl<'a> PackratAndPrattParser<'a> {
     pub fn new(tokens: TokenStream) -> Self {
         Self {
-            memo: BTreeMap::new(),
+            memo: make_index_map(),
             tokens,
             max_read_position: 0,
             last_fail_rule: None,
