@@ -446,9 +446,9 @@ impl TypeChecker {
         }
 
         if lhs.type_kind.is_pointer() {
-            return Err(TypeCheckError::TypeMismatch {
-                expected: lhs.type_kind.clone(),
-                found: rhs.type_kind.clone(),
+            return Err(TypeCheckError::InvalidOperation {
+                op: "binary operation".to_string(),
+                reason: "pointer operations are not supported".to_string(),
             });
         }
 
