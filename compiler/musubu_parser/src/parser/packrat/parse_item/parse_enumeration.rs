@@ -3,8 +3,8 @@ use crate::{
     lexer::{musubu_keywords::MusubuKeyword, token::MusubuOperator},
     parser::packrat::{PackratAndPrattParser, ParseResult},
 };
+use alloc::{rc::Rc, string::ToString, vec};
 use musubu_ast::{ASTNode, EnumItem, Item, Visibility};
-use std::rc::Rc;
 
 impl<'a> PackratAndPrattParser<'a> {
     // Enumeration ::= `enum` IDENTIFIER GenericParams? WhereClause? `{` EnumItems? `}`

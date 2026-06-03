@@ -1,4 +1,5 @@
-use std::{error::Error, fmt::Display};
+use core::error::Error;
+use core::fmt::{Display, Formatter, Result};
 
 #[derive(Debug)]
 pub enum TokenizeError {
@@ -10,7 +11,7 @@ pub enum TokenizeError {
 impl Error for TokenizeError {}
 
 impl Display for TokenizeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         match self {
             TokenizeError::InvalidCharacters { c, position: _ } => {
                 write!(f, "Invalid characters were used: {c}")

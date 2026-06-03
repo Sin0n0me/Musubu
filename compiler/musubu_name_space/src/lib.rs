@@ -1,5 +1,4 @@
-// TODO
-// #![no_std]
+#![no_std]
 
 extern crate alloc;
 
@@ -8,6 +7,7 @@ pub mod errors;
 use crate::errors::NameSpaceError;
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
+use alloc::string::ToString;
 use alloc::vec::Vec;
 use core::hash::BuildHasherDefault;
 use musubu_primitive::{PrimitiveType, ToPrimitiveType};

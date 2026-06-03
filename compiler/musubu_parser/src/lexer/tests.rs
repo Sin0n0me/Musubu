@@ -7,6 +7,8 @@ mod tests {
         lexer::token::{FloatLiteral, MusubuLiteral},
         *,
     };
+    use alloc::string::ToString;
+    use alloc::vec;
     use musubu_ast::*;
     use musubu_lexer::{Tokens, token::*};
     use musubu_primitive::*;

@@ -3,14 +3,18 @@ use crate::{
     lexer::musubu_keywords::MusubuKeyword,
     lexer::token::{FloatLiteral, MusubuLiteral, MusubuOperator, MusubuToken, MusubuTokenKind},
 };
-use musubu_ast::AssignOperator;
-use musubu_lexer::{Tokens, token::*};
-use musubu_primitive::*;
-use std::{
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
+use core::{
     iter::{Peekable, from_fn},
     slice::Iter,
     str::FromStr,
 };
+use musubu_ast::AssignOperator;
+use musubu_lexer::{Tokens, token::*};
+use musubu_primitive::*;
 
 #[derive(Debug)]
 pub(crate) struct TokenStream {

@@ -3,10 +3,10 @@ use crate::{
     lexer::token::MusubuOperator,
     parser::packrat::{MemoResult, PackratAndPrattParser, ParseResult},
 };
+use alloc::{rc::Rc, string::ToString, vec, vec::Vec};
 use musubu_ast::{ASTNode, AssignOperator, Path, PathSegment};
 use musubu_primitive::ComparisonOperator;
 use musubu_span::Spanned;
-use std::rc::Rc;
 
 impl<'a> PackratAndPrattParser<'a> {
     // PathInExpression ::= `::`? PathExprSegment ( `::` PathExprSegment )*

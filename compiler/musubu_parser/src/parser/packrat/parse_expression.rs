@@ -1,16 +1,15 @@
 mod parse_loop_expr;
 mod parse_path;
 
+use super::MemoResult;
 use crate::{
     errors::ParseError,
     lexer::{musubu_keywords::MusubuKeyword, token::MusubuOperator},
     parser::packrat::{PackratAndPrattParser, ParseResult},
 };
+use alloc::{rc::Rc, vec, vec::Vec};
 use musubu_ast::{ASTNode, AssignOperator, Expression, Literal, Statement};
 use musubu_span::Spanned;
-use std::rc::Rc;
-
-use super::MemoResult;
 
 impl<'a> PackratAndPrattParser<'a> {
     // Expression ::= ExpressionWithoutBlock | ExpressionWithBlock

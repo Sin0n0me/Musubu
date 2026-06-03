@@ -1,11 +1,10 @@
-// TODO
-//#![no_std]
+#![no_std]
 
 extern crate alloc;
 
 use alloc::boxed::Box;
 use alloc::collections::btree_map::BTreeMap;
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 use musubu_primitive::*;
 
 #[derive(Debug, Clone)]

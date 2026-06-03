@@ -1,9 +1,9 @@
-// TODO
-//#![no_std]
+#![no_std]
 
 extern crate alloc;
 
 use alloc::boxed::Box;
+use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::{vec, vec::Vec};
 use musubu_primitive::*;

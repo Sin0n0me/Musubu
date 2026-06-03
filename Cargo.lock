@@ -280,10 +280,12 @@ dependencies = [
 name = "musubu_parser"
 version = "0.1.0"
 dependencies = [
+ "indexmap",
  "musubu_ast",
  "musubu_lexer",
  "musubu_primitive",
  "musubu_span",
+ "twox-hash",
 ]
 
 [[package]]

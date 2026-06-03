@@ -1,19 +1,19 @@
-// TODO
-// #![no_std]
+#![no_std]
 
+extern crate alloc;
+
+use alloc::vec::Vec;
 use musubu_engine::MusubuEngine;
 use musubu_ir_compiler::compile_module;
 use musubu_lexer::tokenize;
 use musubu_parser::parse;
 use musubu_resolve::{resolve_sequential, resolve_unordered};
 
-extern crate alloc;
-
 pub fn compile(engine: &mut MusubuEngine, code: &str) -> bool {
     let tokens = match tokenize(code) {
         Ok(tokens) => tokens,
         Err(e) => {
-            println!("tokenize error: {e:?}");
+            //println!("tokenize error: {e:?}");
             return false;
         }
     };
@@ -21,7 +21,7 @@ pub fn compile(engine: &mut MusubuEngine, code: &str) -> bool {
     let ast_items = match parse(&tokens) {
         Ok(ast) => ast,
         Err(e) => {
-            println!("parse error: {e:?}");
+            //println!("parse error: {e:?}");
             return false;
         }
     };
@@ -34,7 +34,7 @@ pub fn compile(engine: &mut MusubuEngine, code: &str) -> bool {
     let result = resolve_unordered("Musubu", "musubu", &ast_items, allocator);
     let hir = match result {
         Err(e) => {
-            println!("resolve error: {e:?}");
+            //println!("resolve error: {e:?}");
             return false;
         }
         Ok(hir) => hir,
@@ -45,7 +45,7 @@ pub fn compile(engine: &mut MusubuEngine, code: &str) -> bool {
     let functions = match result {
         Ok(functions) => functions,
         Err(e) => {
-            println!("compile error: {e:?}");
+            //println!("compile error: {e:?}");
             return false;
         }
     };

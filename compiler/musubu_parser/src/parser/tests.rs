@@ -4,6 +4,10 @@
 #[cfg(test)]
 mod tests {
     use crate::{PackratAndPrattParser, common::tests::tests::*};
+    use alloc::boxed::Box;
+    use alloc::string::{String, ToString};
+    use alloc::vec::Vec;
+    use alloc::{format, vec};
     use musubu_ast::*;
     use musubu_primitive::*;
     use musubu_span::*;

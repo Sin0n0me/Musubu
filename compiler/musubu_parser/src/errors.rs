@@ -1,4 +1,4 @@
-use std::num::{ParseFloatError, ParseIntError};
+use core::num::{ParseFloatError, ParseIntError};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ParseError {

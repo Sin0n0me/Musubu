@@ -1,5 +1,5 @@
 use crate::errors::TokenStreamParseError;
-use std::str::FromStr;
+use core::str::FromStr;
 
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub(crate) enum MusubuKeyword {

@@ -1,15 +1,16 @@
-// TODO
-//#![no_std]
+#![no_std]
+
+extern crate alloc;
 
 mod common;
 mod errors;
 mod lexer;
 mod parser;
 
-use std::rc::Rc;
-
 use crate::lexer::lexer::{TokenStream, tokenize};
 use crate::parser::packrat::PackratAndPrattParser;
+use alloc::rc::Rc;
+use alloc::vec::Vec;
 use errors::ParseError;
 use musubu_ast::ASTNode;
 use musubu_lexer::Tokens;
