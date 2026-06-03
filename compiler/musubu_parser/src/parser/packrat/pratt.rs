@@ -4,10 +4,10 @@ use crate::{
     lexer::token::MusubuOperator,
     parser::packrat::{PackratAndPrattParser, ParseResult},
 };
+use alloc::rc::Rc;
 use musubu_ast::{ASTNode, AssignOperator, Expression, NodeMaker};
 use musubu_primitive::{BinaryOperator, ComparisonOperator, LogicalOperator};
 use musubu_span::{Span, SpannedBox};
-use std::rc::Rc;
 
 impl<'a> PackratAndPrattParser<'a> {
     // Pratt Parsing

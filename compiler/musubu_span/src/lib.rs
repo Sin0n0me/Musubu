@@ -1,3 +1,10 @@
+#![no_std]
+
+use alloc::boxed::Box;
+use alloc::vec::Vec;
+
+extern crate alloc;
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Span {
     pub file_id: u32,

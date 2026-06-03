@@ -1,3 +1,5 @@
+use alloc::string::String;
+use alloc::vec::Vec;
 use musubu_name_space::errors::NameSpaceError;
 use musubu_primitive::*;
 use musubu_scope::errors::ScopeError;

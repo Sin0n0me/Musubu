@@ -1,5 +1,6 @@
 use crate::errors::TokenizeError;
-use std::str::FromStr;
+use alloc::vec::Vec;
+use core::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Token<'a> {

@@ -1,10 +1,15 @@
+#![no_std]
+
+extern crate alloc;
+
 pub mod errors;
 pub mod token;
 
-use errors::TokenizeError;
-use std::iter::{Peekable, from_fn};
-use std::str::CharIndices;
-use token::{LineBreak, Space, Symbol, Token, TokenKind};
+use crate::errors::TokenizeError;
+use crate::token::{LineBreak, Space, Symbol, Token, TokenKind};
+use alloc::vec::Vec;
+use core::iter::{Peekable, from_fn};
+use core::str::CharIndices;
 
 pub type Tokens<'a> = Vec<Token<'a>>;
 type Iter<'a> = Peekable<CharIndices<'a>>;
@@ -12,7 +17,7 @@ type Iter<'a> = Peekable<CharIndices<'a>>;
 // 受け取った文字列を最小限の単位毎に切り出す
 pub fn tokenize<'a>(source_code: &'a str) -> Result<Tokens<'a>, TokenizeError> {
     let mut iter = source_code.char_indices().peekable();
-    let mut token_list = vec![];
+    let mut token_list = Vec::new();
 
     while let Some(&(position, c)) = iter.peek() {
         let token = if c.is_ascii_digit() {

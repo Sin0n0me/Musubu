@@ -5,16 +5,18 @@ mod parse_type;
 mod pratt;
 
 use crate::{TokenStream, errors::ParseError, lexer::token::BindingPower};
+use alloc::collections::btree_map::BTreeMap;
+use alloc::rc::Rc;
+use alloc::{vec, vec::Vec};
 use musubu_ast::*;
 use musubu_span::*;
-use std::{collections::HashMap, hash::Hash, rc::Rc};
 
 #[derive(Debug, Clone)]
 pub(crate) enum Memo {
     ASTNode(Rc<ASTNode>),
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Ord, PartialOrd, PartialEq, Eq)]
 pub(crate) struct MemoKey<'a> {
     rule: &'a str,
     position: usize,
@@ -49,7 +51,7 @@ impl MemoResult {
 
 #[derive(Debug)]
 pub(crate) struct PackratAndPrattParser<'a> {
-    memo: HashMap<MemoKey<'a>, MemoResult>,
+    memo: BTreeMap<MemoKey<'a>, MemoResult>,
     tokens: TokenStream,
     max_read_position: usize,
     last_fail_rule: Option<&'a str>,
@@ -66,18 +68,18 @@ pub(crate) type ParseResult = Result<MemoResult, ParseError>;
 impl<'a> PackratAndPrattParser<'a> {
     pub fn new(tokens: TokenStream) -> Self {
         Self {
-            memo: HashMap::new(),
+            memo: BTreeMap::new(),
             tokens,
             max_read_position: 0,
             last_fail_rule: None,
-            bp_stack: vec![],
+            bp_stack: Vec::new(),
         }
     }
 
     pub fn parse(&mut self) -> Result<Vec<Rc<ASTNode>>, ParseError> {
         self.memo.clear();
 
-        let mut ast_items = vec![];
+        let mut ast_items = Vec::new();
         while self.tokens.get().is_some() {
             let item = self
                 .parse_item()?
@@ -246,14 +248,6 @@ impl<'a> PackratAndPrattParser<'a> {
     }
 
     fn get_memo_uncheck(&mut self, key: &MemoKey<'a>) -> Option<MemoResult> {
-        #[cfg(test)]
-        println!(
-            "in({:?}): {:?} {key:?} {:?}",
-            self.memo.contains_key(key),
-            self.bp_stack.last(),
-            self.tokens.get()
-        );
-
         // メモが存在した場合はその内容を返す
         if let Some(memo) = self.memo.get(key) {
             match memo {
@@ -315,14 +309,6 @@ impl<'a> PackratAndPrattParser<'a> {
     }
 
     fn make_memo_from_result(&mut self, key: MemoKey<'a>, result: ParseResult) -> ParseResult {
-        #[cfg(test)]
-        println!(
-            "out({:?}): {:?} {key:?}, {:?}",
-            result.is_ok(),
-            self.bp_stack.last(),
-            self.tokens.get()
-        );
-
         let memo = match &result {
             Ok(memo) => {
                 let pos = self.tokens.get_position();

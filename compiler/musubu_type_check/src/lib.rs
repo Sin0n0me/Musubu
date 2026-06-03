@@ -1,5 +1,4 @@
-// TODO
-//#![no_std]
+#![no_std]
 
 extern crate alloc;
 
@@ -7,6 +6,8 @@ pub mod errors;
 
 use crate::errors::TypeCheckError;
 use alloc::boxed::Box;
+use alloc::format;
+use alloc::string::ToString;
 use alloc::vec::Vec;
 use musubu_ast::{AssignOperator, Literal, Path, Pattern, TypeKind};
 use musubu_primitive::*;

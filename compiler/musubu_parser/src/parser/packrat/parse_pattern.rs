@@ -3,10 +3,10 @@ use crate::{
     lexer::{musubu_keywords::MusubuKeyword, token::MusubuOperator},
     parser::packrat::{PackratAndPrattParser, ParseResult},
 };
+use alloc::{boxed::Box, rc::Rc, string::ToString, vec, vec::Vec};
 use musubu_ast::{ASTNode, Literal, Pattern};
 use musubu_primitive::BinaryOperator;
 use musubu_span::Spanned;
-use std::rc::Rc;
 
 impl<'a> PackratAndPrattParser<'a> {
     // Pattern ::= `|`? PatternNoTopAlt ( `|` PatternNoTopAlt )*

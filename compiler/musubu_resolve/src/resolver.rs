@@ -1,6 +1,8 @@
 use crate::errors::ResolveError;
 use crate::{Lowered, ResolveResult, Resolver};
+use alloc::format;
 use alloc::string::ToString;
+use alloc::vec::Vec;
 use musubu_ast::*;
 use musubu_hir::{HIRBlock, HIRExpression, HIRFunction, HIRFunctionParam, HIRStatement};
 use musubu_name_space::errors::NameSpaceError;

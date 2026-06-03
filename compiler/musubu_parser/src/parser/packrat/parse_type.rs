@@ -3,10 +3,10 @@ use crate::{
     lexer::token::MusubuOperator,
     parser::packrat::{PackratAndPrattParser, ParseResult},
 };
+use alloc::{boxed::Box, rc::Rc, vec, vec::Vec};
 use musubu_ast::{ASTNode, Path, PathSegment, TypeKind};
 use musubu_primitive::PrimitiveType;
 use musubu_span::{Span, Spanned};
-use std::rc::Rc;
 
 impl<'a> PackratAndPrattParser<'a> {
     // Type ::= TypeNoBounds

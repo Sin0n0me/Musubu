@@ -1,12 +1,9 @@
-//TODO
-//#![no_std]
+#![no_std]
 
 extern crate alloc;
 
 pub mod errors;
 
-// TODO: 削除(issue#4で対応予定)
-// mod built_in;
 mod frame;
 
 use crate::errors::VMError;
