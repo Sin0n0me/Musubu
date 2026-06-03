@@ -113,22 +113,6 @@ impl<'a> VM<'a> {
                 };
                 caller.registers[ret_reg] = value;
             }
-
-            // TODO: 削除(issue#4で対応予定)
-            // Callと統合する
-            Instruction::BuiltInCall { .. } => {
-                /*
-                   let mut call_args = Vec::with_capacity(args.len());
-                   for reg in args {
-                       call_args.push(frame.registers[reg.0].clone());
-                   }
-
-                   let ret = self.call_built_in(*func, call_args);
-                   if let (Some(dst), Some(val)) = (dst, ret) {
-                       frame.registers[dst.0] = val;
-                   }
-                * */
-            }
         }
 
         Ok(None)

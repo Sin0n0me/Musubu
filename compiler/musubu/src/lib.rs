@@ -69,6 +69,7 @@ pub extern "C" fn compile(engine: *mut MusubuEngine, code_ptr: *const c_char, le
     result.unwrap_or(false)
 }
 
+// TODO 以下2つの中身の実装
 #[unsafe(no_mangle)]
 pub extern "C" fn call_function() {}
 
@@ -77,36 +78,3 @@ pub extern "C" fn call_function() {}
 // 字句解析->構文解析->意味解析->脱糖->命令化
 // の流れが発生するので重い
 pub extern "C" fn run_script() {}
-
-// デモ用
-/*
-const MAT_ELEM_COUNT: usize = 16;
-#[unsafe(no_mangle)]
-pub extern "C" fn run_script(matrix_ptr: *mut f32) -> bool {
-    // panicを外に出さないようにする
-    let result = catch_unwind(AssertUnwindSafe(|| {
-        if matrix_ptr.is_null() {
-            return false;
-        }
-
-        let matrix_slice = unsafe { slice::from_raw_parts_mut(matrix_ptr, MAT_ELEM_COUNT) };
-
-        let mat = Matrix4::<f32>::from_column_slice(matrix_slice);
-        let args = vec![Value::Matrix(Matrix::Matrix4(mat))];
-        let vm = VM::new();
-        let Some(Value::Matrix(Matrix::Matrix4(result))) = vm.run_function(0, args) else {
-            return false;
-        };
-
-        // 結果の書き戻し
-        matrix_slice.copy_from_slice(result.as_slice());
-
-        true
-    }));
-
-    match result {
-        Ok(v) => v,
-        Err(_) => false,
-    }
-}
- * */

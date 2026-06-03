@@ -65,15 +65,4 @@ pub enum Instruction {
     Return {
         value: Option<Register>,
     },
-
-    // Callへ統合し削除
-    BuiltInCall {
-        dst: Option<Register>,
-        func: usize,
-        args: Vec<Register>,
-    },
-}
-
-pub enum BuiltIn {
-    MakeMatrix4,
 }
