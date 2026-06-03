@@ -186,29 +186,14 @@ impl<'a> Resolver<'a> {
     fn import_type(&mut self, type_kind: Spanned<&'a TypeKind>) -> ResolveResult<TypeSymbol> {
         let type_kind = &type_kind.node;
         let scope = self.get_scope()?;
-        //let ty = self.type_checker.check_type(scope, type_kind)?;
-
-        let ty = match type_kind {
-            TypeKind::Primitive(_) => self.type_checker.check_type(scope, type_kind)?,
-            TypeKind::PathType(path) => self.import_path(path.as_ref_spanned())?,
-            TypeKind::Function {
-                arguments,
-                return_type,
-            } => {
-                for arg in arguments {
-                    self.import_type(arg.as_ref_spanned())?;
-                }
-                self.import_type(return_type.as_ref_spanned())?;
-
-                TypeSymbol::default()
-            }
-        };
+        let ty = self.type_checker.check_type(scope, type_kind)?;
 
         Ok(ty)
     }
 
     fn import_path(&mut self, path: Spanned<&'a Path>) -> ResolveResult<TypeSymbol> {
         let path = &path.node;
+
         let name = path.last_ident();
 
         if let Some(type_kind) = PrimitiveType::from(name) {

@@ -306,7 +306,7 @@ impl TypeChecker {
                 return_type,
             } => {
                 let return_type = self.check_type(scope, &return_type.node)?;
-                let mut params = Vec::new();
+                let mut params = Vec::with_capacity(arguments.len());
                 for arg in arguments {
                     params.push(self.check_type(scope, &arg.node)?.type_kind);
                 }
@@ -341,7 +341,7 @@ impl TypeChecker {
         let ty = scope
             .get_type(name)
             .ok_or(TypeCheckError::UnknownType {
-                name: name.to_string(),
+                name: path.to_string(),
             })?
             .clone();
 
