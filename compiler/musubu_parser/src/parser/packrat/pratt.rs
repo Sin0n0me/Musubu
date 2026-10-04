@@ -9,7 +9,7 @@ use musubu_ast::{ASTNode, AssignOperator, Expression, NodeMaker};
 use musubu_primitive::{BinaryOperator, ComparisonOperator, LogicalOperator};
 use musubu_span::{Span, SpannedBox};
 
-impl<'a> PackratAndPrattParser<'a> {
+impl PackratAndPrattParser {
     // Pratt Parsing
     // メモ化はしない
     pub(in crate::parser) fn pratt_parse(&mut self, min_bp: u16) -> ParseResult {
@@ -17,9 +17,7 @@ impl<'a> PackratAndPrattParser<'a> {
         self.bp_stack.push(min_bp);
 
         // 前置演算子or式
-        let Ok(mut lhs) = self.expr_or_prefix_op() else {
-            return Err(ParseError::NotMatch);
-        };
+        let mut lhs = self.expr_or_prefix_op()?;
 
         // 演算子に応じた判定
         loop {
@@ -104,23 +102,22 @@ impl<'a> PackratAndPrattParser<'a> {
         if let Some(pair) = op.counterpart_of() {
             self.tokens.next();
             let lhs = self.pratt_parse(0)?.get_node();
-            if self.tokens.get_operator() == Some(&pair) {
-                return Err(ParseError::NotMatch);
+            if self.tokens.get_operator() != Some(&pair) {
+                return Err(ParseError::Expected {
+                    rule: "a closing delimiter",
+                });
             }
             self.tokens.next();
             return lhs.ok_or(ParseError::NotMatch);
         }
 
         // その他演算子
-        let Some(r_bp) = op.get_prefix_binding_power() else {
-            return Err(ParseError::UnexpectedOperator);
-        };
-        self.tokens.next();
-        let Some(lhs) = self.pratt_parse(r_bp)?.get_node() else {
-            return Err(ParseError::UnexpectedOperator);
-        };
-
-        Ok(lhs)
+        if op.get_prefix_binding_power().is_some() {
+            return Err(ParseError::Unsupported {
+                feature: "unary operators",
+            });
+        }
+        Err(ParseError::UnexpectedOperator)
     }
 
     fn postfix_pair_inside(&mut self, left_op: &MusubuOperator) -> Result<Rc<ASTNode>, ParseError> {
@@ -159,12 +156,12 @@ fn make_ast_from_operator(
     let rhs = convert(rhs);
 
     match [lhs, mhs, rhs] {
-        [Some(lhs), None, None] => {
-            unimplemented!()
-        }
-        [None, None, Some(rhs)] => {
-            unimplemented!()
-        }
+        [Some(lhs), None, None] => Err(ParseError::Unsupported {
+            feature: "postfix operators",
+        }),
+        [None, None, Some(rhs)] => Err(ParseError::Unsupported {
+            feature: "unary operators",
+        }),
         [Some(lhs), None, Some(rhs)] => match op {
             MusubuOperator::Binary(op) => make_binary_op_ast(span, op, lhs, rhs),
             MusubuOperator::Assign(op) => make_assign_op_ast(span, op, lhs, rhs),
@@ -172,9 +169,9 @@ fn make_ast_from_operator(
             MusubuOperator::Logical(op) => make_logical_op_ast(span, op, lhs, rhs),
             _ => Err(ParseError::NotMatch),
         },
-        [Some(lhs), Some(mhs), Some(rhs)] => {
-            unimplemented!()
-        }
+        [Some(lhs), Some(mhs), Some(rhs)] => Err(ParseError::Unsupported {
+            feature: "ternary operators",
+        }),
         _ => unreachable!(),
     }
 }

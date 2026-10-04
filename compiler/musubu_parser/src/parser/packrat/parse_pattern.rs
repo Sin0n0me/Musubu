@@ -8,7 +8,7 @@ use musubu_ast::{ASTNode, Literal, Pattern};
 use musubu_primitive::BinaryOperator;
 use musubu_span::Spanned;
 
-impl<'a> PackratAndPrattParser<'a> {
+impl PackratAndPrattParser {
     // Pattern ::= `|`? PatternNoTopAlt ( `|` PatternNoTopAlt )*
     pub(in crate::parser) fn parse_pattern(&mut self) -> ParseResult {
         let key = self.make_key("Pattern");

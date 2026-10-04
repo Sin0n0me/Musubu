@@ -7,7 +7,7 @@ use alloc::{rc::Rc, string::ToString, vec, vec::Vec};
 use musubu_ast::{ASTNode, FunctionParam, Item, Pattern, Visibility};
 use musubu_span::Spanned;
 
-impl<'a> PackratAndPrattParser<'a> {
+impl PackratAndPrattParser {
     // Function ::= `fn` IDENTIFIER `(` elseFunctionParameters? `)` FunctionReturnType? ( BlockExpression | `;` )
     pub(in crate::parser) fn parse_function(&mut self) -> ParseResult {
         let key = self.make_key("Function");
@@ -23,16 +23,20 @@ impl<'a> PackratAndPrattParser<'a> {
         self.tokens.next();
 
         // IDENTIFIER
-        let identifier = self
-            .tokens
-            .get_identifier()
-            .ok_or(ParseError::NotMatch)?
-            .to_string();
+        let Some(identifier) = self.tokens.get_identifier() else {
+            return self.make_memo_from_result(
+                key,
+                Err(ParseError::Expected {
+                    rule: "a function name",
+                }),
+            );
+        };
+        let identifier = identifier.to_string();
         self.tokens.next();
 
         // `(`
         if self.tokens.get_operator() != Some(&MusubuOperator::LeftParenthesis) {
-            return self.make_memo_from_result(key, Err(ParseError::NotMatch));
+            return self.make_memo_from_result(key, Err(ParseError::Expected { rule: "`(`" }));
         }
         self.tokens.next();
 
@@ -50,7 +54,7 @@ impl<'a> PackratAndPrattParser<'a> {
 
         // `)`
         if self.tokens.get_operator() != Some(&MusubuOperator::RightParenthesis) {
-            return self.make_memo_from_result(key, Err(ParseError::NotMatch));
+            return self.make_memo_from_result(key, Err(ParseError::Expected { rule: "`)`" }));
         }
         self.tokens.next();
 
@@ -197,7 +201,7 @@ impl<'a> PackratAndPrattParser<'a> {
 
         // `:`
         let Some(MusubuOperator::Colon) = self.tokens.get_operator() else {
-            return self.make_memo_from_result(key, Err(ParseError::NotMatch));
+            return self.make_memo_from_result(key, Err(ParseError::Expected { rule: "`:`" }));
         };
         self.tokens.next();
 
