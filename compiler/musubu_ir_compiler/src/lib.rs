@@ -18,7 +18,14 @@ pub type IRCompileResult<T> = Result<T, IRCompileError>;
 pub fn compile_module(module: &HIRModule) -> IRCompileResult<Vec<(usize, CompiledFunction)>> {
     let mut functions = Vec::new();
     for (id, hir) in &module.functions {
-        let code = compile_function(hir)?;
+        let code = compile_function(hir).map_err(|error| match module.function_ranges.get(id) {
+            Some(&(start, end)) => IRCompileError::Located {
+                start,
+                end,
+                error: alloc::boxed::Box::new(error),
+            },
+            None => error,
+        })?;
         functions.push((*id, code));
     }
 

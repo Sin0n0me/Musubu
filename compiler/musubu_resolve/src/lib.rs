@@ -73,6 +73,7 @@ impl ResolveMode {
 #[derive(Debug)]
 struct Resolver<'a> {
     resolve_mode: ResolveMode,
+    loop_depth: usize,
     name_resolver: NameResolver<'a>,
     type_checker: TypeChecker,
     collector: SymbolCollector<'a>,
@@ -100,6 +101,7 @@ impl<'a> Resolver<'a> {
     ) -> Self {
         Self {
             resolve_mode,
+            loop_depth: 0,
             name_resolver: NameResolver::new(project_name),
             type_checker: TypeChecker::new(),
             collector: SymbolCollector::new(),
@@ -136,7 +138,11 @@ impl<'a> Resolver<'a> {
     ) -> ResolveResult<T> {
         self.type_checker.enter_function(return_type);
 
-        let result = self.enter_scope(function)?;
+        let previous_loop_depth = self.loop_depth;
+        self.loop_depth = 0;
+        let result = self.enter_scope(function);
+        self.loop_depth = previous_loop_depth;
+        let result = result?;
 
         self.type_checker.check_return(Some(&result.type_symbol))?;
         self.type_checker.exit_function();

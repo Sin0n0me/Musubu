@@ -8,6 +8,7 @@ pub mod errors;
 use crate::errors::DesugarError;
 use alloc::boxed::Box;
 use alloc::collections::btree_map::BTreeMap;
+use alloc::string::ToString;
 use alloc::{vec, vec::Vec};
 use musubu_ast::*;
 use musubu_cache::Allocator;
@@ -45,6 +46,10 @@ impl<'a> Desugar<'a> {
 
     pub fn add_function_to_module(&mut self, id: usize, function: HIRFunction) {
         self.root_module.add_function(id, function);
+    }
+
+    pub fn set_function_range(&mut self, id: usize, start: usize, end: usize) {
+        self.root_module.function_ranges.insert(id, (start, end));
     }
 
     pub fn lower_function(
@@ -236,7 +241,9 @@ impl<'a> Desugar<'a> {
             }
             LogicalOperator::Not => {
                 // TODO ASTの構築部分がまだなので
-                unimplemented!()
+                return Err(DesugarError::Unsupported {
+                    feature: "logical negation",
+                });
             }
         };
 
@@ -355,37 +362,50 @@ impl<'a> Desugar<'a> {
         iterator: HIRExpression,
         body: HIRBlock,
     ) -> DesugarResult<HIRExpression> {
-        unimplemented!();
-
-        // TODO
-        let initializer = Some(HIRExpression::Continue);
-        let iter = self.lower_let_statement(id, symbol_type, initializer)?;
-        let condition = HIRExpression::Continue;
-        let then_body = body;
-        let else_body = HIRExpression::Break(None).to_block();
-        let if_expr = self.lower_if_statement(condition, then_body, Some(else_body))?;
-
-        let hir = HIRExpression::Loop {
-            body: if_expr.to_block(),
-        };
-
-        Ok(hir)
+        Err(DesugarError::Unsupported {
+            feature: "for loops",
+        })
     }
 
     pub fn lower_literal(&mut self, literal: &Literal) -> DesugarResult<HIRExpression> {
-        let value = match literal {
-            Literal::Integer { value, value_type } => Value::Integer(match value_type {
-                TypeKind::Primitive(ty) => Integer::new(&value, ty).expect(""),
-                _ => unimplemented!(), // TODO
-            }),
-            Literal::Float { value, value_type } => Value::Float(match value_type {
-                TypeKind::Primitive(ty) => Float::new(&value, ty).expect(""),
-                _ => unimplemented!(), // TODO
-            }),
-            Literal::Bool(b) => Value::Bool(*b),
-            Literal::String { value, .. } => Value::String(value.clone()),
-            _ => unimplemented!(), // TODO
-        };
+        let value =
+            match literal {
+                Literal::Integer { value, value_type } => Value::Integer(match value_type {
+                    TypeKind::Primitive(ty) => Integer::new(&value.replace('_', ""), ty)
+                        .ok_or_else(|| DesugarError::InvalidLiteral {
+                            value: value.clone(),
+                            expected: ty.to_string(),
+                        })?,
+                    _ => {
+                        return Err(DesugarError::Unsupported {
+                            feature: "this literal type",
+                        });
+                    }
+                }),
+                Literal::Float { value, value_type } => Value::Float(match value_type {
+                    TypeKind::Primitive(ty) => Float::new(&value.replace('_', ""), ty)
+                        .filter(|value| match value {
+                            Float::Float32(value) => value.is_finite(),
+                            Float::Float64(value) => value.is_finite(),
+                        })
+                        .ok_or_else(|| DesugarError::InvalidLiteral {
+                            value: value.clone(),
+                            expected: ty.to_string(),
+                        })?,
+                    _ => {
+                        return Err(DesugarError::Unsupported {
+                            feature: "this literal type",
+                        });
+                    }
+                }),
+                Literal::Bool(b) => Value::Bool(*b),
+                Literal::String { value, .. } => Value::String(value.clone()),
+                _ => {
+                    return Err(DesugarError::Unsupported {
+                        feature: "this literal type",
+                    });
+                }
+            };
 
         Ok(HIRExpression::Literal(value))
     }

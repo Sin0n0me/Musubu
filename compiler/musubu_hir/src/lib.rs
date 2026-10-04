@@ -11,6 +11,8 @@ use musubu_primitive::*;
 pub struct HIRModule {
     pub functions: BTreeMap<usize, HIRFunction>,
     pub globals: Vec<HIRGlobal>,
+    /// Half-open UTF-8 byte ranges of function bodies, keyed by function ID.
+    pub function_ranges: BTreeMap<usize, (usize, usize)>,
 }
 
 impl HIRModule {
@@ -18,6 +20,7 @@ impl HIRModule {
         Self {
             functions: BTreeMap::new(),
             globals: Vec::new(),
+            function_ranges: BTreeMap::new(),
         }
     }
 
