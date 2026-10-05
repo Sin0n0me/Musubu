@@ -2,7 +2,9 @@
 
 extern crate alloc;
 
+mod collections;
 pub mod errors;
+mod locals;
 mod register_allocator;
 
 use crate::errors::IRCompileError;
@@ -35,8 +37,16 @@ pub fn compile_module(module: &HIRModule) -> IRCompileResult<Vec<(usize, Compile
 pub fn compile_function(func: &HIRFunction) -> IRCompileResult<CompiledFunction> {
     let mut compiler = IRCompiler::new();
 
-    compiler.compile_arguments(&func.params)?;
-    compiler.compile_block(&func.body)?;
+    for _ in 0..locals::register_count(func) {
+        compiler.alloc_register();
+    }
+    let value = compiler.compile_block(&func.body)?;
+    let value = if func.return_type.is_unit() {
+        None
+    } else {
+        value
+    };
+    compiler.code.push(Instruction::Return { value });
 
     let code = CompiledFunction {
         code: compiler.code,
@@ -56,13 +66,15 @@ struct IRCompiler {
 #[derive(Debug)]
 struct LoopStatement {
     loop_start: usize,
+    result: Option<Register>,
     break_point: Vec<usize>, // コード上の位置(仮のジャンプ位置になっているので書き換える必要がある)
 }
 
 impl LoopStatement {
-    fn new(loop_start: usize) -> Self {
+    fn new(loop_start: usize, result: Option<Register>) -> Self {
         Self {
             loop_start,
+            result,
             break_point: Vec::new(),
         }
     }
@@ -79,14 +91,6 @@ impl IRCompiler {
 
     fn alloc_register(&mut self) -> Register {
         self.register_allocator.alloc()
-    }
-
-    fn compile_arguments(&mut self, arguments: &[HIRFunctionParam]) -> IRCompileResult<()> {
-        for _ in arguments {
-            self.alloc_register();
-        }
-
-        Ok(())
     }
 
     fn compile_block(&mut self, block: &HIRBlock) -> IRCompileResult<Option<Register>> {
@@ -137,116 +141,143 @@ impl IRCompiler {
                 None
             }
             HIRStatement::Expr(expr) => self.compile_expr(expr)?,
+            HIRStatement::Discard(expr) => {
+                self.compile_expr(expr)?;
+                None
+            }
         };
 
         Ok(reg)
     }
 
     fn compile_expr(&mut self, expr: &HIRExpression) -> IRCompileResult<Option<Register>> {
-        let reg = match expr {
-            HIRExpression::Literal(literal) => {
+        match expr {
+            HIRExpression::Block(block) => self.compile_block(block),
+            HIRExpression::If {
+                cond,
+                then_block,
+                else_block,
+            } => self.compile_if(cond, then_block, else_block.as_ref()),
+            HIRExpression::Loop { body, result_type } => self.compile_loop(body, result_type),
+            HIRExpression::For {
+                symbol,
+                iterator,
+                body,
+            } => {
+                self.compile_for(*symbol, iterator, body)?;
+                Ok(None)
+            }
+            HIRExpression::Continue => {
+                self.compile_continue()?;
+                Ok(None)
+            }
+            HIRExpression::Break(expr) => {
+                self.compile_break(expr.as_deref())?;
+                Ok(None)
+            }
+            HIRExpression::Return(expr) => {
+                self.compile_return(expr.as_deref())?;
+                Ok(None)
+            }
+            _ => self.compile_value(expr),
+        }
+    }
+
+    fn compile_value(&mut self, expr: &HIRExpression) -> IRCompileResult<Option<Register>> {
+        let register = match expr {
+            HIRExpression::Literal(value) => {
                 let dst = self.alloc_register();
                 self.code.push(Instruction::LoadConst {
                     dst,
-                    value: literal.clone(),
+                    value: value.clone(),
                 });
-                Some(dst)
+                dst
             }
-            HIRExpression::Variable { id, symbol_type } => Some(Register(*id)),
-
+            HIRExpression::Variable { id, .. } => {
+                // Snapshot before later operands can mutate the same local.
+                let dst = self.alloc_register();
+                self.code.push(Instruction::Move {
+                    dst,
+                    src: Register(*id),
+                });
+                dst
+            }
             HIRExpression::Store { target, value } => {
-                let Some(src) = self.compile_expr(value)? else {
-                    return Err(IRCompileError::ExpectRegister);
-                };
-                let dst = Register(*target);
-                self.code.push(Instruction::Move { dst, src });
-                Some(dst)
-            }
-
-            HIRExpression::BinOp { op, lhs, rhs } => {
-                let Some(lhs) = self.compile_expr(lhs)? else {
-                    return Err(IRCompileError::ExpectRegister);
-                };
-                let Some(rhs) = self.compile_expr(rhs)? else {
-                    return Err(IRCompileError::ExpectRegister);
-                };
-                let dst = self.alloc_register();
-                self.code.push(Instruction::BinOp {
-                    dst,
-                    op: op.clone(),
-                    lhs,
-                    rhs,
+                let src = self
+                    .compile_expr(value)?
+                    .ok_or(IRCompileError::ExpectRegister)?;
+                self.code.push(Instruction::Move {
+                    dst: Register(*target),
+                    src,
                 });
-                Some(dst)
+                return Ok(None);
             }
-
-            HIRExpression::CmpOp { op, lhs, rhs } => {
-                let Some(lhs) = self.compile_expr(lhs)? else {
-                    return Err(IRCompileError::ExpectRegister);
-                };
-                let Some(rhs) = self.compile_expr(rhs)? else {
-                    return Err(IRCompileError::ExpectRegister);
-                };
-                let dst = self.alloc_register();
-                self.code.push(Instruction::Cmp {
-                    dst,
-                    op: op.clone(),
-                    lhs,
-                    rhs,
-                });
-                Some(dst)
+            HIRExpression::BinOp { .. } | HIRExpression::CmpOp { .. } => {
+                self.compile_binary(expr)?
             }
             HIRExpression::Call {
                 function,
                 return_type,
                 arguments,
             } => {
-                let regs = arguments
+                let args = arguments
                     .iter()
-                    .map(|a| self.compile_expr(a)?.ok_or(IRCompileError::ExpectRegister))
-                    .collect::<Result<Vec<_>, IRCompileError>>()?;
-                let dst = self.alloc_register();
-                self.code.push(Instruction::Call {
-                    dst: Some(dst),
-                    func: *function,
-                    args: regs,
-                });
-                Some(dst)
-            }
-            HIRExpression::Block(block) => {
-                let Some(reg) = self.compile_block(block)? else {
-                    return Ok(None);
+                    .map(|arg| {
+                        self.compile_expr(arg)?
+                            .ok_or(IRCompileError::ExpectRegister)
+                    })
+                    .collect::<IRCompileResult<Vec<_>>>()?;
+                let dst = if return_type.is_unit() {
+                    None
+                } else {
+                    Some(self.alloc_register())
                 };
-                Some(reg)
+                self.code.push(Instruction::Call {
+                    dst,
+                    func: *function,
+                    args,
+                });
+                return Ok(dst);
             }
-            HIRExpression::If {
-                cond,
-                then_block,
-                else_block,
-            } => {
-                let reg = self.compile_if(cond, then_block, else_block.as_ref())?;
-                Some(reg)
-            }
-            HIRExpression::Loop { body } => {
-                self.compile_loop(body)?;
-                None
-            }
-            HIRExpression::Continue => {
-                self.compile_continue()?;
-                None
-            }
-            HIRExpression::Break(expr) => {
-                self.compile_break(expr.as_ref().map(|expr| expr.as_ref()))?;
-                None
-            }
-
-            HIRExpression::Return(expr) => {
-                self.compile_return(expr.as_ref().map(|expr| expr.as_ref()))?;
-                None
-            }
+            HIRExpression::Array { .. }
+            | HIRExpression::ArrayRepeat { .. }
+            | HIRExpression::Range { .. } => self.compile_collection(expr)?,
+            _ => return Err(IRCompileError::ExpectRegister),
         };
+        Ok(Some(register))
+    }
 
-        Ok(reg)
+    fn compile_binary(&mut self, expression: &HIRExpression) -> IRCompileResult<Register> {
+        let (lhs, rhs) = match expression {
+            HIRExpression::BinOp { lhs, rhs, .. } | HIRExpression::CmpOp { lhs, rhs, .. } => {
+                (lhs, rhs)
+            }
+            _ => return Err(IRCompileError::ExpectRegister),
+        };
+        let lhs = self
+            .compile_expr(lhs)?
+            .ok_or(IRCompileError::ExpectRegister)?;
+        let rhs = self
+            .compile_expr(rhs)?
+            .ok_or(IRCompileError::ExpectRegister)?;
+        let dst = self.alloc_register();
+        let instruction = match expression {
+            HIRExpression::BinOp { op, .. } => Instruction::BinOp {
+                dst,
+                op: op.clone(),
+                lhs,
+                rhs,
+            },
+            HIRExpression::CmpOp { op, .. } => Instruction::Cmp {
+                dst,
+                op: op.clone(),
+                lhs,
+                rhs,
+            },
+            _ => return Err(IRCompileError::ExpectRegister),
+        };
+        self.code.push(instruction);
+        Ok(dst)
     }
 
     fn compile_if(
@@ -254,44 +285,53 @@ impl IRCompiler {
         cond: &HIRExpression,
         then_block: &HIRBlock,
         else_block: Option<&HIRBlock>,
-    ) -> IRCompileResult<Register> {
-        let Some(cond_reg) = self.compile_expr(cond)? else {
-            return Err(IRCompileError::ExpectRegister);
+    ) -> IRCompileResult<Option<Register>> {
+        let dst = if else_block.is_some() && !then_block.to_type().is_unit() {
+            Some(self.alloc_register())
+        } else {
+            None
         };
-
-        // else 部分
-        let jump_if_false_pos = self.code.len();
-        self.code.push(Instruction::JumpIfFalse {
-            cond: cond_reg,
-            target: 0,
-        });
-
-        // then 部分
-        let then_reg = self.compile_block(then_block)?;
-        let jump_end_pos = self.code.len();
-        self.code.push(Instruction::Jump { target: 0 });
-
-        let else_start = self.code.len();
-        if let Some(else_block) = else_block {
-            self.compile_block(else_block)?;
+        let cond = self
+            .compile_expr(cond)?
+            .ok_or(IRCompileError::ExpectRegister)?;
+        let false_jump = self.code.len();
+        self.code.push(Instruction::JumpIfFalse { cond, target: 0 });
+        let then_value = self.compile_block(then_block)?;
+        if let (Some(dst), Some(src)) = (dst, then_value) {
+            self.code.push(Instruction::Move { dst, src });
         }
-
+        let end_jump = self.code.len();
+        self.code.push(Instruction::Jump { target: 0 });
+        let else_start = self.code.len();
+        if let Some(body) = else_block {
+            let else_value = self.compile_block(body)?;
+            if let (Some(dst), Some(src)) = (dst, else_value) {
+                self.code.push(Instruction::Move { dst, src });
+            }
+        }
         let end = self.code.len();
-
-        if let Instruction::JumpIfFalse { target, .. } = &mut self.code[jump_if_false_pos] {
+        if let Instruction::JumpIfFalse { target, .. } = &mut self.code[false_jump] {
             *target = else_start;
         }
-
-        if let Instruction::Jump { target } = &mut self.code[jump_end_pos] {
+        if let Instruction::Jump { target } = &mut self.code[end_jump] {
             *target = end;
         }
-
-        Ok(then_reg.unwrap_or(Register(0)))
+        Ok(dst)
     }
 
-    fn compile_loop(&mut self, body: &HIRBlock) -> IRCompileResult<()> {
+    fn compile_loop(
+        &mut self,
+        body: &HIRBlock,
+        result_type: &PrimitiveType,
+    ) -> IRCompileResult<Option<Register>> {
+        let result = if result_type.is_unit() {
+            None
+        } else {
+            Some(self.alloc_register())
+        };
         let loop_start = self.code.len();
-        self.loop_statement.push(LoopStatement::new(loop_start));
+        self.loop_statement
+            .push(LoopStatement::new(loop_start, result));
 
         self.compile_block(body)?;
 
@@ -312,11 +352,26 @@ impl IRCompiler {
             *target = loop_end;
         }
 
-        Ok(())
+        Ok(result)
     }
 
     fn compile_break(&mut self, expr: Option<&HIRExpression>) -> IRCompileResult<()> {
         if self.loop_statement.is_empty() {
+            return Err(IRCompileError::IllegalBreak);
+        }
+
+        let dst = self
+            .loop_statement
+            .last()
+            .and_then(|context| context.result);
+        if let Some(expression) = expr {
+            let src = self.compile_expr(expression)?;
+            match (dst, src) {
+                (Some(dst), Some(src)) => self.code.push(Instruction::Move { dst, src }),
+                (None, None) => {}
+                _ => return Err(IRCompileError::IllegalBreak),
+            }
+        } else if dst.is_some() {
             return Err(IRCompileError::IllegalBreak);
         }
 

@@ -20,6 +20,8 @@ pub enum ResolveError {
     Unsupported {
         feature: &'static str,
     },
+    InvalidBreakValue,
+    InvalidArrayLength,
     IllegalBreak,
     IllegalContinue,
     UnresolvedPath {
@@ -95,6 +97,11 @@ impl fmt::Display for ResolveError {
         match self {
             Self::Located { error, .. } => write!(f, "{error}"),
             Self::Unsupported { feature } => write!(f, "unsupported feature: {feature}"),
+            Self::InvalidBreakValue => write!(f, "only `loop` may return a value with `break`"),
+            Self::InvalidArrayLength => write!(
+                f,
+                "array repeat count must be a nonnegative integer literal representable by u32"
+            ),
             Self::IllegalBreak => write!(f, "`break` is only allowed inside a loop"),
             Self::IllegalContinue => write!(f, "`continue` is only allowed inside a loop"),
             Self::UnresolvedPath { name } => write!(f, "cannot resolve path `{name}`"),

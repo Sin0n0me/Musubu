@@ -73,11 +73,17 @@ impl ResolveMode {
 #[derive(Debug)]
 struct Resolver<'a> {
     resolve_mode: ResolveMode,
-    loop_depth: usize,
+    loops: alloc::vec::Vec<LoopContext>,
     name_resolver: NameResolver<'a>,
     type_checker: TypeChecker,
     collector: SymbolCollector<'a>,
     desugar: Desugar<'a>,
+}
+
+#[derive(Debug)]
+struct LoopContext {
+    allow_value: bool,
+    break_type: Option<musubu_primitive::PrimitiveType>,
 }
 
 #[derive(Debug)]
@@ -101,7 +107,7 @@ impl<'a> Resolver<'a> {
     ) -> Self {
         Self {
             resolve_mode,
-            loop_depth: 0,
+            loops: alloc::vec::Vec::new(),
             name_resolver: NameResolver::new(project_name),
             type_checker: TypeChecker::new(),
             collector: SymbolCollector::new(),
@@ -138,10 +144,11 @@ impl<'a> Resolver<'a> {
     ) -> ResolveResult<T> {
         self.type_checker.enter_function(return_type);
 
-        let previous_loop_depth = self.loop_depth;
-        self.loop_depth = 0;
+        let enclosing_loops = core::mem::take(&mut self.loops);
+        self.name_resolver.enter_function_scope();
         let result = self.enter_scope(function);
-        self.loop_depth = previous_loop_depth;
+        self.name_resolver.exit_function_scope();
+        self.loops = enclosing_loops;
         let result = result?;
 
         self.type_checker.check_return(Some(&result.type_symbol))?;

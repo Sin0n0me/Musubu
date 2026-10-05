@@ -156,11 +156,18 @@ impl PackratAndPrattParser {
         }
         self.tokens.next();
 
+        let expression = self
+            .option(Self::parse_expression)
+            .and_then(|memo| memo.get_node())
+            .and_then(|node| match node.as_ref() {
+                ASTNode::Expression(expression) => Some(expression.clone()),
+                _ => None,
+            });
         self.make_memo_from(
             key,
             Expression::Break {
                 label: None,
-                expression: None,
+                expression,
             },
         )
     }

@@ -1,3 +1,4 @@
+mod parse_collection;
 mod parse_expression;
 mod parse_item;
 mod parse_pattern;

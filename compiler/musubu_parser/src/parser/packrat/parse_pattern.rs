@@ -88,6 +88,10 @@ impl PackratAndPrattParser {
         if let Some(memo) = self.get_memo(&key) {
             return Ok(memo);
         }
+        if self.tokens.get_operator() == Some(&crate::lexer::token::MusubuOperator::Underscore) {
+            self.tokens.next();
+            return self.make_memo_from(key, Pattern::None);
+        }
         let result = self.or(vec![
             Self::parse_literal_pattern,
             Self::parse_identifier_pattern,

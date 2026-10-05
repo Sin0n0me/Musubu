@@ -147,6 +147,11 @@ pub enum Expression {
         left: SpannedBox<Expression>,
         right: SpannedBox<Expression>,
     },
+    Range {
+        start: SpannedBox<Expression>,
+        end: SpannedBox<Expression>,
+        inclusive: bool,
+    },
     Array {
         elements: ArrayElements,
     },

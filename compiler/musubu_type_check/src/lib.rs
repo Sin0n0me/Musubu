@@ -115,8 +115,8 @@ impl TypeChecker {
         }
 
         match operator {
-            AssignOperator::Assign
-            | AssignOperator::AddAssign
+            AssignOperator::Assign => {}
+            AssignOperator::AddAssign
             | AssignOperator::SubAssign
             | AssignOperator::MulAssign
             | AssignOperator::DivAssign => {
@@ -155,7 +155,7 @@ impl TypeChecker {
 
         match operator {
             ComparisonOperator::Equal | ComparisonOperator::NotEqual => {
-                if !lhs.type_kind.is_integer() {
+                if !lhs.type_kind.is_scalar_type() && !lhs.type_kind.is_boolean() {
                     return Err(TypeCheckError::InvalidOperation {
                         op: format!("{:?}", operator),
                         reason: "unsupported comparison operator".into(),
@@ -175,7 +175,7 @@ impl TypeChecker {
             }
         }
 
-        Ok(lhs)
+        Ok(TypeSymbol::new(PrimitiveType::Boolean))
     }
 
     pub fn check_logical_operator(
@@ -384,18 +384,16 @@ impl TypeChecker {
 
     pub fn check_loop_expr<'a>(
         &self,
-        scope: &Scope<'a>,
+        _scope: &Scope<'a>,
         body: TypeSymbol,
     ) -> TypeCheckResult<TypeSymbol> {
-        let expect = scope.get_return_type();
-        if !expect.is_same_type(&body) {
+        if !body.type_kind.is_unit() {
             return Err(TypeCheckError::TypeMismatch {
-                expected: expect.type_kind.clone(),
+                expected: PrimitiveType::Unit,
                 found: body.type_kind,
             });
         }
-
-        Ok(body)
+        Ok(TypeSymbol::default())
     }
 
     pub fn check_while_expr<'a>(
@@ -415,7 +413,10 @@ impl TypeChecker {
         body: TypeSymbol,
     ) -> TypeCheckResult<TypeSymbol> {
         // TODO
-        if !iterator.type_kind.is_array() {
+        if !matches!(
+            iterator.type_kind,
+            PrimitiveType::Array { .. } | PrimitiveType::Range { .. }
+        ) {
             return Err(TypeCheckError::NotIterable {
                 found: iterator.type_kind,
             });
