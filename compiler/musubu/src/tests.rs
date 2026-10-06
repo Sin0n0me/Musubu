@@ -23,6 +23,18 @@ macro_rules! execution_tests {
 }
 
 execution_tests! {
+    false_while_skips_body: "fn main() -> i32 { let mut x = 7; while false { x = 0; } x }" => 7;
+    while_break: "fn main() -> i32 { let mut i = 0; while i < 10 { i += 1; if i == 3 { break; } } i }" => 3;
+    nested_continue: "fn main() -> i32 { let mut s = 0; for i in 0..3 { for j in 0..3 { if j == 1 { continue; } s += 1; } } s }" => 6;
+    sequential_loops: "fn main() -> i32 { let mut s = 0; for i in 0..3 { s += i; } for i in [4, 5] { s += i; } s }" => 12;
+    return_from_for: "fn main() -> i32 { for i in [4, 5] { return i; } 0 }" => 4;
+    boolean_array: "fn main() -> i32 { let mut s = 0; for b in [true, false, true] { if b { s += 1; } } s }" => 2;
+    float_array: "fn main() -> i32 { let mut s = 0; for f in [1.0, 2.0, 3.0] { if f > 1.0 { s += 1; } } s }" => 2;
+    singleton_inclusive_range: "fn main() -> i32 { let mut s = 0; for i in 7..=7 { s += i; } s }" => 7;
+    reversed_inclusive_range: "fn main() -> i32 { let mut s = 0; for i in 5..=2 { s += 1; } s }" => 0;
+    nested_loop_values: "fn main() -> i32 { loop { let x = loop { break 6; }; break x + 1; } }" => 7;
+    if_else_value_in_loop: "fn main() -> i32 { let mut s = 0; for i in 0..3 { let x = if i == 1 { 10 } else { 2 }; s += x; } s }" => 14;
+    unit_break_value: "fn main() -> i32 { let mut x = 0; loop { break { x = 7; }; } x }" => 7;
     while_condition: "fn main() -> i32 { let mut i = 0; let mut s = 0; while i < 5 { s += i; i += 1; } s }" => 10;
     exclusive_range: "fn main() -> i32 { let mut s = 0; for i in 0..5 { s += i; } s }" => 10;
     inclusive_range: "fn main() -> i32 { let mut s = 0; for i in 0..=5 { s += i; } s }" => 15;
@@ -69,6 +81,11 @@ macro_rules! diagnostic_tests {
 }
 
 diagnostic_tests! {
+    break_outside_loop: "fn main() { break; }" => "only allowed inside a loop";
+    continue_outside_loop: "fn main() { continue; }" => "only allowed inside a loop";
+    nested_function_continue: "fn main() { loop { fn nested() { continue; } break; } }" => "only allowed inside a loop";
+    negative_repeat: "fn main() { let a = [1; -1]; }" => "array repeat count";
+    overflowing_repeat: "fn main() { let a = [1; 4294967296u64]; }" => "array repeat count";
     non_iterable: "fn main() { for x in 1 { } }" => "is not iterable";
     mixed_range_types: "fn main() { for x in 0i8..3i32 { } }" => "type mismatch";
     float_range: "fn main() { for x in 0.0..3.0 { } }" => "range endpoints must be integers";
@@ -81,6 +98,105 @@ diagnostic_tests! {
     nested_function_capture: "fn main() { let x = 1; fn nested() { x; } }" => "cannot resolve path `x`";
     missing_for_binding: "fn main() { for in 0..3 { } }" => "binding pattern";
     non_literal_repeat: "fn main() { let n = 3; for x in [1; n] { } }" => "array repeat count";
+}
+
+#[test]
+fn ffi_null_arguments_are_rejected() {
+    use core::ptr::{null, null_mut};
+    let mut engine = MusubuEngine::new();
+    assert!(!crate::init(null_mut()));
+    crate::uninit(null_mut());
+    assert!(!crate::compile(null_mut(), null(), 0));
+    assert!(!crate::compile(&mut engine, null(), 0));
+    assert!(
+        engine
+            .compile_error()
+            .contains("source pointer must not be null")
+    );
+    // Null arguments are explicitly accepted by these APIs as invalid input.
+    unsafe {
+        let mut len = 99;
+        assert!(crate::get_compile_error(null(), &mut len).is_null());
+        assert_eq!(len, 0);
+        assert!(crate::get_compile_error(&engine, null_mut()).is_null());
+        assert!(!crate::compile_with_filename(
+            null_mut(),
+            null(),
+            0,
+            null(),
+            0
+        ));
+        let valid = "fn main() {}";
+        assert!(!crate::compile_with_filename(
+            &mut engine,
+            valid.as_ptr().cast(),
+            valid.len(),
+            null(),
+            0,
+        ));
+        assert!(engine.compile_error().contains("must not be null"));
+    }
+}
+
+#[test]
+fn ffi_invalid_utf8_is_rejected() {
+    let mut engine = MusubuEngine::new();
+    let invalid = [0xffu8];
+    assert!(!crate::compile(
+        &mut engine,
+        invalid.as_ptr().cast(),
+        invalid.len()
+    ));
+    assert!(engine.compile_error().contains("source is not valid UTF-8"));
+    let source = "fn main() {}";
+    // Both input slices and the engine are valid for the duration of the call.
+    unsafe {
+        assert!(!crate::compile_with_filename(
+            &mut engine,
+            source.as_ptr().cast(),
+            source.len(),
+            invalid.as_ptr().cast(),
+            invalid.len(),
+        ));
+    }
+    assert!(
+        engine
+            .compile_error()
+            .contains("filename is not valid UTF-8")
+    );
+}
+
+#[test]
+fn ffi_engine_lifecycle_and_empty_diagnostic() {
+    let mut engine = core::ptr::null_mut();
+    assert!(crate::init(&mut engine));
+    assert!(!engine.is_null());
+    let mut len = 99;
+    // init returned a live engine; it is destroyed only after the borrowed result is checked.
+    unsafe {
+        assert!(crate::get_compile_error(engine, &mut len).is_null());
+    }
+    crate::uninit(engine);
+    assert_eq!(len, 0);
+}
+
+#[test]
+fn later_failure_replaces_previous_diagnostic() {
+    let mut engine = MusubuEngine::new();
+    assert!(!compile_with_filename(
+        &mut engine,
+        "first.msb",
+        "fn main() { missing; }"
+    ));
+    assert!(engine.compile_error().contains("first.msb"));
+    assert!(!compile_with_filename(
+        &mut engine,
+        "second.msb",
+        "fn main() { break; }"
+    ));
+    assert!(engine.compile_error().contains("second.msb"));
+    assert!(!engine.compile_error().contains("first.msb"));
+    assert!(!engine.compile_error().contains("missing"));
 }
 
 #[test]
