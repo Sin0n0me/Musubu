@@ -1,6 +1,8 @@
 #![no_std]
 
 extern crate alloc;
+mod match_expression;
+pub use match_expression::{HIRMatchArm, HIRMatchPattern};
 
 use alloc::boxed::Box;
 use alloc::collections::btree_map::BTreeMap;
@@ -94,6 +96,16 @@ impl ToPrimitiveType for HIRBlock {
 
 #[derive(Debug, Clone)]
 pub enum HIRExpression {
+    Enum {
+        variant: usize,
+        fields: Vec<(usize, HIRExpression)>,
+        enum_type: PrimitiveType,
+    },
+    Match {
+        value: Box<HIRExpression>,
+        arms: Vec<HIRMatchArm>,
+        result_type: PrimitiveType,
+    },
     Struct {
         fields: Vec<(usize, HIRExpression)>,
         struct_type: PrimitiveType,
@@ -199,6 +211,8 @@ impl HIRExpression {
 impl ToPrimitiveType for HIRExpression {
     fn to_type(&self) -> PrimitiveType {
         match self {
+            Self::Enum { enum_type, .. } => enum_type.clone(),
+            Self::Match { result_type, .. } => result_type.clone(),
             Self::Struct { struct_type, .. } => struct_type.clone(),
             Self::Field { field_type, .. } => field_type.clone(),
             Self::StoreField { .. } => PrimitiveType::Unit,

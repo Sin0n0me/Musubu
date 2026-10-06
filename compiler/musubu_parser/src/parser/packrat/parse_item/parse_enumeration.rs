@@ -3,7 +3,7 @@ use crate::{
     lexer::{musubu_keywords::MusubuKeyword, token::MusubuOperator},
     parser::packrat::{PackratAndPrattParser, ParseResult},
 };
-use alloc::{rc::Rc, string::ToString, vec};
+use alloc::{rc::Rc, string::ToString, vec, vec::Vec};
 use musubu_ast::{ASTNode, EnumItem, Item, Visibility};
 
 impl PackratAndPrattParser {
@@ -71,6 +71,8 @@ impl PackratAndPrattParser {
         let rest = self.zero_or_more(|parser: &mut Self| {
             if let Some(MusubuOperator::Comma) = parser.tokens.get_operator() {
                 parser.tokens.next();
+            } else {
+                return Err(ParseError::NotMatch);
             }
             parser.parse_enum_item()
         });
@@ -81,6 +83,9 @@ impl PackratAndPrattParser {
             }
         }
 
+        if self.tokens.get_operator() == Some(&MusubuOperator::Comma) {
+            self.tokens.next();
+        }
         let items = items
             .into_iter()
             .filter_map(|kind| {
@@ -109,40 +114,62 @@ impl PackratAndPrattParser {
             .to_string();
         self.tokens.next();
 
-        let fields = self
-            .option(|parser: &mut Self| -> ParseResult {
-                parser.or(vec![
-                    Self::parse_enum_item_tuple,
-                    Self::parse_enum_item_struct,
-                ])
-            })
-            .and_then(|memo| memo.get_node())
-            .and_then(|kind| {
-                let ASTNode::StructFields(fields) = kind.as_ref() else {
-                    unreachable!()
+        let item = match self.tokens.get_operator() {
+            Some(MusubuOperator::LeftParenthesis) => {
+                let fields = self.parse_enum_tuple_fields()?;
+                EnumItem::TupleItem {
+                    visibility: Visibility::Public,
+                    name,
+                    fields,
+                }
+            }
+            Some(MusubuOperator::LeftBrace) => {
+                let node = self.get_node(Self::parse_enum_item_struct)?;
+                let ASTNode::StructFields(fields) = node.as_ref() else {
+                    return Err(ParseError::UnexpectedAST);
                 };
-                Some(fields.clone())
-            })
-            .unwrap_or_default();
-
-        self.make_memo_from(
-            key,
-            EnumItem::StructItem {
-                visibility: Visibility::Public,
-                name,
-                fields,
-            },
-        )
+                EnumItem::StructItem {
+                    visibility: Visibility::Public,
+                    name,
+                    fields: fields.clone(),
+                }
+            }
+            _ => EnumItem::UnitItem { name },
+        };
+        self.make_memo_from(key, item)
     }
 
     // EnumItemTuple ::= `(` TupleFields? `)`
-    fn parse_enum_item_tuple(&mut self) -> ParseResult {
-        let key = self.make_key("EnumItemTuple");
-        if let Some(memo) = self.get_memo(&key) {
-            return Ok(memo);
+    fn parse_enum_tuple_fields(
+        &mut self,
+    ) -> Result<Vec<musubu_span::Spanned<musubu_ast::StructField>>, ParseError> {
+        self.tokens.next();
+        let mut fields = Vec::new();
+        while self.tokens.get_operator() != Some(&MusubuOperator::RightParenthesis) {
+            let node = self.get_node(Self::parse_type)?;
+            let ASTNode::Type(ty) = node.as_ref() else {
+                return Err(ParseError::UnexpectedAST);
+            };
+            fields.push(musubu_span::Spanned {
+                span: ty.span,
+                node: musubu_ast::StructField {
+                    visibility: Visibility::Public,
+                    name: fields.len().to_string(),
+                    field_type: ty.clone(),
+                },
+            });
+            if self.tokens.get_operator() != Some(&MusubuOperator::Comma) {
+                break;
+            }
+            self.tokens.next();
         }
-
-        self.make_memo_from_result(key, Err(ParseError::NotMatch))
+        if self.tokens.get_operator() != Some(&MusubuOperator::RightParenthesis) {
+            return Err(ParseError::Expected {
+                rule: "`,` or `)` after an enum payload type",
+            });
+        }
+        self.tokens.next();
+        Ok(fields)
     }
 
     // EnumItemStruct ::= `{` StructFields? `}`

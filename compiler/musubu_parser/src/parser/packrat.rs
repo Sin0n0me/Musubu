@@ -1,6 +1,7 @@
 mod parse_collection;
 mod parse_expression;
 mod parse_item;
+mod parse_match;
 mod parse_pattern;
 mod parse_struct_literal;
 mod parse_type;

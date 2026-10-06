@@ -212,6 +212,7 @@ impl PackratAndPrattParser {
             Self::parse_block_expression,
             Self::parse_loop_expression,
             Self::parse_if_expression,
+            Self::parse_match_expression,
         ]);
 
         self.make_memo_from_result(key, result)

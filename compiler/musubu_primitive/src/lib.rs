@@ -1,6 +1,8 @@
 #![no_std]
 
 extern crate alloc;
+mod enumeration;
+pub use enumeration::{EnumVariant, EnumVariantKind};
 
 use alloc::boxed::Box;
 use alloc::format;
@@ -20,6 +22,10 @@ pub trait ToPrimitiveType {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PrimitiveType {
+    NamedEnum {
+        name: String,
+        variants: Vec<EnumVariant>,
+    },
     NamedStruct {
         name: String,
         fields: Vec<(String, PrimitiveType)>,
@@ -120,6 +126,9 @@ impl PrimitiveType {
 
     pub fn is_valid(&self) -> bool {
         match self {
+            Self::NamedEnum { variants, .. } => variants
+                .iter()
+                .all(|v| v.fields.iter().all(|(_, ty)| ty.is_valid())),
             Self::NamedStruct { fields, .. } => fields.iter().all(|(_, ty)| ty.is_valid()),
             Self::Unit | Self::Boolean => true,
             Self::Integer { byte, .. } | Self::Float { byte } => *byte > 0,
@@ -315,6 +324,7 @@ impl ToString for PrimitiveType {
     fn to_string(&self) -> String {
         match self {
             Self::NamedStruct { name, .. } => name.clone(),
+            Self::NamedEnum { name, .. } => name.clone(),
             Self::Unit => "void".to_string(),
             Self::Boolean => "bool".to_string(),
             Self::Integer { signed, byte } => {
@@ -360,6 +370,11 @@ impl ToString for PrimitiveType {
 
 #[derive(Debug, Clone)]
 pub enum Value {
+    Enum {
+        variant: usize,
+        fields: Vec<Value>,
+        enum_type: PrimitiveType,
+    },
     Struct {
         fields: Vec<Value>,
         struct_type: PrimitiveType,
@@ -386,6 +401,7 @@ impl ToPrimitiveType for Value {
     fn to_type(&self) -> PrimitiveType {
         match self {
             Self::Struct { struct_type, .. } => struct_type.clone(),
+            Self::Enum { enum_type, .. } => enum_type.clone(),
             Self::Array {
                 elements,
                 element_type,

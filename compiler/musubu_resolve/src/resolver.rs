@@ -1,5 +1,8 @@
 mod collections;
 mod control_flow;
+mod enumeration;
+mod match_coverage;
+mod match_expression;
 mod structures;
 
 use crate::errors::ResolveError;
@@ -98,8 +101,10 @@ impl<'a> Resolver<'a> {
             let actual = body.to_type();
             if actual != return_type
                 && (!actual.is_unit()
-                    || (matches!(return_type, PrimitiveType::NamedStruct { .. })
-                        && control_flow::can_complete(&body)))
+                    || (matches!(
+                        return_type,
+                        PrimitiveType::NamedStruct { .. } | PrimitiveType::NamedEnum { .. }
+                    ) && control_flow::can_complete(&body)))
             {
                 return Err(
                     musubu_type_check::errors::TypeCheckError::FunctionReturnMismatch {
@@ -169,7 +174,7 @@ impl<'a> Resolver<'a> {
         items: &'a [Spanned<EnumItem>],
     ) -> ResolveResult<()> {
         // 事前importで解決済み
-        if self.collector.remove(enum_name) || self.resolve_mode.is_squential() {
+        if self.collector.remove(enum_name) && self.resolve_mode.is_unordered() {
             return Ok(());
         }
 
@@ -183,6 +188,9 @@ impl<'a> Resolver<'a> {
         let diagnostic_span = expression.span;
         (|| {
             let lowered = match expression.get_node() {
+                Expression::Match { value, arms } => {
+                    self.resolve_match(value.as_ref_spanned(), arms)?
+                }
                 Expression::StructLiteral { path, fields } => {
                     self.resolve_struct_literal(path.as_ref_spanned(), fields)?
                 }
@@ -465,6 +473,11 @@ impl<'a> Resolver<'a> {
         function: Spanned<&'a Expression>,
         arguments: &[Spanned<&'a Expression>],
     ) -> ResolveResult<Lowered<HIRExpression>> {
+        if let Expression::Path(path) = function.node {
+            if path.node.segments.len() > 1 {
+                return self.resolve_enum_tuple(path.as_ref_spanned(), arguments);
+            }
+        }
         let call = self.resolve_expression(&function)?;
         let args = arguments
             .into_iter()
@@ -619,6 +632,13 @@ impl<'a> Resolver<'a> {
         &mut self,
         path: Spanned<&'a Path>,
     ) -> ResolveResult<Lowered<Option<HIRExpression>>> {
+        if path.node.segments.len() > 1 {
+            let value = self.resolve_enum_unit(path)?;
+            return Ok(Lowered {
+                type_symbol: value.type_symbol,
+                hir: Some(value.hir),
+            });
+        }
         let path = path.node;
         let name = path.last_ident();
 

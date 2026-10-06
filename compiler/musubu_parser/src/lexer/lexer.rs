@@ -520,6 +520,7 @@ fn get_binary_operator(iter: &mut ParseIter) -> Option<MusubuOperator> {
         [Symbol::Dot, Symbol::Dot] => MusubuOperator::DotDot,
         [Symbol::LessThan, Symbol::Minus] => MusubuOperator::LeftArrow,
         [Symbol::Minus, Symbol::GreaterThan] => MusubuOperator::RightArrow,
+        [Symbol::Equal, Symbol::GreaterThan] => MusubuOperator::FatArrow,
         [Symbol::Colon, Symbol::Colon] => MusubuOperator::Path,
 
         _ => return None,

@@ -8,6 +8,9 @@ impl<'a> Resolver<'a> {
         path: Spanned<&'a Path>,
         initializers: &'a [(Spanned<alloc::string::String>, SpannedBox<Expression>)],
     ) -> ResolveResult<Lowered<HIRExpression>> {
+        if path.node.segments.len() > 1 {
+            return self.resolve_enum_struct(path, initializers);
+        }
         let name = path.node.last_ident();
         let struct_type = self
             .name_resolver

@@ -1,6 +1,8 @@
 #![no_std]
 
 extern crate alloc;
+mod match_expression;
+pub use match_expression::{MatchArm, MatchPattern};
 
 use alloc::boxed::Box;
 use alloc::format;
@@ -93,6 +95,9 @@ impl NodeMaker for Item {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum EnumItem {
+    UnitItem {
+        name: String,
+    },
     StructItem {
         visibility: Visibility,
         name: String,
@@ -101,6 +106,7 @@ pub enum EnumItem {
     TupleItem {
         visibility: Visibility,
         name: String,
+        fields: SpannedVec<StructField>,
     },
 }
 
@@ -125,6 +131,10 @@ impl NodeMaker for StructField {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expression {
+    Match {
+        value: SpannedBox<Expression>,
+        arms: Vec<MatchArm>,
+    },
     StructLiteral {
         path: Spanned<Path>,
         fields: Vec<(Spanned<String>, SpannedBox<Expression>)>,

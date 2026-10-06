@@ -122,6 +122,7 @@ pub enum MusubuOperator {
     DotDotDot,        // ...
     LeftArrow,        // <-
     RightArrow,       // ->
+    FatArrow,         // =>
     Path,             // ::
     LeftParenthesis,  // (
     RightParenthesis, // )

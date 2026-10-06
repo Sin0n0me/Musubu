@@ -16,6 +16,18 @@ pub struct Register(pub usize);
 
 #[derive(Debug, Clone)]
 pub enum Instruction {
+    MakeEnum {
+        dst: Register,
+        variant: usize,
+        fields: Vec<Register>,
+        enum_type: PrimitiveType,
+    },
+    IsVariant {
+        dst: Register,
+        value: Register,
+        variant: usize,
+    },
+    Unreachable,
     MakeStruct {
         dst: Register,
         fields: Vec<Register>,
