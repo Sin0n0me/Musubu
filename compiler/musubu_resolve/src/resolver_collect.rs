@@ -71,32 +71,36 @@ impl<'a> Resolver<'a> {
         //visibility: &'a Visibility,
         item: Spanned<&'a Item>,
     ) -> ResolveResult<()> {
-        match &item.node {
-            Item::Struct { name, fields } => {
-                self.import_struct(name, fields)?;
-            }
-            Item::Function {
-                name,
-                params,
-                return_type,
-                body: _,
-            } => {
-                self.import_function(
+        let diagnostic_span = item.span;
+        (|| {
+            match &item.node {
+                Item::Struct { name, fields } => {
+                    self.import_struct(name, fields)?;
+                }
+                Item::Function {
                     name,
                     params,
-                    return_type.as_ref().map(|r| r.as_ref_spanned()),
-                )?;
-            }
-            Item::Enumeration { name, items } => {
-                self.import_enumeration(name, items)?;
-            }
-            Item::Union { name, fields } => {
-                // TODO
-                self.collector.insert(name)?;
-            }
-        };
+                    return_type,
+                    body: _,
+                } => {
+                    self.import_function(
+                        name,
+                        params,
+                        return_type.as_ref().map(|r| r.as_ref_spanned()),
+                    )?;
+                }
+                Item::Enumeration { name, items } => {
+                    self.import_enumeration(name, items)?;
+                }
+                Item::Union { name, fields } => {
+                    // TODO
+                    self.collector.insert(name)?;
+                }
+            };
 
-        Ok(())
+            Ok(())
+        })()
+        .map_err(|error: ResolveError| error.at(diagnostic_span))
     }
 
     pub(crate) fn import_struct(
@@ -184,11 +188,15 @@ impl<'a> Resolver<'a> {
     }
 
     fn import_type(&mut self, type_kind: Spanned<&'a TypeKind>) -> ResolveResult<TypeSymbol> {
-        let type_kind = &type_kind.node;
-        let scope = self.get_scope()?;
-        let ty = self.type_checker.check_type(scope, type_kind)?;
+        let diagnostic_span = type_kind.span;
+        (|| {
+            let type_kind = &type_kind.node;
+            let scope = self.get_scope()?;
+            let ty = self.type_checker.check_type(scope, type_kind)?;
 
-        Ok(ty)
+            Ok(ty)
+        })()
+        .map_err(|error: ResolveError| error.at(diagnostic_span))
     }
 
     fn import_path(&mut self, path: Spanned<&'a Path>) -> ResolveResult<TypeSymbol> {

@@ -356,7 +356,7 @@ impl TypeChecker {
     ) -> TypeCheckResult<TypeSymbol> {
         let PrimitiveType::Function {
             return_type,
-            arguments,
+            arguments: parameters,
         } = &function.type_kind
         else {
             return Err(TypeCheckError::NotCallable {
@@ -364,7 +364,20 @@ impl TypeChecker {
             });
         };
 
-        // TODO
+        if parameters.len() != arguments.len() {
+            return Err(TypeCheckError::ArgumentCountMismatch {
+                expected: parameters.len(),
+                found: arguments.len(),
+            });
+        }
+        for (expected, found) in parameters.iter().zip(arguments) {
+            if expected != &found.type_kind {
+                return Err(TypeCheckError::TypeMismatch {
+                    expected: expected.clone(),
+                    found: found.type_kind.clone(),
+                });
+            }
+        }
 
         Ok(TypeSymbol::new(return_type.as_ref().clone()))
     }
@@ -474,7 +487,9 @@ impl TypeChecker {
             }
             Pattern::Multiply(patterns) => {
                 let PrimitiveType::Struct { elements } = variable_type else {
-                    unimplemented!() // TODO
+                    return Err(TypeCheckError::UnknownPattern {
+                        name: alloc::format!("{pattern:?}"),
+                    });
                     // return Err(TypeCheckError::);
                 };
 

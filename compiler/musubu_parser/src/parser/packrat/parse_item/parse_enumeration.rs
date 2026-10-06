@@ -6,7 +6,7 @@ use crate::{
 use alloc::{rc::Rc, string::ToString, vec};
 use musubu_ast::{ASTNode, EnumItem, Item, Visibility};
 
-impl<'a> PackratAndPrattParser<'a> {
+impl PackratAndPrattParser {
     // Enumeration ::= `enum` IDENTIFIER GenericParams? WhereClause? `{` EnumItems? `}`
     pub(in crate::parser) fn parse_enumeration(&mut self) -> ParseResult {
         let key = self.make_key("Enumeration");
@@ -30,7 +30,7 @@ impl<'a> PackratAndPrattParser<'a> {
 
         // `{`
         if self.tokens.get_operator() != Some(&MusubuOperator::LeftBrace) {
-            return self.make_memo_from_result(key, Err(ParseError::NotMatch));
+            return self.make_memo_from_result(key, Err(ParseError::Expected { rule: "`{`" }));
         }
         self.tokens.next();
 
@@ -46,7 +46,7 @@ impl<'a> PackratAndPrattParser<'a> {
             .unwrap_or_default();
 
         if self.tokens.get_operator() != Some(&MusubuOperator::RightBrace) {
-            return self.make_memo_from_result(key, Err(ParseError::NotMatch));
+            return self.make_memo_from_result(key, Err(ParseError::Expected { rule: "`}`" }));
         }
         self.tokens.next();
 
@@ -153,7 +153,7 @@ impl<'a> PackratAndPrattParser<'a> {
         }
 
         if self.tokens.get_operator() != Some(&MusubuOperator::LeftBrace) {
-            return self.make_memo_from_result(key, Err(ParseError::NotMatch));
+            return self.make_memo_from_result(key, Err(ParseError::Expected { rule: "`{`" }));
         }
         self.tokens.next();
 
@@ -170,7 +170,7 @@ impl<'a> PackratAndPrattParser<'a> {
             .unwrap_or_default();
 
         if self.tokens.get_operator() != Some(&MusubuOperator::RightBrace) {
-            return self.make_memo_from_result(key, Err(ParseError::NotMatch));
+            return self.make_memo_from_result(key, Err(ParseError::Expected { rule: "`}`" }));
         }
         self.tokens.next();
 

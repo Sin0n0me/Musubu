@@ -5,7 +5,7 @@ use crate::{
 };
 use musubu_ast::{ASTNode, LoopExpr};
 
-impl<'a> PackratAndPrattParser<'a> {
+impl PackratAndPrattParser {
     // InfiniteLoopExpression ::= `loop` BlockExpression
     pub(super) fn parse_infinite_loop_expression(&mut self) -> ParseResult {
         let key = self.make_key("InfiniteLoopExpression");
