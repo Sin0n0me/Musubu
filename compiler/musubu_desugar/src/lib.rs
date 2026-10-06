@@ -171,13 +171,7 @@ impl<'a> Desugar<'a> {
         lhs: HIRExpression,
         rhs: HIRExpression,
     ) -> DesugarResult<HIRExpression> {
-        let HIRExpression::Variable {
-            id: target,
-            symbol_type: _,
-        } = lhs
-        else {
-            return Err(DesugarError::UnsupportedAssignTarget);
-        };
+        let (target, path) = Self::assignment_place(&lhs)?;
 
         let operator = match operator {
             AssignOperator::AddAssign => BinaryOperator::Addition,
@@ -191,19 +185,41 @@ impl<'a> Desugar<'a> {
             AssignOperator::LeftShiftAssign => BinaryOperator::LeftShift,
             AssignOperator::RightShiftAssign => BinaryOperator::RightShift,
             AssignOperator::Assign => {
-                return Ok(HIRExpression::Store {
-                    target,
-                    value: Box::new(rhs),
-                });
+                return Ok(Self::store_place(target, path, rhs));
             }
         };
 
-        let hir = HIRExpression::Store {
-            target,
-            value: Box::new(self.lower_binary_operator(operator, lhs, rhs)?),
-        };
+        let value = self.lower_binary_operator(operator, lhs, rhs)?;
+        let hir = Self::store_place(target, path, value);
 
         Ok(hir)
+    }
+
+    fn assignment_place(expr: &HIRExpression) -> DesugarResult<(usize, Vec<usize>)> {
+        match expr {
+            HIRExpression::Variable { id, .. } => Ok((*id, Vec::new())),
+            HIRExpression::Field { parent, index, .. } => {
+                let (target, mut path) = Self::assignment_place(parent)?;
+                path.push(*index);
+                Ok((target, path))
+            }
+            _ => Err(DesugarError::UnsupportedAssignTarget),
+        }
+    }
+
+    fn store_place(target: usize, path: Vec<usize>, value: HIRExpression) -> HIRExpression {
+        if path.is_empty() {
+            HIRExpression::Store {
+                target,
+                value: Box::new(value),
+            }
+        } else {
+            HIRExpression::StoreField {
+                target,
+                path,
+                value: Box::new(value),
+            }
+        }
     }
 
     // 比較演算子もそのまま変換

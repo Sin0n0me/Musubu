@@ -6,6 +6,7 @@ pub mod errors;
 
 mod frame;
 mod iterator;
+mod structures;
 
 use crate::errors::VMError;
 use crate::frame::Frame;
@@ -53,6 +54,9 @@ impl<'a> VM<'a> {
         frame.ip += 1;
 
         match inst {
+            Instruction::MakeStruct { .. }
+            | Instruction::LoadField { .. }
+            | Instruction::StoreField { .. } => Self::execute_struct(frame, inst)?,
             Instruction::MakeArray { .. }
             | Instruction::RepeatArray { .. }
             | Instruction::MakeRange { .. }

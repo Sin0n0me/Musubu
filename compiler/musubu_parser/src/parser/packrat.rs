@@ -2,6 +2,7 @@ mod parse_collection;
 mod parse_expression;
 mod parse_item;
 mod parse_pattern;
+mod parse_struct_literal;
 mod parse_type;
 mod pratt;
 
@@ -27,6 +28,7 @@ pub(crate) enum Memo {
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub(crate) struct MemoKey {
+    allow_struct_literal: bool,
     rule: &'static str,
     position: usize,
 }
@@ -60,6 +62,7 @@ impl MemoResult {
 
 #[derive(Debug)]
 pub(crate) struct PackratAndPrattParser {
+    allow_struct_literal: bool,
     memo: IndexMap<MemoKey, MemoResult>,
     tokens: TokenStream,
     max_read_position: usize,
@@ -78,6 +81,7 @@ pub(crate) type ParseResult = Result<MemoResult, ParseError>;
 impl PackratAndPrattParser {
     pub fn new(tokens: TokenStream) -> Self {
         Self {
+            allow_struct_literal: true,
             memo: make_index_map(),
             tokens,
             max_read_position: 0,
@@ -284,6 +288,7 @@ impl PackratAndPrattParser {
 
     fn make_key(&self, rule: &'static str) -> MemoKey {
         MemoKey {
+            allow_struct_literal: self.allow_struct_literal,
             rule,
             position: self.tokens.get_position(),
         }

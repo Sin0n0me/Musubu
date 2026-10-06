@@ -21,6 +21,10 @@ impl PackratAndPrattParser {
 
         // 演算子に応じた判定
         loop {
+            if let Some(member) = self.parse_struct_member(&lhs, min_bp, &key)? {
+                lhs = member;
+                continue;
+            }
             let Some(op) = self.tokens.get_operator().cloned() else {
                 break;
             };
@@ -34,7 +38,11 @@ impl PackratAndPrattParser {
 
                 lhs = if let Some(pair) = op.counterpart_of() {
                     // 中身だけを判断
-                    let rhs = self.postfix_pair_inside(&op)?;
+                    let allowed = self.allow_struct_literal;
+                    self.allow_struct_literal = true;
+                    let result = self.postfix_pair_inside(&op);
+                    self.allow_struct_literal = allowed;
+                    let rhs = result?;
                     if Some(&pair) != self.tokens.get_operator() {
                         return Err(ParseError::NotMatch);
                     }
@@ -113,7 +121,11 @@ impl PackratAndPrattParser {
         // ペア
         if let Some(pair) = op.counterpart_of() {
             self.tokens.next();
-            let lhs = self.pratt_parse(0)?.get_node();
+            let allowed = self.allow_struct_literal;
+            self.allow_struct_literal = true;
+            let result = self.pratt_parse(0);
+            self.allow_struct_literal = allowed;
+            let lhs = result?.get_node();
             if self.tokens.get_operator() != Some(&pair) {
                 return Err(ParseError::Expected {
                     rule: "a closing delimiter",

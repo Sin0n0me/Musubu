@@ -94,6 +94,20 @@ impl ToPrimitiveType for HIRBlock {
 
 #[derive(Debug, Clone)]
 pub enum HIRExpression {
+    Struct {
+        fields: Vec<(usize, HIRExpression)>,
+        struct_type: PrimitiveType,
+    },
+    Field {
+        parent: Box<HIRExpression>,
+        index: usize,
+        field_type: PrimitiveType,
+    },
+    StoreField {
+        target: usize,
+        path: Vec<usize>,
+        value: Box<HIRExpression>,
+    },
     Array {
         elements: Vec<HIRExpression>,
         element_type: PrimitiveType,
@@ -185,6 +199,9 @@ impl HIRExpression {
 impl ToPrimitiveType for HIRExpression {
     fn to_type(&self) -> PrimitiveType {
         match self {
+            Self::Struct { struct_type, .. } => struct_type.clone(),
+            Self::Field { field_type, .. } => field_type.clone(),
+            Self::StoreField { .. } => PrimitiveType::Unit,
             Self::Array {
                 elements,
                 element_type,

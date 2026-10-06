@@ -47,7 +47,7 @@ impl PackratAndPrattParser {
         self.tokens.next();
 
         // Expression
-        let Ok(result) = self.parse_expression() else {
+        let Ok(result) = self.parse_condition_expression() else {
             return self.make_memo_from_result(key, Err(ParseError::NotMatch));
         };
         let Some(node) = result.get_node() else {
@@ -103,7 +103,7 @@ impl PackratAndPrattParser {
 
         // Expression
         // except struct expression
-        let Ok(iterator) = self.get_expr(Self::parse_expression) else {
+        let Ok(iterator) = self.get_expr(Self::parse_condition_expression) else {
             return self.make_memo_from_result(key, Err(ParseError::NotMatch));
         };
 

@@ -16,6 +16,21 @@ pub struct Register(pub usize);
 
 #[derive(Debug, Clone)]
 pub enum Instruction {
+    MakeStruct {
+        dst: Register,
+        fields: Vec<Register>,
+        struct_type: PrimitiveType,
+    },
+    LoadField {
+        dst: Register,
+        parent: Register,
+        index: usize,
+    },
+    StoreField {
+        target: Register,
+        path: Vec<usize>,
+        value: Register,
+    },
     MakeArray {
         dst: Register,
         elements: Vec<Register>,

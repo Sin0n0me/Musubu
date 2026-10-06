@@ -125,6 +125,10 @@ impl NodeMaker for StructField {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expression {
+    StructLiteral {
+        path: Spanned<Path>,
+        fields: Vec<(Spanned<String>, SpannedBox<Expression>)>,
+    },
     Literal(Spanned<Literal>),
     Path(Spanned<Path>),
     Binary {
