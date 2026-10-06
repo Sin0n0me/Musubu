@@ -23,6 +23,31 @@ macro_rules! execution_tests {
 }
 
 execution_tests! {
+    struct_type_namespace: "fn main() -> i32 { let Point = 9; let p: Point = Point { x: Point }; p.x } struct Point { x: i32 }" => 9;
+    struct_operand_snapshot: "fn main() -> i32 { let mut p = Point { x: 3 }; let q = Pair { x: p.x, y: { p.x = 7; p.x } }; q.x + q.y } struct Point { x: i32 } struct Pair { x: i32, y: i32 }" => 10;
+    struct_infinite_function: "fn main() -> i32 { 7 } fn forever() -> Point { loop {} } struct Point { x: i32 }" => 7;
+    struct_return_from_loop: "fn main() -> i32 { make().x } fn make() -> Point { loop { return Point { x: 7 }; } } struct Point { x: i32 }" => 7;
+    struct_bool_field: "fn main() -> i32 { let mut p = Flag { active: false }; p.active = true; if p.active { 7 } else { 0 } } struct Flag { active: bool }" => 7;
+    struct_return_branches: "fn main() -> i32 { make(true).x } fn make(b: bool) -> Point { if b { return Point { x: 7 }; } else { return Point { x: 0 }; } } struct Point { x: i32 }" => 7;
+    struct_initializer_evaluation_order: "fn main() -> i32 { let mut i = 0; let p = Point { y: { i += 1; i }, x: { i += 1; i } }; p.x * 10 + p.y } struct Point { x: i32, y: i32 }" => 21;
+    struct_nested_copy: "fn main() -> i32 { let p = Outer { p: Point { x: 3 } }; let mut q = p; q.p.x = 8; p.p.x * 10 + q.p.x } struct Outer { p: Point } struct Point { x: i32 }" => 38;
+    struct_mutable_parameter: "fn main() -> i32 { let p = Point { x: 3 }; let q = change(p); p.x * 10 + q.x } fn change(mut p: Point) -> Point { p.x = 8; p } struct Point { x: i32 }" => 38;
+    struct_replace_nested: "fn main() -> i32 { let mut o = Outer { p: Point { x: 1 } }; o.p = Point { x: 7 }; o.p.x } struct Outer { p: Point } struct Point { x: i32 }" => 7;
+    struct_literal_in_for_array: "fn main() -> i32 { let mut s = 0; for p in [Point { x: 2 }, Point { x: 3 }] { s += p.x; } s } struct Point { x: i32 }" => 5;
+    struct_literal_in_condition_call: "fn main() -> i32 { if positive(Point { x: 1 }) { 7 } else { 0 } } fn positive(p: Point) -> bool { p.x > 0 } struct Point { x: i32 }" => 7;
+    struct_literal_in_parentheses: "fn main() -> i32 { if (Point { x: 1 }).x == 1 { 7 } else { 0 } } struct Point { x: i32 }" => 7;
+    struct_loop_value: "fn main() -> i32 { let p = loop { break Point { x: 7 }; }; p.x } struct Point { x: i32 }" => 7;
+    struct_repeat_copy: "fn main() -> i32 { let mut s = 0; for mut p in [Point { x: 2 }; 3] { p.x += 1; s += p.x; } s } struct Point { x: i32 }" => 9;
+    struct_literal: "fn main() -> i32 { let p = Point { x: 3, y: 4 }; p.x + p.y } struct Point { x: i32, y: i32 }" => 7;
+    struct_field_order: "fn main() -> i32 { let p = Point { y: 4, x: 3 }; p.x * 10 + p.y } struct Point { x: i32, y: i32 }" => 34;
+    struct_mutation: "fn main() -> i32 { let mut p = Point { x: 3 }; p.x = 7; p.x += 2; p.x } struct Point { x: i32 }" => 9;
+    struct_nested: "fn main() -> i32 { let mut o = Outer { p: Point { x: 3 } }; o.p.x += 4; o.p.x } struct Outer { p: Point } struct Point { x: i32 }" => 7;
+    struct_copy: "fn main() -> i32 { let p = Point { x: 3 }; let mut q = p; q.x = 8; p.x * 10 + q.x } struct Point { x: i32 }" => 38;
+    struct_functions: "fn main() -> i32 { let p: Point = make(7); sum(p) } fn make(x: i32) -> Point { Point { x } } fn sum(p: Point) -> i32 { p.x } struct Point { x: i32 }" => 7;
+    struct_explicit_return: "fn main() -> i32 { make().x } fn make() -> Point { return Point { x: 9 }; } struct Point { x: i32 }" => 9;
+    struct_empty: "fn main() -> i32 { let e = Empty {}; consume(e); 7 } fn consume(e: Empty) {} struct Empty {}" => 7;
+    struct_loop_condition: "fn main() -> i32 { let mut p = Point { x: 0 }; while p.x < 3 { p.x += 1; } if p.x == 3 { 7 } else { 0 } } struct Point { x: i32 }" => 7;
+    struct_array: "fn main() -> i32 { let a = [Point { x: 2 }, Point { x: 3 }]; let mut s = 0; for p in a { s += p.x; } s } struct Point { x: i32 }" => 5;
     false_while_skips_body: "fn main() -> i32 { let mut x = 7; while false { x = 0; } x }" => 7;
     while_break: "fn main() -> i32 { let mut i = 0; while i < 10 { i += 1; if i == 3 { break; } } i }" => 3;
     nested_continue: "fn main() -> i32 { let mut s = 0; for i in 0..3 { for j in 0..3 { if j == 1 { continue; } s += 1; } } s }" => 6;
@@ -81,6 +106,25 @@ macro_rules! diagnostic_tests {
 }
 
 diagnostic_tests! {
+    struct_variable_is_not_type: "fn main() { let p = 1; let q: p = 2; }" => "cannot determine type";
+    struct_break_before_return: "fn make() -> A { loop { break; return A { x: 1 }; } } struct A { x: i32 }" => "return";
+    struct_missing_return: "fn make() -> A { } struct A { x: i32 }" => "return";
+    struct_wrong_argument: "fn main() { take(B { x: 1 }); } fn take(a: A) {} struct A { x: i32 } struct B { x: i32 }" => "type mismatch";
+    struct_wrong_implicit_return: "fn make() -> A { B { x: 1 } } struct A { x: i32 } struct B { x: i32 }" => "return";
+    struct_wrong_explicit_return: "fn make() -> A { return B { x: 1 }; } struct A { x: i32 } struct B { x: i32 }" => "return";
+    struct_wrong_annotation: "fn main() { let a: A = B { x: 1 }; } struct A { x: i32 } struct B { x: i32 }" => "type mismatch";
+    struct_nested_immutable: "fn main() { let o = Outer { p: Point { x: 1 } }; o.p.x = 2; } struct Outer { p: Point } struct Point { x: i32 }" => "immutable";
+    struct_duplicate_definition_field: "struct Point { x: i32, x: i32 }" => "duplicate";
+    struct_mutual_recursion: "struct A { b: B } struct B { a: A }" => "infinite size";
+    struct_unknown_field_type: "struct A { x: Missing }" => "cannot determine type";
+    struct_missing_field: "fn main() { let p = Point {}; } struct Point { x: i32 }" => "missing field `x`";
+    struct_unknown_field: "fn main() { let p = Point { y: 1 }; } struct Point { x: i32 }" => "has no field `y`";
+    struct_duplicate_initializer: "fn main() { let p = Point { x: 1, x: 2 }; } struct Point { x: i32 }" => "initialized more than once";
+    struct_field_type: "fn main() { let p = Point { x: true }; } struct Point { x: i32 }" => "type mismatch";
+    struct_read_unknown: "fn main() { let p = Point { x: 1 }; p.y; } struct Point { x: i32 }" => "has no field `y`";
+    struct_recursive: "struct Point { x: Point }" => "infinite size";
+    struct_immutable: "fn main() { let p = Point { x: 1 }; p.x = 2; } struct Point { x: i32 }" => "immutable";
+    struct_nominal_types: "fn main() { let mut a = A { x: 1 }; a = B { x: 2 }; } struct A { x: i32 } struct B { x: i32 }" => "type mismatch";
     break_outside_loop: "fn main() { break; }" => "only allowed inside a loop";
     continue_outside_loop: "fn main() { continue; }" => "only allowed inside a loop";
     nested_function_continue: "fn main() { loop { fn nested() { continue; } break; } }" => "only allowed inside a loop";
