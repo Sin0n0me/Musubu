@@ -23,6 +23,35 @@ macro_rules! execution_tests {
 }
 
 execution_tests! {
+    enum_subject_once: "fn main() -> i32 { let mut n = 0; let r = match { n += 1; E::V(n) } { E::A => 0, E::V(x) => x }; n * 10 + r } enum E { A, V(i32) }" => 11;
+    enum_named_evaluation_order: "fn main() -> i32 { let mut n = 0; let v = E::V { y: { n += 1; n }, x: { n += 1; n } }; match v { E::V { x, y } => x * 10 + y } } enum E { V { x: i32, y: i32 } }" => 21;
+    enum_match_shadow: "fn main() -> i32 { let x = 3; let n = match E::V(7) { E::V(x) => x }; x * 10 + n } enum E { V(i32) }" => 37;
+    enum_match_mut_named: "fn main() -> i32 { match (E::V { x: 3 }) { E::V { mut x } => { x += 4; x } } } enum E { V { x: i32 } }" => 7;
+    enum_payload_wildcard: "fn main() -> i32 { match E::V(1, 7) { E::V(_, n) => n } } enum E { V(i32, i32) }" => 7;
+    enum_nested_coverage_product: "fn main() -> i32 { match E::Pair(I::B, I::B) { E::Pair(I::A, _) => 1, E::Pair(I::B, I::A) => 2, E::Pair(I::B, I::B) => 7 } } enum E { Pair(I, I) } enum I { A, B }" => 7;
+    enum_match_in_condition: "fn main() -> i32 { if match E::A { E::A => { let e = E::V { x: 1 }; true }, E::V { .. } => false } { 7 } else { 0 } } enum E { A, V { x: i32 } }" => 7;
+    enum_match_break_value: "fn main() -> i32 { loop { match E::V(7) { E::A => break 0, E::V(n) => break n } } } enum E { A, V(i32) }" => 7;
+    enum_return_from_match: "fn main() -> i32 { match make(E::A) { E::A => 0, E::V(n) => n } } fn make(e: E) -> E { match e { E::A => return E::V(7), E::V(n) => return E::V(n) } } enum E { A, V(i32) }" => 7;
+    enum_empty_type_match: "fn main() -> i32 { 7 } fn impossible(e: Empty) -> E { match e {} } enum Empty {} enum E { A }" => 7;
+    enum_trailing_commas: "fn main() -> i32 { match E::V(7,) { E::V(n,) => { n }, } } enum E { V(i32,), }" => 7;
+    enum_unit: "fn main() -> i32 { let c = Color::Blue; match c { Color::Red => 1, Color::Blue => 2 } } enum Color { Red, Blue }" => 2;
+    enum_tuple: "fn main() -> i32 { let v = Number::Value(7); match v { Number::None => 0, Number::Value(x) => x } } enum Number { None, Value(i32) }" => 7;
+    enum_named: "fn main() -> i32 { let v = Number::Pair { y: 4, x: 3 }; match v { Number::Pair { x, y } => x * 10 + y } } enum Number { Pair { x: i32, y: i32 } }" => 34;
+    enum_function: "fn main() -> i32 { read(make(7)) } fn make(x: i32) -> Number { Number::Value(x) } fn read(n: Number) -> i32 { match n { Number::None => 0, Number::Value(x) => x } } enum Number { None, Value(i32) }" => 7;
+    enum_explicit_return: "fn main() -> i32 { match make() { E::V(x) => x } } fn make() -> E { return E::V(7); } enum E { V(i32) }" => 7;
+    enum_match_wildcard: "fn main() -> i32 { match E::B { E::A => 1, _ => 7 } } enum E { A, B, C }" => 7;
+    enum_match_binding: "fn main() -> i32 { match E::B { v => match v { E::A => 0, E::B => 7 } } } enum E { A, B }" => 7;
+    enum_named_rest: "fn main() -> i32 { match (E::V { x: 7, y: 2 }) { E::V { x: n, .. } => n } } enum E { V { x: i32, y: i32 } }" => 7;
+    enum_nested_pattern: "fn main() -> i32 { match Outer::V(Inner::B(7)) { Outer::V(Inner::A) => 0, Outer::V(Inner::B(x)) => x } } enum Outer { V(Inner) } enum Inner { A, B(i32) }" => 7;
+    enum_copy_payload: "fn main() -> i32 { let e = E::V(Point { x: 3 }); let n = match e { E::V(mut p) => { p.x = 8; p.x } }; match e { E::V(p) => p.x * 10 + n } } enum E { V(Point) } struct Point { x: i32 }" => 38;
+    enum_in_struct: "fn main() -> i32 { let mut p = Point { e: E::A }; p.e = E::B(7); match p.e { E::A => 0, E::B(n) => n } } struct Point { e: E } enum E { A, B(i32) }" => 7;
+    enum_array: "fn main() -> i32 { let mut s = 0; for e in [E::A, E::B(7)] { s += match e { E::A => 1, E::B(n) => n }; } s } enum E { A, B(i32) }" => 8;
+    enum_match_returns: "fn main() -> i32 { match E::B(7) { E::A => return 0, E::B(n) => return n, } } enum E { A, B(i32) }" => 7;
+    enum_match_mixed_return: "fn main() -> i32 { match E::B(7) { E::A => return 0, E::B(n) => n } } enum E { A, B(i32) }" => 7;
+    enum_match_continue: "fn main() -> i32 { let mut s = 0; for e in [E::A, E::B(7)] { let x = match e { E::A => continue, E::B(n) => n }; s += x; } s } enum E { A, B(i32) }" => 7;
+    enum_reassignment: "fn main() -> i32 { let mut e: E = E::A; e = E::B(7); match e { E::A => 0, E::B(n) => n } } enum E { A, B(i32) }" => 7;
+    enum_empty_shapes: "fn main() -> i32 { let a = E::T(); let b = E::S {}; match a { E::U => 0, E::T() => match b { E::U => 0, E::T() => 1, E::S {} => 7 }, E::S {} => 2 } } enum E { U, T(), S {} }" => 7;
+    enum_multi_payload: "fn main() -> i32 { match E::V(3, 4) { E::V(x, y) => x * 10 + y } } enum E { V(i32, i32) }" => 34;
     struct_type_namespace: "fn main() -> i32 { let Point = 9; let p: Point = Point { x: Point }; p.x } struct Point { x: i32 }" => 9;
     struct_operand_snapshot: "fn main() -> i32 { let mut p = Point { x: 3 }; let q = Pair { x: p.x, y: { p.x = 7; p.x } }; q.x + q.y } struct Point { x: i32 } struct Pair { x: i32, y: i32 }" => 10;
     struct_infinite_function: "fn main() -> i32 { 7 } fn forever() -> Point { loop {} } struct Point { x: i32 }" => 7;
@@ -106,6 +135,36 @@ macro_rules! diagnostic_tests {
 }
 
 diagnostic_tests! {
+    enum_missing_match_arms: "fn main() { match E::A {} } enum E { A }" => "non-exhaustive";
+    enum_unreachable_nested: "fn main() { match E::V(I::A) { E::V(_) => {}, E::V(I::A) => {} } } enum E { V(I) } enum I { A, B }" => "unreachable match arm";
+    enum_missing_product_case: "fn main() { match E::V(I::A, I::B) { E::V(I::A, _) => {}, E::V(I::B, I::A) => {} } } enum E { V(I, I) } enum I { A, B }" => "non-exhaustive";
+    enum_pattern_unknown_field: "fn main() { match (E::V { x: 1 }) { E::V { y } => {} } } enum E { V { x: i32 } }" => "has no field";
+    enum_pattern_duplicate_field: "fn main() { match (E::V { x: 1 }) { E::V { x: a, x: b } => {} } } enum E { V { x: i32 } }" => "duplicate pattern field";
+    enum_pattern_missing_field: "fn main() { match E::V(1, 2) { E::V(x) => {} } } enum E { V(i32, i32) }" => "pattern expects 2 fields";
+    enum_pattern_wrong_shape: "fn main() { match E::V(1) { E::V => {} } } enum E { V(i32) }" => "wrong pattern shape";
+    enum_constructor_wrong_shape: "fn main() { E::A(); } enum E { A }" => "not a tuple variant";
+    enum_binding_immutable: "fn main() { match E::V(1) { E::V(x) => { x = 2; } } } enum E { V(i32) }" => "immutable";
+    enum_wrong_return: "fn f() -> E { F::A } enum E { A } enum F { A }" => "return";
+    enum_missing_return: "fn f() -> E {} enum E { A }" => "return";
+    enum_not_enum_match: "fn main() { match 1 { _ => {} } }" => "match requires an enum";
+    enum_nonexhaustive: "fn main() { match E::A { E::A => {} } } enum E { A, B }" => "non-exhaustive";
+    enum_unreachable: "fn main() { match E::A { _ => {}, E::A => {} } } enum E { A }" => "unreachable match arm";
+    enum_unknown_variant: "fn main() { E::Missing; } enum E { A }" => "has no variant";
+    enum_duplicate_variant: "enum E { A, A }" => "duplicate";
+    enum_wrong_payload: "fn main() { E::V(true); } enum E { V(i32) }" => "type mismatch";
+    enum_wrong_arity: "fn main() { E::V(1, 2); } enum E { V(i32) }" => "expects 1 fields";
+    enum_missing_payload: "fn main() { E::V; } enum E { V(i32) }" => "requires a payload";
+    enum_missing_named_field: "fn main() { E::V {}; } enum E { V { x: i32 } }" => "missing field";
+    enum_unknown_named_field: "fn main() { E::V { y: 1 }; } enum E { V { x: i32 } }" => "has no field";
+    enum_duplicate_named_field: "fn main() { E::V { x: 1, x: 2 }; } enum E { V { x: i32 } }" => "initialized more than once";
+    enum_wrong_pattern_type: "fn main() { match E::A { F::A => {} } } enum E { A } enum F { A }" => "type mismatch";
+    enum_wrong_arm_type: "fn main() { let x = match E::A { E::A => 1, E::B => true }; } enum E { A, B }" => "type mismatch";
+    enum_pattern_scope: "fn main() { match E::V(1) { E::V(x) => {} } x; } enum E { V(i32) }" => "cannot resolve path `x`";
+    enum_duplicate_binding: "fn main() { match E::V(1, 2) { E::V(x, x) => {} } } enum E { V(i32, i32) }" => "duplicate pattern binding";
+    enum_nested_nonexhaustive: "fn main() { match O::V(I::A) { O::V(I::A) => {} } } enum O { V(I) } enum I { A, B }" => "non-exhaustive";
+    enum_recursive: "enum E { V(E) }" => "infinite size";
+    enum_struct_recursive: "struct S { e: E } enum E { V(S) }" => "infinite size";
+    enum_nominal: "fn main() { let mut x = E::A; x = F::A; } enum E { A } enum F { A }" => "type mismatch";
     struct_variable_is_not_type: "fn main() { let p = 1; let q: p = 2; }" => "cannot determine type";
     struct_break_before_return: "fn make() -> A { loop { break; return A { x: 1 }; } } struct A { x: i32 }" => "return";
     struct_missing_return: "fn make() -> A { } struct A { x: i32 }" => "return";
