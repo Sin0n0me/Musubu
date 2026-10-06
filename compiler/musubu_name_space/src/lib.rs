@@ -335,11 +335,12 @@ impl<'a> StructItem<'a> {
 
 impl<'a> ToPrimitiveType for StructItem<'a> {
     fn to_type(&self) -> PrimitiveType {
-        PrimitiveType::Struct {
-            elements: self
+        PrimitiveType::NamedStruct {
+            name: self.name.to_string(),
+            fields: self
                 .fields
                 .iter()
-                .map(|(_, field_symbol)| field_symbol.type_kind.clone())
+                .map(|(name, field_symbol)| (name.to_string(), field_symbol.type_kind.clone()))
                 .collect(),
         }
     }

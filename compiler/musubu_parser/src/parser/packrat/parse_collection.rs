@@ -10,7 +10,10 @@ impl PackratAndPrattParser {
             return Ok(memo);
         }
         self.tokens.next();
+        let allowed = self.allow_struct_literal;
+        self.allow_struct_literal = true;
         let result = self.parse_array_elements();
+        self.allow_struct_literal = allowed;
         match result {
             Ok(elements) => self.make_memo_from(key, Expression::Array { elements }),
             Err(error) => self.make_memo_from_result(key, Err(error)),

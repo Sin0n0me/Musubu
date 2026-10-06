@@ -37,7 +37,8 @@ fn visit_block(block: &HIRBlock, count: &mut usize) {
 fn visit_expression(expression: &HIRExpression, count: &mut usize) {
     match expression {
         HIRExpression::Variable { id, .. } => include(count, *id),
-        HIRExpression::Store { target, value } => {
+        HIRExpression::Store { target, value }
+        | HIRExpression::StoreField { target, value, .. } => {
             include(count, *target);
             visit_expression(value, count);
         }
@@ -61,6 +62,12 @@ fn visit_expression(expression: &HIRExpression, count: &mut usize) {
             }
         }
         HIRExpression::ArrayRepeat { value, .. } => visit_expression(value, count),
+        HIRExpression::Field { parent, .. } => visit_expression(parent, count),
+        HIRExpression::Struct { fields, .. } => {
+            for (_, value) in fields {
+                visit_expression(value, count);
+            }
+        }
         HIRExpression::For {
             symbol,
             iterator,

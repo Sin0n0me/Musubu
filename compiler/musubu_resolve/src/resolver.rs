@@ -1,4 +1,6 @@
 mod collections;
+mod control_flow;
+mod structures;
 
 use crate::errors::ResolveError;
 use crate::{Lowered, ResolveResult, Resolver};
@@ -93,6 +95,21 @@ impl<'a> Resolver<'a> {
             let return_type = return_type.type_kind.clone();
             let body = s.resolve_expression(body_expr)?.hir.to_block();
 
+            let actual = body.to_type();
+            if actual != return_type
+                && (!actual.is_unit()
+                    || (matches!(return_type, PrimitiveType::NamedStruct { .. })
+                        && control_flow::can_complete(&body)))
+            {
+                return Err(
+                    musubu_type_check::errors::TypeCheckError::FunctionReturnMismatch {
+                        expected: return_type,
+                        found: actual,
+                    }
+                    .into(),
+                );
+            }
+
             let hir = s.desugar.lower_function(args, return_type, body)?;
 
             Ok(Lowered { type_symbol, hir })
@@ -139,7 +156,7 @@ impl<'a> Resolver<'a> {
         fields: &'a [Spanned<StructField>],
     ) -> ResolveResult<()> {
         // 事前importで解決済み
-        if self.collector.remove(name) || self.resolve_mode.is_squential() {
+        if self.collector.remove(name) && self.resolve_mode.is_unordered() {
             return Ok(());
         }
 
@@ -166,6 +183,9 @@ impl<'a> Resolver<'a> {
         let diagnostic_span = expression.span;
         (|| {
             let lowered = match expression.get_node() {
+                Expression::StructLiteral { path, fields } => {
+                    self.resolve_struct_literal(path.as_ref_spanned(), fields)?
+                }
                 Expression::Literal(literal) => self.resolve_literal(literal.as_ref_spanned())?,
                 Expression::Path(path) => {
                     let (hir, type_symbol) = self.resolve_path(path.as_ref_spanned())?.split();
@@ -368,7 +388,10 @@ impl<'a> Resolver<'a> {
         let lhs = self.resolve_expression(&left)?;
         let rhs = self.resolve_expression(&right)?;
 
-        if !matches!(&lhs.hir, HIRExpression::Variable { .. }) {
+        if !matches!(
+            &lhs.hir,
+            HIRExpression::Variable { .. } | HIRExpression::Field { .. }
+        ) {
             return Err(ResolveError::from(
                 musubu_desugar::errors::DesugarError::UnsupportedAssignTarget,
             )
@@ -548,10 +571,7 @@ impl<'a> Resolver<'a> {
         expression: &Spanned<&'a Expression>,
         field_name: &'a str,
     ) -> ResolveResult<Lowered<HIRExpression>> {
-        return Err(ResolveError::Unsupported {
-            feature: "field access",
-        });
-        //Ok(Lowered { type_symbol, hir })
+        self.resolve_struct_field(expression, field_name)
     }
 
     fn resolve_method_call(
@@ -973,6 +993,11 @@ impl<'a> Resolver<'a> {
     }
 
     fn resolve_type(&mut self, type_kind: Spanned<&'a TypeKind>) -> ResolveResult<TypeSymbol> {
+        if let TypeKind::PathType(path) = type_kind.node {
+            return self
+                .import_path(path.as_ref_spanned())
+                .map_err(|error| error.at(type_kind.span));
+        }
         let diagnostic_span = type_kind.span;
         (|| {
             let type_kind = &type_kind.node;

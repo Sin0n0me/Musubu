@@ -5,7 +5,7 @@ use alloc::string::ToString;
 use alloc::vec::Vec;
 use musubu_ast::*;
 use musubu_name_space::{FunctionItem, ItemStore, ItemSymbol, StructItem};
-use musubu_primitive::PrimitiveType;
+use musubu_primitive::{PrimitiveType, ToPrimitiveType};
 use musubu_scope::TypeSymbol;
 use musubu_span::{Spanned, SpannedAsRef};
 
@@ -52,8 +52,41 @@ impl<'a> Resolver<'a> {
         nodes: &[&'a ASTNode],
     ) -> ResolveResult<()> {
         self.enter_module(module_name, |s| {
+            let mut names = BTreeSet::new();
+            for node in nodes {
+                if let ASTNode::Item { item, .. } = node {
+                    let name = match &item.node {
+                        Item::Struct { name, .. }
+                        | Item::Function { name, .. }
+                        | Item::Enumeration { name, .. }
+                        | Item::Union { name, .. } => name,
+                    };
+                    if !names.insert(name) {
+                        return Err(ResolveError::DuplicateDefinition {
+                            name: name.to_string(),
+                        }
+                        .at(item.span));
+                    }
+                }
+            }
+            let mut visiting = BTreeSet::new();
+            for node in nodes {
+                if let ASTNode::Item { item, .. } = node {
+                    if let Item::Struct { name, .. } = &item.node {
+                        s.import_struct_dependency(name, nodes, &mut visiting)?;
+                    }
+                }
+            }
             for node in nodes {
                 match node {
+                    ASTNode::Item {
+                        item:
+                            Spanned {
+                                node: Item::Struct { .. },
+                                ..
+                            },
+                        ..
+                    } => {}
                     ASTNode::Item {
                         visibility: _,
                         item,
@@ -64,6 +97,39 @@ impl<'a> Resolver<'a> {
 
             Ok(())
         })
+    }
+
+    fn import_struct_dependency(
+        &mut self,
+        name: &'a str,
+        nodes: &[&'a ASTNode],
+        visiting: &mut BTreeSet<&'a str>,
+    ) -> ResolveResult<()> {
+        if self.collector.contains(name) {
+            return Ok(());
+        }
+        let Some(item) = nodes.iter().find_map(|node| match node {
+            ASTNode::Item { item, .. } if matches!(&item.node, Item::Struct { name: n, .. } if n == name) => Some(item),
+            _ => None,
+        }) else { return Ok(()); };
+        if !visiting.insert(name) {
+            return Err(ResolveError::InvalidStruct {
+                message: alloc::format!("recursive struct `{name}` has infinite size"),
+            }
+            .at(item.span));
+        }
+        let Item::Struct { fields, .. } = &item.node else {
+            unreachable!()
+        };
+        for field in fields {
+            if let TypeKind::PathType(path) = &field.node.field_type.node {
+                self.import_struct_dependency(path.node.last_ident(), nodes, visiting)?;
+            }
+        }
+        self.import_struct(name, fields)
+            .map_err(|error| error.at(item.span))?;
+        visiting.remove(name);
+        Ok(())
     }
 
     pub(crate) fn import_item(
@@ -188,6 +254,11 @@ impl<'a> Resolver<'a> {
     }
 
     fn import_type(&mut self, type_kind: Spanned<&'a TypeKind>) -> ResolveResult<TypeSymbol> {
+        if let TypeKind::PathType(path) = type_kind.node {
+            return self
+                .import_path(path.as_ref_spanned())
+                .map_err(|error| error.at(type_kind.span));
+        }
         let diagnostic_span = type_kind.span;
         (|| {
             let type_kind = &type_kind.node;
@@ -199,7 +270,7 @@ impl<'a> Resolver<'a> {
         .map_err(|error: ResolveError| error.at(diagnostic_span))
     }
 
-    fn import_path(&mut self, path: Spanned<&'a Path>) -> ResolveResult<TypeSymbol> {
+    pub(super) fn import_path(&mut self, path: Spanned<&'a Path>) -> ResolveResult<TypeSymbol> {
         let path = &path.node;
 
         let name = path.last_ident();
@@ -208,11 +279,13 @@ impl<'a> Resolver<'a> {
             return Ok(TypeSymbol::new(type_kind));
         }
 
-        self.name_resolver
-            .get_type(name)
-            .ok_or(ResolveError::UnresolvedType {
+        // Type paths use the type namespace, independently of local value bindings.
+        match self.name_resolver.get_item(name) {
+            Some(ItemSymbol::Struct(item)) => Ok(TypeSymbol::new(item.to_type())),
+            Some(ItemSymbol::Enumeration(item)) => Ok(TypeSymbol::new(item.to_type())),
+            _ => Err(ResolveError::UnresolvedType {
                 name: name.to_string(),
-            })
-            .cloned()
+            }),
+        }
     }
 }

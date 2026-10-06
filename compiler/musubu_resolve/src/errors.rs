@@ -13,6 +13,9 @@ use musubu_type_check::errors::TypeCheckError;
 
 #[derive(Debug)]
 pub enum ResolveError {
+    InvalidStruct {
+        message: String,
+    },
     Located {
         span: Span,
         error: Box<ResolveError>,
@@ -96,6 +99,7 @@ impl fmt::Display for ResolveError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Located { error, .. } => write!(f, "{error}"),
+            Self::InvalidStruct { message } => write!(f, "{message}"),
             Self::Unsupported { feature } => write!(f, "unsupported feature: {feature}"),
             Self::InvalidBreakValue => write!(f, "only `loop` may return a value with `break`"),
             Self::InvalidArrayLength => write!(

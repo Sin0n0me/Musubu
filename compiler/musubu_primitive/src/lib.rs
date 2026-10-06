@@ -20,6 +20,10 @@ pub trait ToPrimitiveType {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PrimitiveType {
+    NamedStruct {
+        name: String,
+        fields: Vec<(String, PrimitiveType)>,
+    },
     Unit, // void
     Boolean,
     Integer {
@@ -103,7 +107,7 @@ impl PrimitiveType {
     }
 
     pub fn is_struct(&self) -> bool {
-        matches!(self, Self::Struct { .. })
+        matches!(self, Self::Struct { .. } | Self::NamedStruct { .. })
     }
 
     pub fn is_array(&self) -> bool {
@@ -116,6 +120,7 @@ impl PrimitiveType {
 
     pub fn is_valid(&self) -> bool {
         match self {
+            Self::NamedStruct { fields, .. } => fields.iter().all(|(_, ty)| ty.is_valid()),
             Self::Unit | Self::Boolean => true,
             Self::Integer { byte, .. } | Self::Float { byte } => *byte > 0,
             Self::Struct { elements } => {
@@ -169,6 +174,9 @@ impl PrimitiveType {
     }
 
     pub fn from(name: &str) -> Option<Self> {
+        if name == "bool" {
+            return Some(Self::Boolean);
+        }
         if let Some(postfix) = name.strip_prefix("i") {
             let mut chars = postfix.chars();
             let bit_width = Self::parse_number(&mut chars)?;
@@ -306,6 +314,7 @@ impl PrimitiveType {
 impl ToString for PrimitiveType {
     fn to_string(&self) -> String {
         match self {
+            Self::NamedStruct { name, .. } => name.clone(),
             Self::Unit => "void".to_string(),
             Self::Boolean => "bool".to_string(),
             Self::Integer { signed, byte } => {
@@ -351,6 +360,10 @@ impl ToString for PrimitiveType {
 
 #[derive(Debug, Clone)]
 pub enum Value {
+    Struct {
+        fields: Vec<Value>,
+        struct_type: PrimitiveType,
+    },
     Array {
         elements: Vec<Value>,
         element_type: PrimitiveType,
@@ -372,6 +385,7 @@ pub enum Value {
 impl ToPrimitiveType for Value {
     fn to_type(&self) -> PrimitiveType {
         match self {
+            Self::Struct { struct_type, .. } => struct_type.clone(),
             Self::Array {
                 elements,
                 element_type,

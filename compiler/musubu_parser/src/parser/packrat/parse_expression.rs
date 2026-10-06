@@ -296,7 +296,7 @@ impl PackratAndPrattParser {
 
         // Expression
         // 条件式
-        let Ok(condition) = self.get_expr(Self::parse_expression) else {
+        let Ok(condition) = self.get_expr(Self::parse_condition_expression) else {
             return self.make_memo_from_result(key, Err(ParseError::NotMatch));
         };
 

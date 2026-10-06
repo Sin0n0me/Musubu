@@ -6,6 +6,7 @@ mod collections;
 pub mod errors;
 mod locals;
 mod register_allocator;
+mod structures;
 
 use crate::errors::IRCompileError;
 use crate::register_allocator::RegisterAllocator;
@@ -152,6 +153,9 @@ impl IRCompiler {
 
     fn compile_expr(&mut self, expr: &HIRExpression) -> IRCompileResult<Option<Register>> {
         match expr {
+            HIRExpression::Struct { .. }
+            | HIRExpression::Field { .. }
+            | HIRExpression::StoreField { .. } => self.compile_struct_expression(expr),
             HIRExpression::Block(block) => self.compile_block(block),
             HIRExpression::If {
                 cond,
