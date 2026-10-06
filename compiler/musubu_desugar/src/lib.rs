@@ -314,7 +314,10 @@ impl<'a> Desugar<'a> {
 
     // loopはそのまま
     pub fn lower_loop(&mut self, body: HIRBlock) -> DesugarResult<HIRExpression> {
-        let hir = HIRExpression::Loop { body };
+        let hir = HIRExpression::Loop {
+            body,
+            result_type: PrimitiveType::Unit,
+        };
         Ok(hir)
     }
 
@@ -339,6 +342,7 @@ impl<'a> Desugar<'a> {
 
         let hir = HIRExpression::Loop {
             body: if_expr.to_block(),
+            result_type: PrimitiveType::Unit,
         };
 
         Ok(hir)
@@ -358,12 +362,14 @@ impl<'a> Desugar<'a> {
     pub fn lower_for(
         &mut self,
         id: usize,
-        symbol_type: PrimitiveType,
+        _symbol_type: PrimitiveType,
         iterator: HIRExpression,
         body: HIRBlock,
     ) -> DesugarResult<HIRExpression> {
-        Err(DesugarError::Unsupported {
-            feature: "for loops",
+        Ok(HIRExpression::For {
+            symbol: id,
+            iterator: Box::new(iterator),
+            body,
         })
     }
 

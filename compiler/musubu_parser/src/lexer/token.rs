@@ -115,8 +115,9 @@ pub enum MusubuOperator {
     Comparison(ComparisonOperator),
     Logical(LogicalOperator),
 
-    Question,         // ?
-    Dot,              // .
+    Question, // ?
+    Dot,      // .
+    DotDotEqual,
     DotDot,           // ..
     DotDotDot,        // ...
     LeftArrow,        // <-
@@ -180,6 +181,7 @@ impl MusubuOperator {
 
             // 代入演算子(右結合なので L < R)
             Self::Assign(_) => (100, 99),
+            Self::DotDot | Self::DotDotEqual => (120, 121),
 
             _ => return None,
         };

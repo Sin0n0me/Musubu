@@ -251,7 +251,28 @@ fn tokenize_number(iter: &mut ParseIter, _number: &str, position: usize) -> Pars
                 position,
             })
         }
-        TokenKind::Symbol(Symbol::Dot) => tokenize_float_literal(iter, &value, position),
+        TokenKind::Symbol(Symbol::Dot) => {
+            let mut lookahead = iter.clone();
+            lookahead.next();
+            if matches!(
+                lookahead.peek().map(|token| &token.token_kind),
+                Some(TokenKind::Symbol(Symbol::Dot))
+            ) {
+                lookahead.next();
+                if lookahead.peek().is_none() {
+                    return Err(TokenStreamParseError::InvalidNumber);
+                }
+                Ok(MusubuToken {
+                    token_kind: MusubuTokenKind::Literal(MusubuLiteral::Integer {
+                        value,
+                        suffix: None,
+                    }),
+                    position,
+                })
+            } else {
+                tokenize_float_literal(iter, &value, position)
+            }
+        }
         _ => Ok(MusubuToken {
             token_kind: MusubuTokenKind::Literal(MusubuLiteral::Integer {
                 value,
@@ -452,6 +473,7 @@ fn get_trinary_operator(iter: &mut ParseIter) -> Option<MusubuOperator> {
             MusubuOperator::Assign(AssignOperator::LeftShiftAssign)
         }
         [Symbol::Dot, Symbol::Dot, Symbol::Dot] => MusubuOperator::DotDotDot,
+        [Symbol::Dot, Symbol::Dot, Symbol::Equal] => MusubuOperator::DotDotEqual,
         _ => return None,
     };
 

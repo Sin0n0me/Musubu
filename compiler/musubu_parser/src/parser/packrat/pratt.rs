@@ -91,6 +91,18 @@ impl PackratAndPrattParser {
 
     fn expr_or_prefix_op(&mut self) -> Result<Rc<ASTNode>, ParseError> {
         // 演算子以外はExpressionとしてパース
+        if matches!(
+            self.tokens.get_operator(),
+            Some(MusubuOperator::Binary(BinaryOperator::Subtract))
+        ) {
+            return self.parse_negative_literal();
+        }
+        if self.tokens.get_operator() == Some(&MusubuOperator::LeftBrackets) {
+            return self
+                .parse_array_expression()?
+                .get_node()
+                .ok_or(ParseError::UnexpectedAST);
+        }
         let Some(op) = self.tokens.get_operator() else {
             return self
                 .parse_expression()?
@@ -118,6 +130,31 @@ impl PackratAndPrattParser {
             });
         }
         Err(ParseError::UnexpectedOperator)
+    }
+
+    fn parse_negative_literal(&mut self) -> Result<Rc<ASTNode>, ParseError> {
+        let start = self.tokens.get().ok_or(ParseError::UnexpectedEof)?.position;
+        self.tokens.next();
+        let literal = self
+            .tokens
+            .get_literal()
+            .cloned()
+            .ok_or(ParseError::Unsupported {
+                feature: "negation of non-literal expressions",
+            })?;
+        let end = self.tokens.token_end(self.tokens.get_position());
+        self.tokens.next();
+        let mut literal = literal.to_literal()?;
+        match &mut literal {
+            musubu_ast::Literal::Integer { value, .. }
+            | musubu_ast::Literal::Float { value, .. } => value.insert(0, '-'),
+            _ => return Err(ParseError::UnexpectedOperator),
+        }
+        Ok(Rc::new(literal.make_node(Span {
+            file_id: 0,
+            start: start as u32,
+            end: end as u32,
+        })))
     }
 
     fn postfix_pair_inside(&mut self, left_op: &MusubuOperator) -> Result<Rc<ASTNode>, ParseError> {
@@ -167,6 +204,14 @@ fn make_ast_from_operator(
             MusubuOperator::Assign(op) => make_assign_op_ast(span, op, lhs, rhs),
             MusubuOperator::Comparison(op) => make_comparison_op_ast(span, op, lhs, rhs),
             MusubuOperator::Logical(op) => make_logical_op_ast(span, op, lhs, rhs),
+            MusubuOperator::DotDot | MusubuOperator::DotDotEqual => Ok(Rc::new(
+                Expression::Range {
+                    start: lhs,
+                    end: rhs,
+                    inclusive: matches!(op, MusubuOperator::DotDotEqual),
+                }
+                .make_node(span),
+            )),
             _ => Err(ParseError::NotMatch),
         },
         [Some(lhs), Some(mhs), Some(rhs)] => Err(ParseError::Unsupported {

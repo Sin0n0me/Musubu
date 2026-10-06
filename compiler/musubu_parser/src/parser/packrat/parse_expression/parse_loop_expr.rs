@@ -87,7 +87,12 @@ impl PackratAndPrattParser {
         // Pattern
         let Ok(ASTNode::Pattern(pattern)) = self.get_node(Self::parse_pattern).as_deref().cloned()
         else {
-            unreachable!();
+            return self.make_memo_from_result(
+                key,
+                Err(ParseError::Expected {
+                    rule: "a binding pattern after `for`",
+                }),
+            );
         };
 
         // `in`

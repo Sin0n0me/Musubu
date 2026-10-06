@@ -1,10 +1,14 @@
-name: Rust Build
+name: Rust Build and Test
 
 on:
   push:
     branches:
       - master
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 env:
   RUST_TOOLCHAIN: "stable"
@@ -14,6 +18,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     strategy:
       matrix:
@@ -48,7 +53,15 @@ jobs:
       - name: Build
         run: |
           if [ "${{ matrix.profile }}" = "release" ]; then
-            cargo build --release --locked --verbose
+            cargo build --workspace --release --locked --verbose
           else
-            cargo build --locked --verbose
+            cargo build --workspace --locked --verbose
+          fi
+
+      - name: Test
+        run: |
+          if [ "${{ matrix.profile }}" = "release" ]; then
+            cargo test --workspace --release --locked --verbose
+          else
+            cargo test --workspace --locked --verbose
           fi

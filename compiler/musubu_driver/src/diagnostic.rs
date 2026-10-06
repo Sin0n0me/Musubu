@@ -5,6 +5,67 @@ use core::fmt::Write;
 
 const TAB_WIDTH: usize = 4;
 
+#[cfg(test)]
+mod tests {
+    use super::render;
+
+    #[test]
+    fn exact_span_with_surrounding_lines() {
+        assert_eq!(
+            render("src/main.msb", "before\nbad value\nafter", 7, 10, "invalid"),
+            "error: invalid\n   --> src/main.msb:2:1\n  |\n1 | before\n2 | bad value\n  | ^^^\n3 | after\n  |\n"
+        );
+    }
+
+    #[test]
+    fn unicode_columns_count_characters() {
+        assert_eq!(
+            render("a.msb", "あx", 3, 4, "invalid"),
+            "error: invalid\n   --> a.msb:1:2\n  |\n1 | あx\n  |  ^\n  |\n"
+        );
+    }
+
+    #[test]
+    fn tab_padding_and_crlf_are_rendered() {
+        assert_eq!(
+            render("a.msb", "\tx\r\nnext", 1, 2, "invalid"),
+            "error: invalid\n   --> a.msb:1:2\n  |\n1 |     x\n  |     ^\n2 | next\n  |\n"
+        );
+    }
+
+    #[test]
+    fn multiline_span_highlights_each_intersection() {
+        assert_eq!(
+            render("a.msb", "abc\ndef\nghi", 1, 6, "invalid"),
+            "error: invalid\n   --> a.msb:1:2\n  |\n1 | abc\n  |  ^^\n2 | def\n  | ^^\n3 | ghi\n  |\n"
+        );
+    }
+
+    #[test]
+    fn empty_input_still_has_a_caret() {
+        assert_eq!(
+            render("a.msb", "", 0, 0, "expected expression"),
+            "error: expected expression\n   --> a.msb:1:1\n  |\n1 | \n  | ^\n  |\n"
+        );
+    }
+
+    #[test]
+    fn eof_span_is_clamped() {
+        assert_eq!(
+            render("a.msb", "x\n", usize::MAX, usize::MAX, "unexpected EOF"),
+            "error: unexpected EOF\n   --> a.msb:2:1\n  |\n1 | x\n2 | \n  | ^\n  |\n"
+        );
+    }
+
+    #[test]
+    fn non_boundary_offsets_do_not_split_unicode() {
+        assert_eq!(
+            render("a", "あx", 1, 2, "bad"),
+            render("a", "あx", 0, 0, "bad")
+        );
+    }
+}
+
 fn boundary(source: &str, offset: usize) -> usize {
     let mut offset = offset.min(source.len());
     while !source.is_char_boundary(offset) {
