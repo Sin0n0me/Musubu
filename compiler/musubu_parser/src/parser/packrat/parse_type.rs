@@ -8,7 +8,7 @@ use musubu_ast::{ASTNode, Path, PathSegment, TypeKind};
 use musubu_primitive::PrimitiveType;
 use musubu_span::{Span, Spanned};
 
-impl<'a> PackratAndPrattParser<'a> {
+impl PackratAndPrattParser {
     // Type ::= TypeNoBounds
     pub(in crate::parser) fn parse_type(&mut self) -> ParseResult {
         let key = self.make_key("Type");
@@ -39,7 +39,7 @@ impl<'a> PackratAndPrattParser<'a> {
             return Ok(memo);
         }
 
-        let result = self.or(vec![Self::parse_type_path]);
+        let result = self.or(vec![Self::parse_tuple_type, Self::parse_type_path]);
         self.make_memo_from_result(key, result)
     }
 
@@ -150,7 +150,7 @@ impl<'a> PackratAndPrattParser<'a> {
 
         // `(`
         let Some(MusubuOperator::LeftParenthesis) = self.tokens.get_operator() else {
-            return self.make_memo_from_result(key, Err(ParseError::NotMatch));
+            return self.make_memo_from_result(key, Err(ParseError::Expected { rule: "`(`" }));
         };
         self.tokens.next();
 
@@ -168,7 +168,7 @@ impl<'a> PackratAndPrattParser<'a> {
 
         // `)`
         let Some(MusubuOperator::RightParenthesis) = self.tokens.get_operator() else {
-            return self.make_memo_from_result(key, Err(ParseError::NotMatch));
+            return self.make_memo_from_result(key, Err(ParseError::Expected { rule: "`)`" }));
         };
         self.tokens.next();
 

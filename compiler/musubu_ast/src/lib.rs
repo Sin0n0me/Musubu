@@ -1,6 +1,8 @@
 #![no_std]
 
 extern crate alloc;
+mod match_expression;
+pub use match_expression::{MatchArm, MatchPattern};
 
 use alloc::boxed::Box;
 use alloc::format;
@@ -93,6 +95,9 @@ impl NodeMaker for Item {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum EnumItem {
+    UnitItem {
+        name: String,
+    },
     StructItem {
         visibility: Visibility,
         name: String,
@@ -101,6 +106,7 @@ pub enum EnumItem {
     TupleItem {
         visibility: Visibility,
         name: String,
+        fields: SpannedVec<StructField>,
     },
 }
 
@@ -125,6 +131,15 @@ impl NodeMaker for StructField {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expression {
+    Tuple(SpannedVec<Expression>),
+    Match {
+        value: SpannedBox<Expression>,
+        arms: Vec<MatchArm>,
+    },
+    StructLiteral {
+        path: Spanned<Path>,
+        fields: Vec<(Spanned<String>, SpannedBox<Expression>)>,
+    },
     Literal(Spanned<Literal>),
     Path(Spanned<Path>),
     Binary {
@@ -146,6 +161,11 @@ pub enum Expression {
         operator: LogicalOperator,
         left: SpannedBox<Expression>,
         right: SpannedBox<Expression>,
+    },
+    Range {
+        start: SpannedBox<Expression>,
+        end: SpannedBox<Expression>,
+        inclusive: bool,
     },
     Array {
         elements: ArrayElements,
@@ -238,6 +258,7 @@ pub struct TypeAlias {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TypeKind {
+    Tuple(SpannedVec<TypeKind>),
     // 最終的にはすべてこのPrimitiveTypeになる
     Primitive(PrimitiveType),
 
@@ -255,6 +276,15 @@ pub enum TypeKind {
 impl ToString for TypeKind {
     fn to_string(&self) -> String {
         match self {
+            Self::Tuple(elements) => format!(
+                "({}{})",
+                elements
+                    .iter()
+                    .map(|t| t.node.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                if elements.len() == 1 { "," } else { "" }
+            ),
             Self::Primitive(t) => t.to_string(),
             Self::PathType(t) => t.node.to_string(),
             Self::Function {
@@ -353,6 +383,7 @@ pub enum AssignOperator {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Pattern {
+    Tuple(SpannedVec<Pattern>),
     None,
     Multiply(SpannedVec<Pattern>),
     Literal(Literal),

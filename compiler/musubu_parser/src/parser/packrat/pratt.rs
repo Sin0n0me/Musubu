@@ -9,7 +9,7 @@ use musubu_ast::{ASTNode, AssignOperator, Expression, NodeMaker};
 use musubu_primitive::{BinaryOperator, ComparisonOperator, LogicalOperator};
 use musubu_span::{Span, SpannedBox};
 
-impl<'a> PackratAndPrattParser<'a> {
+impl PackratAndPrattParser {
     // Pratt Parsing
     // メモ化はしない
     pub(in crate::parser) fn pratt_parse(&mut self, min_bp: u16) -> ParseResult {
@@ -17,12 +17,14 @@ impl<'a> PackratAndPrattParser<'a> {
         self.bp_stack.push(min_bp);
 
         // 前置演算子or式
-        let Ok(mut lhs) = self.expr_or_prefix_op() else {
-            return Err(ParseError::NotMatch);
-        };
+        let mut lhs = self.expr_or_prefix_op()?;
 
         // 演算子に応じた判定
         loop {
+            if let Some(member) = self.parse_struct_member(&lhs, min_bp, &key)? {
+                lhs = member;
+                continue;
+            }
             let Some(op) = self.tokens.get_operator().cloned() else {
                 break;
             };
@@ -36,7 +38,11 @@ impl<'a> PackratAndPrattParser<'a> {
 
                 lhs = if let Some(pair) = op.counterpart_of() {
                     // 中身だけを判断
-                    let rhs = self.postfix_pair_inside(&op)?;
+                    let allowed = self.allow_struct_literal;
+                    self.allow_struct_literal = true;
+                    let result = self.postfix_pair_inside(&op);
+                    self.allow_struct_literal = allowed;
+                    let rhs = result?;
                     if Some(&pair) != self.tokens.get_operator() {
                         return Err(ParseError::NotMatch);
                     }
@@ -92,7 +98,22 @@ impl<'a> PackratAndPrattParser<'a> {
     }
 
     fn expr_or_prefix_op(&mut self) -> Result<Rc<ASTNode>, ParseError> {
+        if self.tokens.get_operator() == Some(&MusubuOperator::LeftParenthesis) {
+            return self.parse_tuple_expression();
+        }
         // 演算子以外はExpressionとしてパース
+        if matches!(
+            self.tokens.get_operator(),
+            Some(MusubuOperator::Binary(BinaryOperator::Subtract))
+        ) {
+            return self.parse_negative_literal();
+        }
+        if self.tokens.get_operator() == Some(&MusubuOperator::LeftBrackets) {
+            return self
+                .parse_array_expression()?
+                .get_node()
+                .ok_or(ParseError::UnexpectedAST);
+        }
         let Some(op) = self.tokens.get_operator() else {
             return self
                 .parse_expression()?
@@ -103,24 +124,52 @@ impl<'a> PackratAndPrattParser<'a> {
         // ペア
         if let Some(pair) = op.counterpart_of() {
             self.tokens.next();
-            let lhs = self.pratt_parse(0)?.get_node();
-            if self.tokens.get_operator() == Some(&pair) {
-                return Err(ParseError::NotMatch);
+            let allowed = self.allow_struct_literal;
+            self.allow_struct_literal = true;
+            let result = self.pratt_parse(0);
+            self.allow_struct_literal = allowed;
+            let lhs = result?.get_node();
+            if self.tokens.get_operator() != Some(&pair) {
+                return Err(ParseError::Expected {
+                    rule: "a closing delimiter",
+                });
             }
             self.tokens.next();
             return lhs.ok_or(ParseError::NotMatch);
         }
 
         // その他演算子
-        let Some(r_bp) = op.get_prefix_binding_power() else {
-            return Err(ParseError::UnexpectedOperator);
-        };
-        self.tokens.next();
-        let Some(lhs) = self.pratt_parse(r_bp)?.get_node() else {
-            return Err(ParseError::UnexpectedOperator);
-        };
+        if op.get_prefix_binding_power().is_some() {
+            return Err(ParseError::Unsupported {
+                feature: "unary operators",
+            });
+        }
+        Err(ParseError::UnexpectedOperator)
+    }
 
-        Ok(lhs)
+    fn parse_negative_literal(&mut self) -> Result<Rc<ASTNode>, ParseError> {
+        let start = self.tokens.get().ok_or(ParseError::UnexpectedEof)?.position;
+        self.tokens.next();
+        let literal = self
+            .tokens
+            .get_literal()
+            .cloned()
+            .ok_or(ParseError::Unsupported {
+                feature: "negation of non-literal expressions",
+            })?;
+        let end = self.tokens.token_end(self.tokens.get_position());
+        self.tokens.next();
+        let mut literal = literal.to_literal()?;
+        match &mut literal {
+            musubu_ast::Literal::Integer { value, .. }
+            | musubu_ast::Literal::Float { value, .. } => value.insert(0, '-'),
+            _ => return Err(ParseError::UnexpectedOperator),
+        }
+        Ok(Rc::new(literal.make_node(Span {
+            file_id: 0,
+            start: start as u32,
+            end: end as u32,
+        })))
     }
 
     fn postfix_pair_inside(&mut self, left_op: &MusubuOperator) -> Result<Rc<ASTNode>, ParseError> {
@@ -159,22 +208,30 @@ fn make_ast_from_operator(
     let rhs = convert(rhs);
 
     match [lhs, mhs, rhs] {
-        [Some(lhs), None, None] => {
-            unimplemented!()
-        }
-        [None, None, Some(rhs)] => {
-            unimplemented!()
-        }
+        [Some(lhs), None, None] => Err(ParseError::Unsupported {
+            feature: "postfix operators",
+        }),
+        [None, None, Some(rhs)] => Err(ParseError::Unsupported {
+            feature: "unary operators",
+        }),
         [Some(lhs), None, Some(rhs)] => match op {
             MusubuOperator::Binary(op) => make_binary_op_ast(span, op, lhs, rhs),
             MusubuOperator::Assign(op) => make_assign_op_ast(span, op, lhs, rhs),
             MusubuOperator::Comparison(op) => make_comparison_op_ast(span, op, lhs, rhs),
             MusubuOperator::Logical(op) => make_logical_op_ast(span, op, lhs, rhs),
+            MusubuOperator::DotDot | MusubuOperator::DotDotEqual => Ok(Rc::new(
+                Expression::Range {
+                    start: lhs,
+                    end: rhs,
+                    inclusive: matches!(op, MusubuOperator::DotDotEqual),
+                }
+                .make_node(span),
+            )),
             _ => Err(ParseError::NotMatch),
         },
-        [Some(lhs), Some(mhs), Some(rhs)] => {
-            unimplemented!()
-        }
+        [Some(lhs), Some(mhs), Some(rhs)] => Err(ParseError::Unsupported {
+            feature: "ternary operators",
+        }),
         _ => unreachable!(),
     }
 }

@@ -115,8 +115,8 @@ impl TypeChecker {
         }
 
         match operator {
-            AssignOperator::Assign
-            | AssignOperator::AddAssign
+            AssignOperator::Assign => {}
+            AssignOperator::AddAssign
             | AssignOperator::SubAssign
             | AssignOperator::MulAssign
             | AssignOperator::DivAssign => {
@@ -155,7 +155,7 @@ impl TypeChecker {
 
         match operator {
             ComparisonOperator::Equal | ComparisonOperator::NotEqual => {
-                if !lhs.type_kind.is_integer() {
+                if !lhs.type_kind.is_scalar_type() && !lhs.type_kind.is_boolean() {
                     return Err(TypeCheckError::InvalidOperation {
                         op: format!("{:?}", operator),
                         reason: "unsupported comparison operator".into(),
@@ -175,7 +175,7 @@ impl TypeChecker {
             }
         }
 
-        Ok(lhs)
+        Ok(TypeSymbol::new(PrimitiveType::Boolean))
     }
 
     pub fn check_logical_operator(
@@ -302,6 +302,16 @@ impl TypeChecker {
     ) -> TypeCheckResult<TypeSymbol> {
         let ty = match type_kind {
             TypeKind::Primitive(ty) => TypeSymbol::new(ty.clone()),
+            TypeKind::Tuple(elements) => TypeSymbol::new(if elements.is_empty() {
+                PrimitiveType::Unit
+            } else {
+                PrimitiveType::Tuple {
+                    elements: elements
+                        .iter()
+                        .map(|ty| self.check_type(scope, &ty.node).map(|t| t.type_kind))
+                        .collect::<TypeCheckResult<_>>()?,
+                }
+            }),
             TypeKind::Function {
                 arguments,
                 return_type,
@@ -356,7 +366,7 @@ impl TypeChecker {
     ) -> TypeCheckResult<TypeSymbol> {
         let PrimitiveType::Function {
             return_type,
-            arguments,
+            arguments: parameters,
         } = &function.type_kind
         else {
             return Err(TypeCheckError::NotCallable {
@@ -364,25 +374,36 @@ impl TypeChecker {
             });
         };
 
-        // TODO
+        if parameters.len() != arguments.len() {
+            return Err(TypeCheckError::ArgumentCountMismatch {
+                expected: parameters.len(),
+                found: arguments.len(),
+            });
+        }
+        for (expected, found) in parameters.iter().zip(arguments) {
+            if expected != &found.type_kind {
+                return Err(TypeCheckError::TypeMismatch {
+                    expected: expected.clone(),
+                    found: found.type_kind.clone(),
+                });
+            }
+        }
 
         Ok(TypeSymbol::new(return_type.as_ref().clone()))
     }
 
     pub fn check_loop_expr<'a>(
         &self,
-        scope: &Scope<'a>,
+        _scope: &Scope<'a>,
         body: TypeSymbol,
     ) -> TypeCheckResult<TypeSymbol> {
-        let expect = scope.get_return_type();
-        if !expect.is_same_type(&body) {
+        if !body.type_kind.is_unit() {
             return Err(TypeCheckError::TypeMismatch {
-                expected: expect.type_kind.clone(),
+                expected: PrimitiveType::Unit,
                 found: body.type_kind,
             });
         }
-
-        Ok(body)
+        Ok(TypeSymbol::default())
     }
 
     pub fn check_while_expr<'a>(
@@ -402,7 +423,10 @@ impl TypeChecker {
         body: TypeSymbol,
     ) -> TypeCheckResult<TypeSymbol> {
         // TODO
-        if !iterator.type_kind.is_array() {
+        if !matches!(
+            iterator.type_kind,
+            PrimitiveType::Array { .. } | PrimitiveType::Range { .. }
+        ) {
             return Err(TypeCheckError::NotIterable {
                 found: iterator.type_kind,
             });
@@ -472,9 +496,31 @@ impl TypeChecker {
 
                 //scope.resolve_variable_type(ident, variable_type)?;
             }
+            Pattern::Tuple(patterns) => {
+                let elements = match variable_type {
+                    PrimitiveType::Tuple { elements } => elements.as_slice(),
+                    PrimitiveType::Unit => &[],
+                    _ => {
+                        return Err(TypeCheckError::UnknownPattern {
+                            name: alloc::format!("{pattern:?}"),
+                        });
+                    }
+                };
+                if patterns.len() != elements.len() {
+                    return Err(TypeCheckError::TupleCountMismatch {
+                        expected: elements.len(),
+                        found: patterns.len(),
+                    });
+                }
+                for (pattern, ty) in patterns.iter().zip(elements) {
+                    self.resolve_pattern(scope, &pattern.node, ty)?;
+                }
+            }
             Pattern::Multiply(patterns) => {
                 let PrimitiveType::Struct { elements } = variable_type else {
-                    unimplemented!() // TODO
+                    return Err(TypeCheckError::UnknownPattern {
+                        name: alloc::format!("{pattern:?}"),
+                    });
                     // return Err(TypeCheckError::);
                 };
 

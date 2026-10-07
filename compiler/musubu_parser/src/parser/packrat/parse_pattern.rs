@@ -8,7 +8,7 @@ use musubu_ast::{ASTNode, Literal, Pattern};
 use musubu_primitive::BinaryOperator;
 use musubu_span::Spanned;
 
-impl<'a> PackratAndPrattParser<'a> {
+impl PackratAndPrattParser {
     // Pattern ::= `|`? PatternNoTopAlt ( `|` PatternNoTopAlt )*
     pub(in crate::parser) fn parse_pattern(&mut self) -> ParseResult {
         let key = self.make_key("Pattern");
@@ -84,9 +84,16 @@ impl<'a> PackratAndPrattParser<'a> {
     //                       | IDENTIFIERPattern
     //
     fn parse_pattern_without_range(&mut self) -> ParseResult {
+        if self.tokens.get_operator() == Some(&MusubuOperator::LeftParenthesis) {
+            return self.parse_tuple_pattern();
+        }
         let key = self.make_key("PatternWithoutRange");
         if let Some(memo) = self.get_memo(&key) {
             return Ok(memo);
+        }
+        if self.tokens.get_operator() == Some(&crate::lexer::token::MusubuOperator::Underscore) {
+            self.tokens.next();
+            return self.make_memo_from(key, Pattern::None);
         }
         let result = self.or(vec![
             Self::parse_literal_pattern,

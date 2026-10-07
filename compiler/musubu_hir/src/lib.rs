@@ -1,6 +1,8 @@
 #![no_std]
 
 extern crate alloc;
+mod match_expression;
+pub use match_expression::{HIRMatchArm, HIRMatchPattern};
 
 use alloc::boxed::Box;
 use alloc::collections::btree_map::BTreeMap;
@@ -11,6 +13,8 @@ use musubu_primitive::*;
 pub struct HIRModule {
     pub functions: BTreeMap<usize, HIRFunction>,
     pub globals: Vec<HIRGlobal>,
+    /// Half-open UTF-8 byte ranges of function bodies, keyed by function ID.
+    pub function_ranges: BTreeMap<usize, (usize, usize)>,
 }
 
 impl HIRModule {
@@ -18,6 +22,7 @@ impl HIRModule {
         Self {
             functions: BTreeMap::new(),
             globals: Vec::new(),
+            function_ranges: BTreeMap::new(),
         }
     }
 
@@ -62,6 +67,7 @@ pub enum HIRStatement {
         initializer: Option<HIRExpression>,
     },
     Expr(HIRExpression),
+    Discard(HIRExpression),
 }
 
 impl ToPrimitiveType for HIRStatement {
@@ -69,6 +75,7 @@ impl ToPrimitiveType for HIRStatement {
         match self {
             Self::Let { .. } => PrimitiveType::Unit,
             Self::Expr(e) => e.to_type(),
+            Self::Discard(_) => PrimitiveType::Unit,
         }
     }
 }
@@ -89,6 +96,48 @@ impl ToPrimitiveType for HIRBlock {
 
 #[derive(Debug, Clone)]
 pub enum HIRExpression {
+    Enum {
+        variant: usize,
+        fields: Vec<(usize, HIRExpression)>,
+        enum_type: PrimitiveType,
+    },
+    Match {
+        value: Box<HIRExpression>,
+        arms: Vec<HIRMatchArm>,
+        result_type: PrimitiveType,
+    },
+    Struct {
+        fields: Vec<(usize, HIRExpression)>,
+        struct_type: PrimitiveType,
+    },
+    Field {
+        parent: Box<HIRExpression>,
+        index: usize,
+        field_type: PrimitiveType,
+    },
+    StoreField {
+        target: usize,
+        path: Vec<usize>,
+        value: Box<HIRExpression>,
+    },
+    Array {
+        elements: Vec<HIRExpression>,
+        element_type: PrimitiveType,
+    },
+    ArrayRepeat {
+        value: Box<HIRExpression>,
+        count: u32,
+    },
+    Range {
+        start: Box<HIRExpression>,
+        end: Box<HIRExpression>,
+        inclusive: bool,
+    },
+    For {
+        symbol: usize,
+        iterator: Box<HIRExpression>,
+        body: HIRBlock,
+    },
     // 即値
     Literal(Value),
 
@@ -137,6 +186,7 @@ pub enum HIRExpression {
     // 繰り返し
     Loop {
         body: HIRBlock,
+        result_type: PrimitiveType,
     },
 
     Continue,
@@ -161,14 +211,33 @@ impl HIRExpression {
 impl ToPrimitiveType for HIRExpression {
     fn to_type(&self) -> PrimitiveType {
         match self {
-            Self::Store { target: _, value } => value.to_type(),
+            Self::Enum { enum_type, .. } => enum_type.clone(),
+            Self::Match { result_type, .. } => result_type.clone(),
+            Self::Struct { struct_type, .. } => struct_type.clone(),
+            Self::Field { field_type, .. } => field_type.clone(),
+            Self::StoreField { .. } => PrimitiveType::Unit,
+            Self::Array {
+                elements,
+                element_type,
+            } => PrimitiveType::Array {
+                type_kind: Box::new(element_type.clone()),
+                size: elements.len() as u32,
+            },
+            Self::ArrayRepeat { value, count } => PrimitiveType::Array {
+                type_kind: Box::new(value.to_type()),
+                size: *count,
+            },
+            Self::Range { start, .. } => PrimitiveType::Range {
+                type_kind: Box::new(start.to_type()),
+            },
+            Self::For { .. } | Self::Store { .. } => PrimitiveType::Unit,
             Self::Variable { id: _, symbol_type } => symbol_type.clone(),
-            Self::CmpOp { op: _, lhs, rhs: _ } => lhs.to_type(),
+            Self::CmpOp { .. } => PrimitiveType::Boolean,
             Self::BinOp { op: _, lhs, rhs: _ } => lhs.to_type(),
             Self::Return(expr) => expr.as_ref().map_or(PrimitiveType::Unit, |e| e.to_type()),
             Self::Literal(v) => v.to_type(),
             Self::Continue => PrimitiveType::Unit,
-            Self::Loop { body } => body.to_type(),
+            Self::Loop { result_type, .. } => result_type.clone(),
             Self::Break(expr) => expr.as_ref().map_or(PrimitiveType::Unit, |e| e.to_type()),
             Self::Block(b) => b.to_type(),
             Self::If {

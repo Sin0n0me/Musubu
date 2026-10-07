@@ -5,7 +5,7 @@ use crate::{
 };
 use musubu_ast::{ASTNode, LoopExpr};
 
-impl<'a> PackratAndPrattParser<'a> {
+impl PackratAndPrattParser {
     // InfiniteLoopExpression ::= `loop` BlockExpression
     pub(super) fn parse_infinite_loop_expression(&mut self) -> ParseResult {
         let key = self.make_key("InfiniteLoopExpression");
@@ -47,7 +47,7 @@ impl<'a> PackratAndPrattParser<'a> {
         self.tokens.next();
 
         // Expression
-        let Ok(result) = self.parse_expression() else {
+        let Ok(result) = self.parse_condition_expression() else {
             return self.make_memo_from_result(key, Err(ParseError::NotMatch));
         };
         let Some(node) = result.get_node() else {
@@ -87,7 +87,12 @@ impl<'a> PackratAndPrattParser<'a> {
         // Pattern
         let Ok(ASTNode::Pattern(pattern)) = self.get_node(Self::parse_pattern).as_deref().cloned()
         else {
-            unreachable!();
+            return self.make_memo_from_result(
+                key,
+                Err(ParseError::Expected {
+                    rule: "a binding pattern after `for`",
+                }),
+            );
         };
 
         // `in`
@@ -98,7 +103,7 @@ impl<'a> PackratAndPrattParser<'a> {
 
         // Expression
         // except struct expression
-        let Ok(iterator) = self.get_expr(Self::parse_expression) else {
+        let Ok(iterator) = self.get_expr(Self::parse_condition_expression) else {
             return self.make_memo_from_result(key, Err(ParseError::NotMatch));
         };
 

@@ -16,6 +16,61 @@ pub struct Register(pub usize);
 
 #[derive(Debug, Clone)]
 pub enum Instruction {
+    MakeEnum {
+        dst: Register,
+        variant: usize,
+        fields: Vec<Register>,
+        enum_type: PrimitiveType,
+    },
+    IsVariant {
+        dst: Register,
+        value: Register,
+        variant: usize,
+    },
+    Unreachable,
+    MakeStruct {
+        dst: Register,
+        fields: Vec<Register>,
+        struct_type: PrimitiveType,
+    },
+    LoadField {
+        dst: Register,
+        parent: Register,
+        index: usize,
+    },
+    StoreField {
+        target: Register,
+        path: Vec<usize>,
+        value: Register,
+    },
+    MakeArray {
+        dst: Register,
+        elements: Vec<Register>,
+        element_type: PrimitiveType,
+    },
+    RepeatArray {
+        dst: Register,
+        value: Register,
+        count: u32,
+    },
+    MakeRange {
+        dst: Register,
+        start: Register,
+        end: Register,
+        inclusive: bool,
+    },
+    IterInit {
+        iterator: Register,
+        iterable: Register,
+    },
+    IterDrop {
+        iterator: Register,
+    },
+    IterNext {
+        iterator: Register,
+        dst: Register,
+        exhausted: usize,
+    },
     LoadConst {
         dst: Register,
         value: Value,

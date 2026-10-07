@@ -28,8 +28,6 @@ pub fn tokenize<'a>(source_code: &'a str) -> Result<Tokens<'a>, TokenizeError> {
             eat_symbol(&mut iter)? // ASCIIの記号
         } else if c.is_alphabetic() {
             eat_identifier(source_code, &mut iter)? // 日本語などを使用するのでasciiに限定しない
-        } else if c == '\0' {
-            break; // EOF
         } else {
             return Err(TokenizeError::InvalidCharacters { c, position });
         };

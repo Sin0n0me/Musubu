@@ -8,7 +8,7 @@ use musubu_ast::{ASTNode, AssignOperator, Path, PathSegment};
 use musubu_primitive::ComparisonOperator;
 use musubu_span::Spanned;
 
-impl<'a> PackratAndPrattParser<'a> {
+impl PackratAndPrattParser {
     // PathInExpression ::= `::`? PathExprSegment ( `::` PathExprSegment )*
     pub(super) fn parse_path_in_expression(&mut self) -> ParseResult {
         let key = self.make_key("PathInExpression");
@@ -31,6 +31,8 @@ impl<'a> PackratAndPrattParser<'a> {
             .zero_or_more(|parser: &mut Self| -> ParseResult {
                 if let Some(MusubuOperator::Path) = parser.tokens.get_operator() {
                     parser.tokens.next();
+                } else {
+                    return Err(ParseError::NotMatch);
                 }
                 parser.parse_path_expr_segment()
             })
@@ -250,7 +252,7 @@ impl<'a> PackratAndPrattParser<'a> {
         self.option(Self::parse_generic_args);
 
         let Some(MusubuOperator::Colon) = self.tokens.get_operator() else {
-            return self.make_memo_from_result(key, Err(ParseError::NotMatch));
+            return self.make_memo_from_result(key, Err(ParseError::Expected { rule: "`:`" }));
         };
         self.tokens.next();
 

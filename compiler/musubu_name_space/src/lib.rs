@@ -10,7 +10,7 @@ use alloc::collections::BTreeMap;
 use alloc::string::ToString;
 use alloc::vec::Vec;
 use core::hash::BuildHasherDefault;
-use musubu_primitive::{PrimitiveType, ToPrimitiveType};
+use musubu_primitive::{EnumVariant, EnumVariantKind, PrimitiveType, ToPrimitiveType};
 use musubu_scope::TypeSymbol;
 use twox_hash::XxHash64;
 
@@ -335,11 +335,12 @@ impl<'a> StructItem<'a> {
 
 impl<'a> ToPrimitiveType for StructItem<'a> {
     fn to_type(&self) -> PrimitiveType {
-        PrimitiveType::Struct {
-            elements: self
+        PrimitiveType::NamedStruct {
+            name: self.name.to_string(),
+            fields: self
                 .fields
                 .iter()
-                .map(|(_, field_symbol)| field_symbol.type_kind.clone())
+                .map(|(name, field_symbol)| (name.to_string(), field_symbol.type_kind.clone()))
                 .collect(),
         }
     }
@@ -349,6 +350,7 @@ impl<'a> ToPrimitiveType for StructItem<'a> {
 pub struct EnumItem<'a> {
     pub name: &'a str,
     pub variants: IndexMap<&'a str, IndexMap<&'a str, TypeSymbol>>,
+    pub variant_kinds: BTreeMap<&'a str, EnumVariantKind>,
 }
 
 impl<'a> EnumItem<'a> {
@@ -356,6 +358,7 @@ impl<'a> EnumItem<'a> {
         Self {
             name,
             variants: make_index_map(),
+            variant_kinds: BTreeMap::new(),
         }
     }
 
@@ -397,14 +400,21 @@ impl<'a> EnumItem<'a> {
 
 impl<'a> ToPrimitiveType for EnumItem<'a> {
     fn to_type(&self) -> PrimitiveType {
-        PrimitiveType::Enumeration {
+        PrimitiveType::NamedEnum {
+            name: self.name.to_string(),
             variants: self
                 .variants
                 .iter()
-                .map(|(_, variant)| PrimitiveType::Struct {
-                    elements: variant
+                .map(|(name, variant)| EnumVariant {
+                    name: name.to_string(),
+                    kind: self
+                        .variant_kinds
+                        .get(name)
+                        .copied()
+                        .unwrap_or(EnumVariantKind::Unit),
+                    fields: variant
                         .iter()
-                        .map(|(_, elem)| elem.type_kind.clone())
+                        .map(|(name, elem)| (name.to_string(), elem.type_kind.clone()))
                         .collect(),
                 })
                 .collect(),

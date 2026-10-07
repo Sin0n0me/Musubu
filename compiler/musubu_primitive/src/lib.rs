@@ -1,6 +1,8 @@
 #![no_std]
 
 extern crate alloc;
+mod enumeration;
+pub use enumeration::{EnumVariant, EnumVariantKind};
 
 use alloc::boxed::Box;
 use alloc::format;
@@ -20,6 +22,17 @@ pub trait ToPrimitiveType {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PrimitiveType {
+    Tuple {
+        elements: Vec<PrimitiveType>,
+    },
+    NamedEnum {
+        name: String,
+        variants: Vec<EnumVariant>,
+    },
+    NamedStruct {
+        name: String,
+        fields: Vec<(String, PrimitiveType)>,
+    },
     Unit, // void
     Boolean,
     Integer {
@@ -40,6 +53,9 @@ pub enum PrimitiveType {
     * */
     Enumeration {
         variants: Vec<PrimitiveType>,
+    },
+    Range {
+        type_kind: Box<PrimitiveType>,
     },
     Array {
         type_kind: Box<PrimitiveType>,
@@ -100,7 +116,7 @@ impl PrimitiveType {
     }
 
     pub fn is_struct(&self) -> bool {
-        matches!(self, Self::Struct { .. })
+        matches!(self, Self::Struct { .. } | Self::NamedStruct { .. })
     }
 
     pub fn is_array(&self) -> bool {
@@ -113,9 +129,13 @@ impl PrimitiveType {
 
     pub fn is_valid(&self) -> bool {
         match self {
+            Self::NamedEnum { variants, .. } => variants
+                .iter()
+                .all(|v| v.fields.iter().all(|(_, ty)| ty.is_valid())),
+            Self::NamedStruct { fields, .. } => fields.iter().all(|(_, ty)| ty.is_valid()),
             Self::Unit | Self::Boolean => true,
             Self::Integer { byte, .. } | Self::Float { byte } => *byte > 0,
-            Self::Struct { elements } => {
+            Self::Struct { elements } | Self::Tuple { elements } => {
                 for element in elements {
                     if !element.is_valid() {
                         return false;
@@ -131,6 +151,7 @@ impl PrimitiveType {
                 }
                 true
             }
+            Self::Range { type_kind } => type_kind.is_integer(),
             Self::Array { type_kind, size } => {
                 if !type_kind.is_valid() {
                     return false;
@@ -165,6 +186,9 @@ impl PrimitiveType {
     }
 
     pub fn from(name: &str) -> Option<Self> {
+        if name == "bool" {
+            return Some(Self::Boolean);
+        }
         if let Some(postfix) = name.strip_prefix("i") {
             let mut chars = postfix.chars();
             let bit_width = Self::parse_number(&mut chars)?;
@@ -302,6 +326,8 @@ impl PrimitiveType {
 impl ToString for PrimitiveType {
     fn to_string(&self) -> String {
         match self {
+            Self::NamedStruct { name, .. } => name.clone(),
+            Self::NamedEnum { name, .. } => name.clone(),
             Self::Unit => "void".to_string(),
             Self::Boolean => "bool".to_string(),
             Self::Integer { signed, byte } => {
@@ -313,10 +339,20 @@ impl ToString for PrimitiveType {
                 }
             }
             Self::Float { byte } => format!("float_{}", (*byte as SizeCount) * BYTE_BIT_WIDTH),
+            Self::Tuple { elements } => format!(
+                "({}{})",
+                elements
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                if elements.len() == 1 { "," } else { "" }
+            ),
             Self::Struct { elements } => elements.iter().map(|elem| elem.to_string()).collect(),
             Self::Enumeration { variants } => {
                 variants.iter().map(|variant| variant.to_string()).collect()
             }
+            Self::Range { type_kind } => format!("Range<{}>", type_kind.to_string()),
             Self::Array { type_kind, size } => format!("{}[{size}]", type_kind.to_string()),
             Self::Pointer { point } => format!("{}_ptr", point.to_string()),
             Self::Function {
@@ -346,6 +382,29 @@ impl ToString for PrimitiveType {
 
 #[derive(Debug, Clone)]
 pub enum Value {
+    Unit,
+    Tuple {
+        fields: Vec<Value>,
+        tuple_type: PrimitiveType,
+    },
+    Enum {
+        variant: usize,
+        fields: Vec<Value>,
+        enum_type: PrimitiveType,
+    },
+    Struct {
+        fields: Vec<Value>,
+        struct_type: PrimitiveType,
+    },
+    Array {
+        elements: Vec<Value>,
+        element_type: PrimitiveType,
+    },
+    Range {
+        start: Integer,
+        end: Integer,
+        inclusive: bool,
+    },
     Integer(Integer),
     Float(Float),
     Bool(bool),
@@ -358,6 +417,20 @@ pub enum Value {
 impl ToPrimitiveType for Value {
     fn to_type(&self) -> PrimitiveType {
         match self {
+            Self::Unit => PrimitiveType::Unit,
+            Self::Tuple { tuple_type, .. } => tuple_type.clone(),
+            Self::Struct { struct_type, .. } => struct_type.clone(),
+            Self::Enum { enum_type, .. } => enum_type.clone(),
+            Self::Array {
+                elements,
+                element_type,
+            } => PrimitiveType::Array {
+                type_kind: Box::new(element_type.clone()),
+                size: elements.len() as u32,
+            },
+            Self::Range { start, .. } => PrimitiveType::Range {
+                type_kind: Box::new(start.to_type()),
+            },
             Self::Integer(integer) => integer.to_type(),
             Self::Float(float) => float.to_type(),
             Self::Bool(_) => PrimitiveType::Boolean,
@@ -406,7 +479,7 @@ impl<'a, 'b> Mul<&'b Matrix> for &'a Matrix {
 const TYPE_MISMATCH: &str = "Type mismatch in Integer operation";
 const DIV_BY_ZERO: &str = "Division by zero";
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum Integer {
     Int8(i8),
     Int16(i16),
@@ -419,6 +492,20 @@ pub enum Integer {
 }
 
 impl Integer {
+    pub fn checked_successor(&self) -> Option<Self> {
+        // Successor = current + 1; checked addition prevents wraparound at the type maximum.
+        match self {
+            Self::Int8(value) => value.checked_add(1).map(Self::Int8),
+            Self::Int16(value) => value.checked_add(1).map(Self::Int16),
+            Self::Int32(value) => value.checked_add(1).map(Self::Int32),
+            Self::Int64(value) => value.checked_add(1).map(Self::Int64),
+            Self::Uint8(value) => value.checked_add(1).map(Self::Uint8),
+            Self::Uint16(value) => value.checked_add(1).map(Self::Uint16),
+            Self::Uint32(value) => value.checked_add(1).map(Self::Uint32),
+            Self::Uint64(value) => value.checked_add(1).map(Self::Uint64),
+        }
+    }
+
     pub fn new(value: &str, type_kind: &PrimitiveType) -> Option<Self> {
         let PrimitiveType::Integer { signed, byte } = type_kind else {
             return None;
@@ -641,7 +728,7 @@ impl<'a, 'b> Div<&'b Integer> for &'a Integer {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum Float {
     Float32(f32),
     Float64(f64),
