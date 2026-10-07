@@ -98,6 +98,9 @@ impl PackratAndPrattParser {
     }
 
     fn expr_or_prefix_op(&mut self) -> Result<Rc<ASTNode>, ParseError> {
+        if self.tokens.get_operator() == Some(&MusubuOperator::LeftParenthesis) {
+            return self.parse_tuple_expression();
+        }
         // 演算子以外はExpressionとしてパース
         if matches!(
             self.tokens.get_operator(),

@@ -86,6 +86,17 @@ impl IRCompiler {
         failures: &mut Vec<usize>,
     ) -> IRCompileResult<()> {
         match pattern {
+            HIRMatchPattern::Tuple(fields) => {
+                for (index, pattern) in fields {
+                    let dst = self.alloc_register();
+                    self.code.push(Instruction::LoadField {
+                        dst,
+                        parent: value,
+                        index: *index,
+                    });
+                    self.compile_match_pattern(dst, pattern, failures)?;
+                }
+            }
             HIRMatchPattern::Wildcard => {}
             HIRMatchPattern::Binding(id) => self.code.push(Instruction::Move {
                 dst: Register(*id),

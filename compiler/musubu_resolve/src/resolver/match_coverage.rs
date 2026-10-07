@@ -11,10 +11,10 @@ pub(super) fn useful(previous: &[Pattern], candidate: &Pattern, ty: &PrimitiveTy
 // useful when at least one combination remains uncovered by earlier rows.
 fn useful_row(matrix: &[Vec<Pattern>], row: &[Pattern], types: &[PrimitiveType]) -> bool {
     // An earlier row of bindings/wildcards already covers every remaining value.
-    if matrix
-        .iter()
-        .any(|row| row.iter().all(|p| !matches!(p, Pattern::Variant { .. })))
-    {
+    if matrix.iter().any(|row| {
+        row.iter()
+            .all(|p| matches!(p, Pattern::Wildcard | Pattern::Binding(_)))
+    }) {
         return false;
     }
     if row.is_empty() {
@@ -40,6 +40,19 @@ fn useful_row(matrix: &[Vec<Pattern>], row: &[Pattern], types: &[PrimitiveType])
             }
         }
         false
+    } else if matches!(&types[0], PrimitiveType::Tuple { .. } | PrimitiveType::Unit) {
+        let elements = match &types[0] {
+            PrimitiveType::Tuple { elements } => elements.as_slice(),
+            _ => &[],
+        };
+        let candidate = specialize(row, 0, elements.len()).unwrap();
+        let specialized = matrix
+            .iter()
+            .filter_map(|row| specialize(row, 0, elements.len()))
+            .collect::<Vec<_>>();
+        let mut next_types = elements.to_vec();
+        next_types.extend_from_slice(&types[1..]);
+        useful_row(&specialized, &candidate, &next_types)
     } else {
         let next = matrix
             .iter()
@@ -51,6 +64,11 @@ fn useful_row(matrix: &[Vec<Pattern>], row: &[Pattern], types: &[PrimitiveType])
 
 fn specialize(row: &[Pattern], index: usize, count: usize) -> Option<Vec<Pattern>> {
     let mut payload = vec![Pattern::Wildcard; count];
+    if let Pattern::Tuple(fields) = &row[0] {
+        for (i, pattern) in fields {
+            payload[*i] = pattern.clone();
+        }
+    }
     if let Pattern::Variant {
         index: found,
         fields,

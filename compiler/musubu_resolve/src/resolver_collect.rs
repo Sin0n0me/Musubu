@@ -132,9 +132,7 @@ impl<'a> Resolver<'a> {
             _ => unreachable!(),
         };
         for field in fields {
-            if let TypeKind::PathType(path) = &field.node.field_type.node {
-                self.import_struct_dependency(path.node.last_ident(), nodes, visiting)?;
-            }
+            self.import_type_dependencies(&field.node.field_type.node, nodes, visiting)?;
         }
         match &item.node {
             Item::Struct { fields, .. } => self.import_struct(name, fields),
@@ -143,6 +141,26 @@ impl<'a> Resolver<'a> {
         }
         .map_err(|error| error.at(item.span))?;
         visiting.remove(name);
+        Ok(())
+    }
+
+    fn import_type_dependencies(
+        &mut self,
+        ty: &'a TypeKind,
+        nodes: &[&'a ASTNode],
+        visiting: &mut BTreeSet<&'a str>,
+    ) -> ResolveResult<()> {
+        match ty {
+            TypeKind::PathType(path) => {
+                self.import_struct_dependency(path.node.last_ident(), nodes, visiting)?
+            }
+            TypeKind::Tuple(elements) => {
+                for element in elements {
+                    self.import_type_dependencies(&element.node, nodes, visiting)?;
+                }
+            }
+            _ => {}
+        }
         Ok(())
     }
 
@@ -266,6 +284,9 @@ impl<'a> Resolver<'a> {
     }
 
     fn import_type(&mut self, type_kind: Spanned<&'a TypeKind>) -> ResolveResult<TypeSymbol> {
+        if let TypeKind::Tuple(elements) = type_kind.node {
+            return self.resolve_tuple_type(elements);
+        }
         if let TypeKind::PathType(path) = type_kind.node {
             return self
                 .import_path(path.as_ref_spanned())

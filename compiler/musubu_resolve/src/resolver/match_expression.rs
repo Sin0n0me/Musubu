@@ -11,9 +11,12 @@ impl<'a> Resolver<'a> {
     ) -> ResolveResult<Lowered<HIRExpression>> {
         let resolved = self.resolve_expression(&value)?;
         let ty = &resolved.type_symbol.type_kind;
-        if !matches!(ty, PrimitiveType::NamedEnum { .. }) {
+        if !matches!(
+            ty,
+            PrimitiveType::NamedEnum { .. } | PrimitiveType::Tuple { .. } | PrimitiveType::Unit
+        ) {
             return Err(enum_error(format!(
-                "match requires an enum value, found {}",
+                "match requires an enum value or tuple, found {}",
                 ty.to_string()
             ))
             .at(value.span));
@@ -81,6 +84,20 @@ impl<'a> Resolver<'a> {
         names: &mut BTreeSet<&'a str>,
     ) -> ResolveResult<HIRMatchPattern> {
         let result = match pattern.node {
+            MatchPattern::Tuple(patterns) => {
+                let elements = super::tuples::tuple_elements(ty, patterns.len())
+                    .map_err(|e| e.at(pattern.span))?;
+                let fields = patterns
+                    .iter()
+                    .zip(elements)
+                    .enumerate()
+                    .map(|(i, (p, ty))| {
+                        self.resolve_match_pattern(p.as_ref_spanned(), ty, names)
+                            .map(|p| (i, p))
+                    })
+                    .collect::<ResolveResult<Vec<_>>>()?;
+                Ok(HIRMatchPattern::Tuple(fields))
+            }
             MatchPattern::Wildcard => Ok(HIRMatchPattern::Wildcard),
             MatchPattern::Binding { name, mutable } => {
                 self.bind_match_name(name, *mutable, ty, names)

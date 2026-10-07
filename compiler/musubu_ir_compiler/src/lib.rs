@@ -153,6 +153,20 @@ impl IRCompiler {
     }
 
     fn compile_expr(&mut self, expr: &HIRExpression) -> IRCompileResult<Option<Register>> {
+        let value = self.compile_expr_inner(expr)?;
+        if value.is_none() && expr.to_type().is_unit() {
+            // Unit is a value when stored in tuples, bindings or argument slots.
+            let dst = self.alloc_register();
+            self.code.push(Instruction::LoadConst {
+                dst,
+                value: musubu_primitive::Value::Unit,
+            });
+            return Ok(Some(dst));
+        }
+        Ok(value)
+    }
+
+    fn compile_expr_inner(&mut self, expr: &HIRExpression) -> IRCompileResult<Option<Register>> {
         match expr {
             HIRExpression::Enum { .. } | HIRExpression::Match { .. } => {
                 self.compile_enum_expression(expr)
@@ -376,7 +390,7 @@ impl IRCompiler {
             let src = self.compile_expr(expression)?;
             match (dst, src) {
                 (Some(dst), Some(src)) => self.code.push(Instruction::Move { dst, src }),
-                (None, None) => {}
+                (None, _) if expression.to_type().is_unit() => {}
                 _ => return Err(IRCompileError::IllegalBreak),
             }
         } else if dst.is_some() {
@@ -411,7 +425,12 @@ impl IRCompiler {
 
     fn compile_return(&mut self, expr: Option<&HIRExpression>) -> IRCompileResult<()> {
         let value = if let Some(expr) = expr {
-            self.compile_expr(expr)?
+            let value = self.compile_expr(expr)?;
+            if expr.to_type().is_unit() {
+                None
+            } else {
+                value
+            }
         } else {
             None
         };

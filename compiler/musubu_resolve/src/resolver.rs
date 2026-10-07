@@ -4,6 +4,7 @@ mod enumeration;
 mod match_coverage;
 mod match_expression;
 mod structures;
+mod tuples;
 
 use crate::errors::ResolveError;
 use crate::{Lowered, ResolveResult, Resolver};
@@ -103,7 +104,9 @@ impl<'a> Resolver<'a> {
                 && (!actual.is_unit()
                     || (matches!(
                         return_type,
-                        PrimitiveType::NamedStruct { .. } | PrimitiveType::NamedEnum { .. }
+                        PrimitiveType::NamedStruct { .. }
+                            | PrimitiveType::NamedEnum { .. }
+                            | PrimitiveType::Tuple { .. }
                     ) && control_flow::can_complete(&body)))
             {
                 return Err(
@@ -188,6 +191,7 @@ impl<'a> Resolver<'a> {
         let diagnostic_span = expression.span;
         (|| {
             let lowered = match expression.get_node() {
+                Expression::Tuple(elements) => self.resolve_tuple(elements)?,
                 Expression::Match { value, arms } => {
                     self.resolve_match(value.as_ref_spanned(), arms)?
                 }
@@ -779,6 +783,9 @@ impl<'a> Resolver<'a> {
         variable_type: Option<Spanned<&'a TypeKind>>,
         _label: Option<&'a str>,
     ) -> ResolveResult<Lowered<Option<HIRStatement>>> {
+        if matches!(name.node, Pattern::Tuple(_)) {
+            return self.resolve_tuple_let(name, initializer, variable_type);
+        }
         let initializer_span = initializer
             .as_ref()
             .map(|expression| expression.span)
@@ -838,6 +845,11 @@ impl<'a> Resolver<'a> {
             let id = self.desugar.alloc_symbol(); // 変数の割り当て
 
             let ty = match pattern {
+                Pattern::Tuple(_) => {
+                    return Err(ResolveError::Unsupported {
+                        feature: "tuple patterns outside let and match",
+                    });
+                }
                 Pattern::Identifier {
                     ident,
                     mutable,
@@ -1013,6 +1025,9 @@ impl<'a> Resolver<'a> {
     }
 
     fn resolve_type(&mut self, type_kind: Spanned<&'a TypeKind>) -> ResolveResult<TypeSymbol> {
+        if let TypeKind::Tuple(elements) = type_kind.node {
+            return self.resolve_tuple_type(elements);
+        }
         if let TypeKind::PathType(path) = type_kind.node {
             return self
                 .import_path(path.as_ref_spanned())
@@ -1026,7 +1041,7 @@ impl<'a> Resolver<'a> {
             let ty = self.type_checker.check_type(scope, type_kind)?;
 
             match type_kind {
-                TypeKind::Primitive(_) => {}
+                TypeKind::Primitive(_) | TypeKind::Tuple(_) => {}
                 TypeKind::PathType(path) => {
                     self.resolve_path(path.as_ref_spanned())?;
                 }

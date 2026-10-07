@@ -77,6 +77,9 @@ impl<'a> Resolver<'a> {
         field_name: &str,
     ) -> ResolveResult<Lowered<HIRExpression>> {
         let parent = self.resolve_expression(expression)?;
+        if matches!(parent.type_symbol.type_kind, PrimitiveType::Tuple { .. }) {
+            return self.resolve_tuple_field(parent, field_name);
+        }
         let PrimitiveType::NamedStruct { name, fields } = &parent.type_symbol.type_kind else {
             return Err(ResolveError::InvalidStruct {
                 message: alloc::format!(

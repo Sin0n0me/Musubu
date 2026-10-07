@@ -29,13 +29,24 @@ impl PackratAndPrattParser {
             return Ok(None);
         }
         self.tokens.next();
-        let field_name = self
-            .tokens
-            .get_identifier()
-            .ok_or(ParseError::Expected {
-                rule: "a field name after `.`",
-            })?
-            .to_string();
+        let field_name = if let Some(name) = self.tokens.get_identifier() {
+            name.to_string()
+        } else if let Some(crate::lexer::token::MusubuLiteral::Integer {
+            value,
+            suffix: None,
+        }) = self.tokens.get_literal()
+        {
+            if !value.bytes().all(|b| b.is_ascii_digit()) {
+                return Err(ParseError::Expected {
+                    rule: "a decimal tuple index after `.`",
+                });
+            }
+            value.clone()
+        } else {
+            return Err(ParseError::Expected {
+                rule: "a field name or tuple index after `.`",
+            });
+        };
         self.tokens.next();
         Ok(Some(Rc::new(
             Expression::FieldAccess {
