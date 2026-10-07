@@ -17,7 +17,9 @@ impl VM<'_> {
                 };
             }
             Instruction::LoadField { dst, parent, index } => {
-                let Value::Struct { fields, .. } = &frame.registers[parent.0] else {
+                let (Value::Struct { fields, .. } | Value::Enum { fields, .. }) =
+                    &frame.registers[parent.0]
+                else {
                     return Err(VMError::InvalidOperand);
                 };
                 let value = fields.get(*index).ok_or(VMError::InvalidOperand)?.clone();

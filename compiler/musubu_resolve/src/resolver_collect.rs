@@ -5,7 +5,7 @@ use alloc::string::ToString;
 use alloc::vec::Vec;
 use musubu_ast::*;
 use musubu_name_space::{FunctionItem, ItemStore, ItemSymbol, StructItem};
-use musubu_primitive::{PrimitiveType, ToPrimitiveType};
+use musubu_primitive::{EnumVariantKind, PrimitiveType, ToPrimitiveType};
 use musubu_scope::TypeSymbol;
 use musubu_span::{Spanned, SpannedAsRef};
 
@@ -72,7 +72,7 @@ impl<'a> Resolver<'a> {
             let mut visiting = BTreeSet::new();
             for node in nodes {
                 if let ASTNode::Item { item, .. } = node {
-                    if let Item::Struct { name, .. } = &item.node {
+                    if let Item::Struct { name, .. } | Item::Enumeration { name, .. } = &item.node {
                         s.import_struct_dependency(name, nodes, &mut visiting)?;
                     }
                 }
@@ -82,7 +82,7 @@ impl<'a> Resolver<'a> {
                     ASTNode::Item {
                         item:
                             Spanned {
-                                node: Item::Struct { .. },
+                                node: Item::Struct { .. } | Item::Enumeration { .. },
                                 ..
                             },
                         ..
@@ -109,25 +109,39 @@ impl<'a> Resolver<'a> {
             return Ok(());
         }
         let Some(item) = nodes.iter().find_map(|node| match node {
-            ASTNode::Item { item, .. } if matches!(&item.node, Item::Struct { name: n, .. } if n == name) => Some(item),
+            ASTNode::Item { item, .. } if matches!(&item.node, Item::Struct { name: n, .. } | Item::Enumeration { name: n, .. } if n == name) => Some(item),
             _ => None,
         }) else { return Ok(()); };
         if !visiting.insert(name) {
             return Err(ResolveError::InvalidStruct {
-                message: alloc::format!("recursive struct `{name}` has infinite size"),
+                message: alloc::format!("recursive type `{name}` has infinite size"),
             }
             .at(item.span));
         }
-        let Item::Struct { fields, .. } = &item.node else {
-            unreachable!()
+        let fields: Vec<_> = match &item.node {
+            Item::Struct { fields, .. } => fields.iter().collect(),
+            Item::Enumeration { items, .. } => items
+                .iter()
+                .flat_map(|item| match &item.node {
+                    EnumItem::StructItem { fields, .. } | EnumItem::TupleItem { fields, .. } => {
+                        fields.as_slice()
+                    }
+                    EnumItem::UnitItem { .. } => &[],
+                })
+                .collect(),
+            _ => unreachable!(),
         };
         for field in fields {
             if let TypeKind::PathType(path) = &field.node.field_type.node {
                 self.import_struct_dependency(path.node.last_ident(), nodes, visiting)?;
             }
         }
-        self.import_struct(name, fields)
-            .map_err(|error| error.at(item.span))?;
+        match &item.node {
+            Item::Struct { fields, .. } => self.import_struct(name, fields),
+            Item::Enumeration { items, .. } => self.import_enumeration(name, items),
+            _ => unreachable!(),
+        }
+        .map_err(|error| error.at(item.span))?;
         visiting.remove(name);
         Ok(())
     }
@@ -224,26 +238,24 @@ impl<'a> Resolver<'a> {
     ) -> ResolveResult<()> {
         let mut enum_item = musubu_name_space::EnumItem::new(enum_name);
         for item in items {
-            match &item.node {
-                musubu_ast::EnumItem::StructItem {
-                    name,
-                    fields,
-                    visibility: _,
-                } => {
-                    for field in fields {
-                        let field = &field.node;
-                        let field_name = &field.name;
-                        let field_type = self.import_type(field.field_type.as_ref_spanned())?;
-
-                        enum_item.add_variant_field(name, field_name, field_type)?;
-                    }
+            let (name, kind, fields) = match &item.node {
+                EnumItem::UnitItem { name } => (name, EnumVariantKind::Unit, &[][..]),
+                EnumItem::TupleItem { name, fields, .. } => {
+                    (name, EnumVariantKind::Tuple, fields.as_slice())
                 }
-                musubu_ast::EnumItem::TupleItem {
-                    name,
-                    visibility: _,
-                } => {
-                    enum_item.add_variant(name)?;
+                EnumItem::StructItem { name, fields, .. } => {
+                    (name, EnumVariantKind::Struct, fields.as_slice())
                 }
+            };
+            enum_item
+                .add_variant(name)
+                .map_err(|error| ResolveError::from(error).at(item.span))?;
+            enum_item.variant_kinds.insert(name, kind);
+            for field in fields {
+                let ty = self.import_type(field.node.field_type.as_ref_spanned())?;
+                enum_item
+                    .add_variant_field(name, &field.node.name, ty)
+                    .map_err(|error| ResolveError::from(error).at(field.span))?;
             }
         }
 

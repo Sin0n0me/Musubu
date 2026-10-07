@@ -31,6 +31,8 @@ impl PackratAndPrattParser {
             .zero_or_more(|parser: &mut Self| -> ParseResult {
                 if let Some(MusubuOperator::Path) = parser.tokens.get_operator() {
                     parser.tokens.next();
+                } else {
+                    return Err(ParseError::NotMatch);
                 }
                 parser.parse_path_expr_segment()
             })

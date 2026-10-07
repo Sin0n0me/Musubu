@@ -54,6 +54,18 @@ fn expression_flow(expr: &HIRExpression) -> Flow {
             breaks: false,
         },
         HIRExpression::For { iterator, .. } => expression_flow(iterator),
+        HIRExpression::Match { value, arms, .. } => {
+            let mut alternatives = Flow {
+                next: false,
+                breaks: false,
+            };
+            for arm in arms {
+                let flow = expression_flow(&arm.body);
+                alternatives.next |= flow.next;
+                alternatives.breaks |= flow.breaks;
+            }
+            expression_flow(value).then(alternatives)
+        }
         HIRExpression::If {
             cond,
             then_block,
@@ -84,7 +96,7 @@ fn expression_flow(expr: &HIRExpression) -> Flow {
         } => elements
             .iter()
             .fold(Flow::NEXT, |flow, expr| flow.then(expression_flow(expr))),
-        HIRExpression::Struct { fields, .. } => {
+        HIRExpression::Struct { fields, .. } | HIRExpression::Enum { fields, .. } => {
             fields.iter().fold(Flow::NEXT, |flow, (_, expr)| {
                 flow.then(expression_flow(expr))
             })

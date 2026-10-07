@@ -4,6 +4,7 @@ extern crate alloc;
 
 pub mod errors;
 
+mod enumeration;
 mod frame;
 mod iterator;
 mod structures;
@@ -54,6 +55,10 @@ impl<'a> VM<'a> {
         frame.ip += 1;
 
         match inst {
+            Instruction::Unreachable => return Err(VMError::InvalidOperand),
+            Instruction::MakeEnum { .. } | Instruction::IsVariant { .. } => {
+                Self::execute_enum(frame, inst)?
+            }
             Instruction::MakeStruct { .. }
             | Instruction::LoadField { .. }
             | Instruction::StoreField { .. } => Self::execute_struct(frame, inst)?,
