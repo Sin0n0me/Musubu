@@ -8,6 +8,7 @@ pub struct MatchArm {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum MatchPattern {
+    Tuple(Vec<Spanned<MatchPattern>>),
     Wildcard,
     Binding {
         name: String,

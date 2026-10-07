@@ -39,7 +39,7 @@ impl PackratAndPrattParser {
             return Ok(memo);
         }
 
-        let result = self.or(vec![Self::parse_type_path]);
+        let result = self.or(vec![Self::parse_tuple_type, Self::parse_type_path]);
         self.make_memo_from_result(key, result)
     }
 

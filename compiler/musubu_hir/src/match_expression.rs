@@ -8,6 +8,7 @@ pub struct HIRMatchArm {
 
 #[derive(Debug, Clone)]
 pub enum HIRMatchPattern {
+    Tuple(Vec<(usize, HIRMatchPattern)>),
     Wildcard,
     Binding(usize),
     Variant {

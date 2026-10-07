@@ -49,7 +49,10 @@ impl PackratAndPrattParser {
         Ok(arms)
     }
 
-    fn parse_match_pattern(&mut self) -> Result<Spanned<MatchPattern>, ParseError> {
+    pub(super) fn parse_match_pattern(&mut self) -> Result<Spanned<MatchPattern>, ParseError> {
+        if self.tokens.get_operator() == Some(&MusubuOperator::LeftParenthesis) {
+            return self.parse_tuple_match_pattern();
+        }
         let key = self.make_key("MatchPattern");
         let mutable = self.tokens.get_keyword() == Some(&MusubuKeyword::Mut);
         if mutable {

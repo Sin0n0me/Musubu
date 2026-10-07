@@ -84,6 +84,9 @@ impl PackratAndPrattParser {
     //                       | IDENTIFIERPattern
     //
     fn parse_pattern_without_range(&mut self) -> ParseResult {
+        if self.tokens.get_operator() == Some(&MusubuOperator::LeftParenthesis) {
+            return self.parse_tuple_pattern();
+        }
         let key = self.make_key("PatternWithoutRange");
         if let Some(memo) = self.get_memo(&key) {
             return Ok(memo);

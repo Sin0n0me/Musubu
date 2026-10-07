@@ -8,17 +8,26 @@ impl VM<'_> {
                 fields,
                 struct_type,
             } => {
-                frame.registers[dst.0] = Value::Struct {
-                    fields: fields
-                        .iter()
-                        .map(|reg| frame.registers[reg.0].clone())
-                        .collect(),
-                    struct_type: struct_type.clone(),
+                let fields = fields
+                    .iter()
+                    .map(|reg| frame.registers[reg.0].clone())
+                    .collect();
+                frame.registers[dst.0] = if matches!(struct_type, PrimitiveType::Tuple { .. }) {
+                    Value::Tuple {
+                        fields,
+                        tuple_type: struct_type.clone(),
+                    }
+                } else {
+                    Value::Struct {
+                        fields,
+                        struct_type: struct_type.clone(),
+                    }
                 };
             }
             Instruction::LoadField { dst, parent, index } => {
-                let (Value::Struct { fields, .. } | Value::Enum { fields, .. }) =
-                    &frame.registers[parent.0]
+                let (Value::Struct { fields, .. }
+                | Value::Enum { fields, .. }
+                | Value::Tuple { fields, .. }) = &frame.registers[parent.0]
                 else {
                     return Err(VMError::InvalidOperand);
                 };
@@ -33,7 +42,8 @@ impl VM<'_> {
                 let value = frame.registers[value.0].clone();
                 let mut target = &mut frame.registers[target.0];
                 for index in path {
-                    let Value::Struct { fields, .. } = target else {
+                    let (Value::Struct { fields, .. } | Value::Tuple { fields, .. }) = target
+                    else {
                         return Err(VMError::InvalidOperand);
                     };
                     target = fields.get_mut(*index).ok_or(VMError::InvalidOperand)?;

@@ -108,7 +108,7 @@ fn visit_expression(expression: &HIRExpression, count: &mut usize) {
 fn visit_pattern(pattern: &HIRMatchPattern, count: &mut usize) {
     match pattern {
         HIRMatchPattern::Binding(id) => include(count, *id),
-        HIRMatchPattern::Variant { fields, .. } => {
+        HIRMatchPattern::Variant { fields, .. } | HIRMatchPattern::Tuple(fields) => {
             for (_, pattern) in fields {
                 visit_pattern(pattern, count);
             }

@@ -131,6 +131,7 @@ impl NodeMaker for StructField {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expression {
+    Tuple(SpannedVec<Expression>),
     Match {
         value: SpannedBox<Expression>,
         arms: Vec<MatchArm>,
@@ -257,6 +258,7 @@ pub struct TypeAlias {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TypeKind {
+    Tuple(SpannedVec<TypeKind>),
     // 最終的にはすべてこのPrimitiveTypeになる
     Primitive(PrimitiveType),
 
@@ -274,6 +276,15 @@ pub enum TypeKind {
 impl ToString for TypeKind {
     fn to_string(&self) -> String {
         match self {
+            Self::Tuple(elements) => format!(
+                "({}{})",
+                elements
+                    .iter()
+                    .map(|t| t.node.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                if elements.len() == 1 { "," } else { "" }
+            ),
             Self::Primitive(t) => t.to_string(),
             Self::PathType(t) => t.node.to_string(),
             Self::Function {
@@ -372,6 +383,7 @@ pub enum AssignOperator {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Pattern {
+    Tuple(SpannedVec<Pattern>),
     None,
     Multiply(SpannedVec<Pattern>),
     Literal(Literal),

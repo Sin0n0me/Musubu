@@ -302,6 +302,16 @@ impl TypeChecker {
     ) -> TypeCheckResult<TypeSymbol> {
         let ty = match type_kind {
             TypeKind::Primitive(ty) => TypeSymbol::new(ty.clone()),
+            TypeKind::Tuple(elements) => TypeSymbol::new(if elements.is_empty() {
+                PrimitiveType::Unit
+            } else {
+                PrimitiveType::Tuple {
+                    elements: elements
+                        .iter()
+                        .map(|ty| self.check_type(scope, &ty.node).map(|t| t.type_kind))
+                        .collect::<TypeCheckResult<_>>()?,
+                }
+            }),
             TypeKind::Function {
                 arguments,
                 return_type,
@@ -485,6 +495,26 @@ impl TypeChecker {
                 }
 
                 //scope.resolve_variable_type(ident, variable_type)?;
+            }
+            Pattern::Tuple(patterns) => {
+                let elements = match variable_type {
+                    PrimitiveType::Tuple { elements } => elements.as_slice(),
+                    PrimitiveType::Unit => &[],
+                    _ => {
+                        return Err(TypeCheckError::UnknownPattern {
+                            name: alloc::format!("{pattern:?}"),
+                        });
+                    }
+                };
+                if patterns.len() != elements.len() {
+                    return Err(TypeCheckError::TupleCountMismatch {
+                        expected: elements.len(),
+                        found: patterns.len(),
+                    });
+                }
+                for (pattern, ty) in patterns.iter().zip(elements) {
+                    self.resolve_pattern(scope, &pattern.node, ty)?;
+                }
             }
             Pattern::Multiply(patterns) => {
                 let PrimitiveType::Struct { elements } = variable_type else {

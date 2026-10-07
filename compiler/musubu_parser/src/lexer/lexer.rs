@@ -155,6 +155,23 @@ pub(crate) fn tokenize_located<'a>(
         let position = token.token_pos;
         let result = match &token.token_kind {
             TokenKind::Identifier(ident) => tokenize_identifier(&mut iter, ident, position),
+            TokenKind::Number(_)
+                if matches!(
+                    new_tokens.last(),
+                    Some(MusubuToken {
+                        token_kind: MusubuTokenKind::Operator(MusubuOperator::Dot),
+                        ..
+                    })
+                ) =>
+            {
+                eat_dec_digit(&mut iter).map(|value| MusubuToken {
+                    token_kind: MusubuTokenKind::Literal(MusubuLiteral::Integer {
+                        value,
+                        suffix: None,
+                    }),
+                    position,
+                })
+            }
             TokenKind::Number(num) => tokenize_number(&mut iter, num, position),
             TokenKind::Symbol(symbol) => tokenize_operator(&mut iter, symbol, position),
             TokenKind::LineBreak(_) | TokenKind::WhiteSpace(_) => {

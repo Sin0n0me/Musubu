@@ -22,6 +22,9 @@ pub trait ToPrimitiveType {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PrimitiveType {
+    Tuple {
+        elements: Vec<PrimitiveType>,
+    },
     NamedEnum {
         name: String,
         variants: Vec<EnumVariant>,
@@ -132,7 +135,7 @@ impl PrimitiveType {
             Self::NamedStruct { fields, .. } => fields.iter().all(|(_, ty)| ty.is_valid()),
             Self::Unit | Self::Boolean => true,
             Self::Integer { byte, .. } | Self::Float { byte } => *byte > 0,
-            Self::Struct { elements } => {
+            Self::Struct { elements } | Self::Tuple { elements } => {
                 for element in elements {
                     if !element.is_valid() {
                         return false;
@@ -336,6 +339,15 @@ impl ToString for PrimitiveType {
                 }
             }
             Self::Float { byte } => format!("float_{}", (*byte as SizeCount) * BYTE_BIT_WIDTH),
+            Self::Tuple { elements } => format!(
+                "({}{})",
+                elements
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                if elements.len() == 1 { "," } else { "" }
+            ),
             Self::Struct { elements } => elements.iter().map(|elem| elem.to_string()).collect(),
             Self::Enumeration { variants } => {
                 variants.iter().map(|variant| variant.to_string()).collect()
@@ -370,6 +382,11 @@ impl ToString for PrimitiveType {
 
 #[derive(Debug, Clone)]
 pub enum Value {
+    Unit,
+    Tuple {
+        fields: Vec<Value>,
+        tuple_type: PrimitiveType,
+    },
     Enum {
         variant: usize,
         fields: Vec<Value>,
@@ -400,6 +417,8 @@ pub enum Value {
 impl ToPrimitiveType for Value {
     fn to_type(&self) -> PrimitiveType {
         match self {
+            Self::Unit => PrimitiveType::Unit,
+            Self::Tuple { tuple_type, .. } => tuple_type.clone(),
             Self::Struct { struct_type, .. } => struct_type.clone(),
             Self::Enum { enum_type, .. } => enum_type.clone(),
             Self::Array {
