@@ -233,7 +233,14 @@ impl ToPrimitiveType for HIRExpression {
             Self::For { .. } | Self::Store { .. } => PrimitiveType::Unit,
             Self::Variable { id: _, symbol_type } => symbol_type.clone(),
             Self::CmpOp { .. } => PrimitiveType::Boolean,
-            Self::BinOp { op: _, lhs, rhs: _ } => lhs.to_type(),
+            Self::BinOp { lhs, rhs, .. } => {
+                let right = rhs.to_type();
+                if matches!(right, PrimitiveType::Vector { .. }) {
+                    right
+                } else {
+                    lhs.to_type()
+                }
+            }
             Self::Return(expr) => expr.as_ref().map_or(PrimitiveType::Unit, |e| e.to_type()),
             Self::Literal(v) => v.to_type(),
             Self::Continue => PrimitiveType::Unit,

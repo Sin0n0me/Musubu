@@ -2,6 +2,7 @@
 
 extern crate alloc;
 mod enumeration;
+mod vector;
 pub use enumeration::{EnumVariant, EnumVariantKind};
 
 use alloc::boxed::Box;
@@ -238,6 +239,9 @@ impl PrimitiveType {
     fn parse_vec(postfix: &str) -> Option<Self> {
         let mut chars = postfix.chars();
         let dimension = Self::parse_number(&mut chars)?;
+        if dimension == 0 {
+            return None;
+        }
 
         // 型指定がなければf32として扱う
         let spec_ty = chars.as_str();
@@ -250,7 +254,13 @@ impl PrimitiveType {
 
         // 内部の型
         let ty = Self::from(spec_ty)?;
-        if !ty.is_scalar_type() {
+        if !matches!(
+            ty,
+            Self::Integer {
+                byte: 1 | 2 | 4 | 8,
+                ..
+            } | Self::Float { byte: 4 | 8 }
+        ) {
             return None;
         }
 
@@ -418,6 +428,7 @@ impl ToPrimitiveType for Value {
     fn to_type(&self) -> PrimitiveType {
         match self {
             Self::Unit => PrimitiveType::Unit,
+            Self::Vector(vector) => vector.to_type(),
             Self::Tuple { tuple_type, .. } => tuple_type.clone(),
             Self::Struct { struct_type, .. } => struct_type.clone(),
             Self::Enum { enum_type, .. } => enum_type.clone(),
@@ -439,9 +450,12 @@ impl ToPrimitiveType for Value {
     }
 }
 
-// TODO f32以外の型を使用できるように
 #[derive(Debug, Clone)]
 pub enum Vector {
+    Components {
+        elements: Vec<Value>,
+        element_type: PrimitiveType,
+    },
     Vector3(Vector3<f32>),
     Vector4(Vector4<f32>),
 }

@@ -5,6 +5,7 @@ mod match_coverage;
 mod match_expression;
 mod structures;
 mod tuples;
+mod vectors;
 
 use crate::errors::ResolveError;
 use crate::{Lowered, ResolveResult, Resolver};
@@ -107,6 +108,7 @@ impl<'a> Resolver<'a> {
                         PrimitiveType::NamedStruct { .. }
                             | PrimitiveType::NamedEnum { .. }
                             | PrimitiveType::Tuple { .. }
+                            | PrimitiveType::Vector { .. }
                     ) && control_flow::can_complete(&body)))
             {
                 return Err(
@@ -480,6 +482,12 @@ impl<'a> Resolver<'a> {
         if let Expression::Path(path) = function.node {
             if path.node.segments.len() > 1 {
                 return self.resolve_enum_tuple(path.as_ref_spanned(), arguments);
+            }
+            let name = path.node.last_ident();
+            if let Some(ty @ PrimitiveType::Vector { .. }) = PrimitiveType::from(name) {
+                return self
+                    .resolve_vector_constructor(ty, arguments)
+                    .map_err(|e| e.at(function.span));
             }
         }
         let call = self.resolve_expression(&function)?;

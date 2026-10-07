@@ -77,6 +77,9 @@ impl<'a> Resolver<'a> {
         field_name: &str,
     ) -> ResolveResult<Lowered<HIRExpression>> {
         let parent = self.resolve_expression(expression)?;
+        if matches!(parent.type_symbol.type_kind, PrimitiveType::Vector { .. }) {
+            return self.resolve_vector_field(parent, field_name);
+        }
         if matches!(parent.type_symbol.type_kind, PrimitiveType::Tuple { .. }) {
             return self.resolve_tuple_field(parent, field_name);
         }

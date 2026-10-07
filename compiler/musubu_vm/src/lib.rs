@@ -8,6 +8,7 @@ mod enumeration;
 mod frame;
 mod iterator;
 mod structures;
+mod vectors;
 
 use crate::errors::VMError;
 use crate::frame::Frame;
@@ -77,7 +78,7 @@ impl<'a> VM<'a> {
             Instruction::BinOp { dst, op, lhs, rhs } => {
                 let l = &frame.registers[lhs.0];
                 let r = &frame.registers[rhs.0];
-                frame.registers[dst.0] = Self::eval_binop(op, l, r);
+                frame.registers[dst.0] = Self::eval_binop(op, l, r)?;
             }
             Instruction::Cmp { dst, op, lhs, rhs } => {
                 let l = &frame.registers[lhs.0];
@@ -207,8 +208,23 @@ impl<'a> VM<'a> {
         Ok(frame)
     }
 
-    fn eval_binop(op: &BinaryOperator, l: &Value, r: &Value) -> Value {
-        match (op, l, r) {
+    fn eval_binop(op: &BinaryOperator, l: &Value, r: &Value) -> VMResult<Value> {
+        if matches!(l, Value::Vector(_)) || matches!(r, Value::Vector(_)) {
+            return Self::eval_vector_operator(op, l, r);
+        }
+        if let (Value::Float(a), Value::Float(b)) = (l, r) {
+            if a.to_type() != b.to_type() {
+                return Err(VMError::InvalidOperand);
+            }
+            return Ok(Value::Float(match op {
+                BinaryOperator::Addition => a + b,
+                BinaryOperator::Subtract => a - b,
+                BinaryOperator::Multiply => a * b,
+                BinaryOperator::Divide => a / b,
+                _ => return Err(VMError::InvalidOperand),
+            }));
+        }
+        Ok(match (op, l, r) {
             (BinaryOperator::Addition, Value::Integer(a), Value::Integer(b)) => {
                 Value::Integer(a + b)
             }
@@ -222,8 +238,8 @@ impl<'a> VM<'a> {
 
             (BinaryOperator::Multiply, Value::Matrix(a), Value::Matrix(b)) => Value::Matrix(a * b),
 
-            _ => unimplemented!("unsupported: {op:?}, {l:?}, {r:?}"),
-        }
+            _ => return Err(VMError::InvalidOperand),
+        })
     }
 
     fn eval_cmp(op: &ComparisonOperator, l: &Value, r: &Value) -> VMResult<Value> {
