@@ -23,6 +23,41 @@ macro_rules! execution_tests {
 }
 
 execution_tests! {
+    tuple_fields: "fn main() -> i32 { let t = (7, true); if t.1 { t.0 } else { 0 } }" => 7;
+    tuple_single: "fn main() -> i32 { let t: (i32,) = (7,); t.0 }" => 7;
+    tuple_grouped: "fn main() -> i32 { let t: (i32) = (7); t }" => 7;
+    tuple_nested_fields: "fn main() -> i32 { let t = ((1, 7), false); t.0.1 }" => 7;
+    tuple_mutation: "fn main() -> i32 { let mut t = ((1, 2), true); t.0.1 += 5; t.0.1 }" => 7;
+    tuple_reassignment: "fn main() -> i32 { let mut t = (1, true); t = (7, false); t.0 }" => 7;
+    tuple_function: "fn main() -> i32 { read(make(7)) } fn make(n: i32) -> (i32, bool) { (n, true) } fn read(t: (i32, bool)) -> i32 { t.0 }" => 7;
+    tuple_return: "fn main() -> i32 { make().0 } fn make() -> (i32,) { return (7,); }" => 7;
+    tuple_unit: "fn main() -> i32 { let u: () = (); let () = u; match u { () => 7 } }" => 7;
+    tuple_unit_call: "fn main() -> i32 { let t = (nothing(), 7); consume(t.0); t.1 } fn nothing() -> () {} fn consume(u: ()) { let () = u; }" => 7;
+    tuple_unit_block: "fn main() -> i32 { let t = ({}, 7); let ((), n) = t; n }" => 7;
+    tuple_let: "fn main() -> i32 { let (a, b): (i32, i32) = (3, 4); a + b }" => 7;
+    tuple_let_nested: "fn main() -> i32 { let ((_, mut x), (y,)) = ((0, 3), (4,)); x += y; x }" => 7;
+    tuple_let_once: "fn main() -> i32 { let mut n = 0; let (a, b) = { n += 1; (n, n) }; n * 100 + a * 10 + b }" => 111;
+    tuple_order: "fn main() -> i32 { let mut n = 0; let (a, b) = ({ n += 1; n }, { n += 1; n }); a * 10 + b }" => 12;
+    tuple_snapshot: "fn main() -> i32 { let mut n = 1; let t = (n, { n = 7; n }); t.0 * 10 + t.1 }" => 17;
+    tuple_let_shadow: "fn main() -> i32 { let a = 3; { let (a, b) = (4, a); a + b } }" => 7;
+    tuple_unit_break: "fn main() -> i32 { let () = loop { break (); }; 7 }" => 7;
+    tuple_unit_return: "fn main() -> i32 { let () = nothing(); 7 } fn nothing() -> () { return (); }" => 7;
+    tuple_match_unit_result: "fn main() -> i32 { let (u, n) = (match (1,) { (_) => {} }, 7); let () = u; n }" => 7;
+    tuple_copy: "fn main() -> i32 { let t = (3,); let mut u = t; u.0 = 7; t.0 * 10 + u.0 }" => 37;
+    tuple_struct: "fn main() -> i32 { let mut s = S { t: (S2 { n: 3 },) }; s.t.0.n += 4; s.t.0.n } struct S { t: (S2,) } struct S2 { n: i32 }" => 7;
+    tuple_enum_payload: "fn main() -> i32 { match E::V((3, 4)) { E::V((a, b)) => a + b } } enum E { V((i32, i32)) }" => 7;
+    tuple_array: "fn main() -> i32 { let mut s = 0; for t in [(1, 2), (3, 1)] { let (a, b) = t; s += a + b; } s }" => 7;
+    tuple_match: "fn main() -> i32 { match (3, (4,)) { (a, (b,)) => a + b } }" => 7;
+    tuple_match_binding: "fn main() -> i32 { match (7,) { t => t.0 } }" => 7;
+    tuple_match_mut: "fn main() -> i32 { let t = (3,); let n = match t { (mut a,) => { a += 4; a } }; t.0 * 10 + n }" => 37;
+    tuple_match_enum_product: "fn main() -> i32 { match (E::B, E::B) { (E::A, _) => 1, (E::B, E::A) => 2, (E::B, E::B) => 7 } } enum E { A, B }" => 7;
+    tuple_match_once: "fn main() -> i32 { let mut n = 0; let r = match { n += 1; (n,) } { (a,) => a }; n * 10 + r }" => 11;
+    tuple_match_return: "fn main() -> i32 { match (7,) { (a,) => return a } }" => 7;
+    tuple_match_break: "fn main() -> i32 { loop { match (7,) { (a,) => break a } } }" => 7;
+    tuple_match_result: "fn main() -> i32 { let t = match E::B { E::A => (1,), E::B => (7,) }; t.0 } enum E { A, B }" => 7;
+    tuple_uninhabited: "fn main() -> i32 { 7 } fn impossible(t: (Empty,)) -> (i32,) { match t {} } enum Empty {}" => 7;
+    tuple_type_namespace: "fn main() -> i32 { let S = 2; let t: (S,) = (S { x: 7 },); t.0.x } struct S { x: i32 }" => 7;
+    tuple_grouped_pattern: "fn main() -> i32 { let (a) = 7; match (a,) { ((b),) => b } }" => 7;
     enum_subject_once: "fn main() -> i32 { let mut n = 0; let r = match { n += 1; E::V(n) } { E::A => 0, E::V(x) => x }; n * 10 + r } enum E { A, V(i32) }" => 11;
     enum_named_evaluation_order: "fn main() -> i32 { let mut n = 0; let v = E::V { y: { n += 1; n }, x: { n += 1; n } }; match v { E::V { x, y } => x * 10 + y } } enum E { V { x: i32, y: i32 } }" => 21;
     enum_match_shadow: "fn main() -> i32 { let x = 3; let n = match E::V(7) { E::V(x) => x }; x * 10 + n } enum E { V(i32) }" => 37;
@@ -135,6 +170,28 @@ macro_rules! diagnostic_tests {
 }
 
 diagnostic_tests! {
+    tuple_bad_index: "fn main() { let t = (1,); t.1; }" => "has no element `1`";
+    tuple_huge_index: "fn main() { let t = (1,); t.999999999999999999999999999999999; }" => "has no element";
+    tuple_named_index: "fn main() { let t = (1,); t.x; }" => "has no element `x`";
+    tuple_bad_type: "fn main() { let t: (i32, bool) = (1, 2); }" => "type mismatch";
+    tuple_bad_arity: "fn main() { let (a, b) = (1,); }" => "tuple pattern expects 1 elements, found 2";
+    tuple_non_tuple_pattern: "fn main() { let (a,) = 1; }" => "tuple pattern requires a tuple";
+    tuple_duplicate_binding: "fn main() { let (a, a) = (1, 2); }" => "duplicate tuple binding";
+    tuple_refutable_let: "fn main() { let (1,) = (1,); }" => "irrefutable tuple pattern";
+    tuple_no_initializer: "fn main() { let (a,): (i32,); }" => "requires an initializer";
+    tuple_immutable_field: "fn main() { let t = (1,); t.0 = 2; }" => "immutable";
+    tuple_immutable_binding: "fn main() { let (a,) = (1,); a = 2; }" => "immutable";
+    tuple_update_type: "fn main() { let mut t = (1,); t.0 = true; }" => "type mismatch";
+    tuple_bad_argument: "fn main() { f((1,)); } fn f(t: (i32, bool)) {}" => "type mismatch";
+    tuple_bad_return: "fn main() -> (i32,) { (true,) }" => "return type mismatch";
+    tuple_missing_return: "fn main() -> (i32,) {}" => "return type mismatch";
+    tuple_match_arity: "fn main() { match (1,) { (a, b) => {} } }" => "tuple pattern expects 1 elements, found 2";
+    tuple_match_duplicate: "fn main() { match (1, 2) { (a, a) => {} } }" => "duplicate pattern binding";
+    tuple_match_non_exhaustive: "fn main() { match (E::A, E::A) { (E::A, _) => {}, (E::B, E::A) => {} } } enum E { A, B }" => "non-exhaustive match";
+    tuple_match_unreachable: "fn main() { match (1,) { (_, ) => {}, (a,) => {} } }" => "unreachable match arm";
+    tuple_match_scope: "fn main() { match (1,) { (a,) => {} }; a; }" => "cannot resolve path";
+    tuple_recursive_type: "fn main() {} struct S { t: (S,) }" => "recursive type";
+    tuple_single_type_mismatch: "fn main() { let t: (i32,) = (1); }" => "type mismatch";
     enum_missing_match_arms: "fn main() { match E::A {} } enum E { A }" => "non-exhaustive";
     enum_unreachable_nested: "fn main() { match E::V(I::A) { E::V(_) => {}, E::V(I::A) => {} } } enum E { V(I) } enum I { A, B }" => "unreachable match arm";
     enum_missing_product_case: "fn main() { match E::V(I::A, I::B) { E::V(I::A, _) => {}, E::V(I::B, I::A) => {} } } enum E { V(I, I) } enum I { A, B }" => "non-exhaustive";
