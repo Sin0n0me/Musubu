@@ -4,6 +4,7 @@
 extern crate alloc;
 
 pub mod errors;
+mod indexing;
 
 use crate::errors::DesugarError;
 use alloc::boxed::Box;
@@ -171,6 +172,9 @@ impl<'a> Desugar<'a> {
         lhs: HIRExpression,
         rhs: HIRExpression,
     ) -> DesugarResult<HIRExpression> {
+        if indexing::has_index(&lhs) {
+            return indexing::lower_assignment(operator, lhs, rhs);
+        }
         let (target, path) = Self::assignment_place(&lhs)?;
 
         let operator = match operator {

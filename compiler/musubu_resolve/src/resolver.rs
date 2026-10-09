@@ -3,8 +3,10 @@ mod control_flow;
 mod enumeration;
 mod match_coverage;
 mod match_expression;
+mod matrices;
 mod structures;
 mod tuples;
+mod vectors;
 
 use crate::errors::ResolveError;
 use crate::{Lowered, ResolveResult, Resolver};
@@ -107,6 +109,8 @@ impl<'a> Resolver<'a> {
                         PrimitiveType::NamedStruct { .. }
                             | PrimitiveType::NamedEnum { .. }
                             | PrimitiveType::Tuple { .. }
+                            | PrimitiveType::Vector { .. }
+                            | PrimitiveType::Matrix { .. }
                     ) && control_flow::can_complete(&body)))
             {
                 return Err(
@@ -402,7 +406,9 @@ impl<'a> Resolver<'a> {
 
         if !matches!(
             &lhs.hir,
-            HIRExpression::Variable { .. } | HIRExpression::Field { .. }
+            HIRExpression::Variable { .. }
+                | HIRExpression::Field { .. }
+                | HIRExpression::Index { .. }
         ) {
             return Err(ResolveError::from(
                 musubu_desugar::errors::DesugarError::UnsupportedAssignTarget,
@@ -480,6 +486,17 @@ impl<'a> Resolver<'a> {
         if let Expression::Path(path) = function.node {
             if path.node.segments.len() > 1 {
                 return self.resolve_enum_tuple(path.as_ref_spanned(), arguments);
+            }
+            let name = path.node.last_ident();
+            if let Some(ty @ PrimitiveType::Matrix { .. }) = PrimitiveType::from(name) {
+                return self
+                    .resolve_matrix_constructor(ty, arguments)
+                    .map_err(|e| e.at(function.span));
+            }
+            if let Some(ty @ PrimitiveType::Vector { .. }) = PrimitiveType::from(name) {
+                return self
+                    .resolve_vector_constructor(ty, arguments)
+                    .map_err(|e| e.at(function.span));
             }
         }
         let call = self.resolve_expression(&function)?;
@@ -627,9 +644,7 @@ impl<'a> Resolver<'a> {
         parent: Spanned<&'a Expression>,
         index: Spanned<&'a Expression>,
     ) -> ResolveResult<Lowered<HIRExpression>> {
-        Err(ResolveError::Unsupported {
-            feature: "index expressions",
-        })
+        self.resolve_numeric_index(parent, index)
     }
 
     fn resolve_path(
