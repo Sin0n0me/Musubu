@@ -2,6 +2,7 @@ use alloc::vec;
 use musubu_driver::{compile, compile_with_filename};
 use musubu_engine::MusubuEngine;
 use musubu_primitive::{Integer, Value};
+mod matrix_arithmetic;
 
 #[test]
 fn vec_integer_arithmetic_errors() {
