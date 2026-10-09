@@ -20,6 +20,78 @@ fn vec_integer_arithmetic_errors() {
 }
 
 #[test]
+fn mat_runtime_bounds_errors() {
+    for source in [
+        "fn main() { let m = mat1x1i32(vec1i32(1)); let i = 1; m[i]; }",
+        "fn main() { let m = mat1x1i32(vec1i32(1)); let i = -1; m[0][i]; }",
+        "fn main() { let mut m = mat1x1i32(vec1i32(1)); let i = 1; m[0][i] = 7; }",
+        "fn main() { let mut m = mat1x1i32(vec1i32(1)); let i = 1; m[i][0] += 7; }",
+        "fn main() { let m = mat1x1i32(vec1i32(1)); let i = 18446744073709551615u64; m[i]; }",
+    ] {
+        let mut engine = MusubuEngine::new();
+        assert!(compile(&mut engine, source), "{}", engine.compile_error());
+        assert!(engine.run_function(0, vec![]).is_err(), "{source}");
+    }
+}
+
+#[test]
+fn mat_integer_arithmetic_errors() {
+    for expression in [
+        "mat1x1i8(vec1i8(127i8)) + mat1x1i8(vec1i8(1i8))",
+        "mat1x1u8(vec1u8(0u8)) - mat1x1u8(vec1u8(1u8))",
+        "mat1x1i8(vec1i8(100i8)) * mat1x1i8(vec1i8(2i8))",
+        "mat2x1i8(vec1i8(100i8), vec1i8(100i8)) * mat1x2i8(vec2i8(1i8,1i8))",
+        "mat1x1i32(vec1i32(7)) / 0",
+        "mat1x1i32(vec1i32(-2147483648)) / -1",
+    ] {
+        let mut engine = MusubuEngine::new();
+        let source = alloc::format!("fn main() {{ {expression}; }}");
+        assert!(compile(&mut engine, &source), "{}", engine.compile_error());
+        assert!(engine.run_function(0, vec![]).is_err(), "{expression}");
+    }
+}
+
+#[test]
+fn mat_legacy_host_values() {
+    use musubu_primitive::{Float, Matrix, PrimitiveType, ToPrimitiveType};
+    for (ty, value) in [
+        (
+            "mat3x3",
+            Matrix::Matrix3([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]].into()),
+        ),
+        (
+            "mat4x4",
+            Matrix::Matrix4(
+                [
+                    [1.0, 0.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0, 0.0],
+                    [0.0, 0.0, 1.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0],
+                ]
+                .into(),
+            ),
+        ),
+    ] {
+        let mut engine = MusubuEngine::new();
+        let source = alloc::format!("fn main(mut m: {ty}) -> {ty} {{ m[1][0] = 7.0; m * 2.0 }}");
+        assert!(compile(&mut engine, &source), "{}", engine.compile_error());
+        let Some(Value::Matrix(result)) =
+            engine.run_function(0, vec![Value::Matrix(value)]).unwrap()
+        else {
+            panic!("expected matrix result");
+        };
+        assert_eq!(result.to_type(), PrimitiveType::from(ty).unwrap());
+        let columns = result.columns();
+        let Value::Vector(column) = &columns[1] else {
+            panic!("expected column vector");
+        };
+        assert!(
+            matches!(column.components().first(), Some(Value::Float(Float::Float32(n))) if *n == 14.0)
+        );
+    }
+}
+
+#[test]
 fn vec_legacy_host_values() {
     use musubu_primitive::{Float, PrimitiveType, ToPrimitiveType, Vector};
     for (ty, value) in [
@@ -89,6 +161,43 @@ macro_rules! execution_tests {
 }
 
 execution_tests! {
+    mat_constructor: "fn main() -> i32 { let m = mat2x3i32(vec3i32(1,2,3), vec3i32(4,5,6)); m[1][0] * 10 + m[0][2] }" => 43;
+    mat_default_float: "fn main() -> i32 { let m: mat2x2f32 = mat2x2(vec2(1.0,2.0), vec2(3.0,4.0)); if m[1][0] == 3.0 { 7 } else { 0 } }" => 7;
+    mat_dynamic_index: "fn main() -> i32 { let m = mat2x2i32(vec2i32(1,2), vec2i32(3,4)); let c = 1; let r = 0; m[c][r] }" => 3;
+    mat_component_update: "fn main() -> i32 { let mut m = mat2x2i32(vec2i32(1,2), vec2i32(3,4)); m[1][0] = 7; m[1][0] }" => 7;
+    mat_component_compound: "fn main() -> i32 { let mut m = mat2x2(vec2(1.0,2.0), vec2(3.0,4.0)); m[0][1] += 5.0; m[1][0] *= 2.0; if m[0][1] == 7.0 && m[1][0] == 6.0 { 7 } else { 0 } }" => 7;
+    mat_column_update: "fn main() -> i32 { let mut m = mat2x2i32(vec2i32(1,2), vec2i32(3,4)); m[0] = vec2i32(7,8); m[0].x }" => 7;
+    mat_column_component_update: "fn main() -> i32 { let mut m = mat2x2i32(vec2i32(1,2), vec2i32(3,4)); m[0].y += 5; m[0][1] }" => 7;
+    mat_column_compound: "fn main() -> i32 { let mut m = mat2x2i32(vec2i32(1,2), vec2i32(3,4)); m[0] += vec2i32(2,3); m[0] *= 2; m[0][1] }" => 10;
+    mat_nested_place: "fn main() -> i32 { let mut s = S { m: (mat1x2i32(vec2i32(1,2)),) }; s.m.0[0][1] += 5; s.m.0[0][1] } struct S { m: (mat1x2i32,) }" => 7;
+    mat_index_once: "fn main() -> i32 { let mut n = 0; let mut m = mat1x2i32(vec2i32(1,2)); m[({ n += 1; 0 })][({ n += 1; 1 })] += ({ n += 1; 5 }); n * 100 + m[0][1] }" => 307;
+    mat_compound_snapshot: "fn main() -> i32 { let mut m = mat1x2i32(vec2i32(1,2)); m[0][0] += ({ m[0][0] = 9; 3 }); m[0][0] }" => 4;
+    mat_index_widths: "fn main() -> i32 { let m = mat1x2i32(vec2i32(1,7)); let c = 0u64; let r = 1i8; m[c][r] }" => 7;
+    mat_add_sub: "fn main() -> i32 { let a = mat1x2i32(vec2i32(1,2)); let b = mat1x2i32(vec2i32(3,4)); let c = a + b - a; c[0][0] + c[0][1] }" => 7;
+    mat_scalar_right: "fn main() -> i32 { let m = mat1x2i32(vec2i32(3,4)) * 2; m[0][0] + m[0][1] }" => 14;
+    mat_scalar_left: "fn main() -> i32 { let m = 2 * mat1x2i32(vec2i32(3,4)); m[0][0] + m[0][1] }" => 14;
+    mat_scalar_divide: "fn main() -> i32 { let m = mat1x2i32(vec2i32(-7,9)) / 2; m[0][0] * 10 + m[0][1] }" => -26;
+    mat_rectangular_product: "fn main() -> i32 { let a = mat2x3i32(vec3i32(1,2,3), vec3i32(4,5,6)); let b = mat3x2i32(vec2i32(7,8), vec2i32(9,10), vec2i32(11,12)); let c: mat3x3i32 = a * b; c[0][0] + c[1][1] + c[2][2] }" => 212;
+    mat_vector_product: "fn main() -> i32 { let m = mat2x3i32(vec3i32(1,2,3), vec3i32(4,5,6)); let v: vec3i32 = m * vec2i32(2,3); v.x + v.y + v.z }" => 57;
+    mat_left_vector_product: "fn main() -> i32 { let m = mat2x3i32(vec3i32(1,2,3), vec3i32(4,5,6)); let v: vec2i32 = vec3i32(2,3,4) * m; v.x + v.y }" => 67;
+    mat_compound_matrix: "fn main() -> i32 { let mut m = mat2x2i32(vec2i32(1,2), vec2i32(3,4)); let b = mat2x2i32(vec2i32(2,0), vec2i32(0,3)); m *= b; m[0][1] + m[1][0] }" => 13;
+    mat_compound_scalar: "fn main() -> i32 { let mut m = mat1x2i32(vec2i32(1,2)); let b = mat1x2i32(vec2i32(3,4)); m += b; m -= b; m *= 4; m /= 2; m[0][1] }" => 4;
+    mat_float64_product: "fn main() -> i32 { let m = mat1x2f64(vec2f64(1.5f64,2.0f64)); let v = m * vec1f64(2.0f64); if v.x == 3.0f64 && v.y == 4.0f64 { 7 } else { 0 } }" => 7;
+    mat_unsigned_product: "fn main() -> i32 { let m = mat1x1u8(vec1u8(3u8)); let n = m * m; if n[0][0] == 9u8 { 7 } else { 0 } }" => 7;
+    mat_function: "fn main() -> i32 { read(make()) } fn make() -> mat1x2i32 { mat1x2i32(vec2i32(3,4)) } fn read(m: mat1x2i32) -> i32 { m[0][0] + m[0][1] }" => 7;
+    mat_explicit_return: "fn main() -> i32 { make()[0][0] } fn make() -> mat1x1i32 { return mat1x1i32(vec1i32(7)); }" => 7;
+    mat_product_return_type: "fn main() -> i32 { make()[0][2] } fn make() -> mat1x3i32 { mat2x3i32(vec3i32(1,2,3), vec3i32(4,5,6)) * mat1x2i32(vec2i32(2,3)) }" => 24;
+    mat_vector_return_type: "fn main() -> i32 { make().z } fn make() -> vec3i32 { mat2x3i32(vec3i32(1,2,3), vec3i32(4,5,6)) * vec2i32(2,3) }" => 24;
+    mat_copy: "fn main() -> i32 { let m = mat1x1i32(vec1i32(3)); let mut n = m; n[0][0] = 7; m[0][0] * 10 + n[0][0] }" => 37;
+    mat_column_copy: "fn main() -> i32 { let m = mat1x1i32(vec1i32(3)); let mut c = m[0]; c.x = 7; m[0][0] * 10 + c.x }" => 37;
+    mat_constructor_order: "fn main() -> i32 { let mut n = 0; let m = mat2x1i32(({ n += 1; vec1i32(n) }), ({ n += 1; vec1i32(n) })); m[0][0] * 10 + m[1][0] }" => 12;
+    mat_array_loop: "fn main() -> i32 { let mut n = 0; for m in [mat1x1i32(vec1i32(3)), mat1x1i32(vec1i32(4))] { n += m[0][0]; } n }" => 7;
+    mat_enum: "fn main() -> i32 { match E::M(mat1x1i32(vec1i32(7))) { E::M(m) => m[0][0] } } enum E { M(mat1x1i32) }" => 7;
+    mat_index_local_registers: "fn main() -> i32 { let mut m = mat1x2i32(vec2i32(1,2)); m[({ let i = 0; i })][({ let j = 1; j })] += 5; m[0][1] }" => 7;
+    mat_left_vector_compound: "fn main() -> i32 { let mut v = vec2i32(2,3); v *= mat2x2i32(vec2i32(1,2),vec2i32(3,4)); v.x + v.y }" => 26;
+    mat_operand_snapshot: "fn main() -> i32 { let mut m = mat1x1i32(vec1i32(3)); let n = m + ({ m[0][0] = 7; m }); n[0][0] }" => 10;
+    mat_loop_value: "fn main() -> i32 { let m = loop { break mat1x1i32(vec1i32(7)); }; m[0][0] }" => 7;
+    mat_immutable_nested: "fn main() -> i32 { let m = mat1x1i32(vec1i32(7)); let (n,) = (m,); n[0][0] }" => 7;
     vec_default_constructor: "fn main() -> i32 { let v = vec3(1.0, 2.0, 3.0); if v.x == 1.0 && v.y == 2.0 && v.z == 3.0 { 7 } else { 0 } }" => 7;
     vec_four_components: "fn main() -> i32 { let v: vec4f32 = vec4(1.0, 2.0, 3.0, 4.0); if v.w == 4.0 { 7 } else { 0 } }" => 7;
     vec_integer_constructor: "fn main() -> i32 { let v = vec2i16(3i16, 4i16); if v.x + v.y == 7i16 { 7 } else { 0 } }" => 7;
@@ -265,6 +374,28 @@ macro_rules! diagnostic_tests {
 }
 
 diagnostic_tests! {
+    mat_wrong_column_count: "fn main() { mat2x3(vec3(1.0,2.0,3.0)); }" => "expects 2 columns, found 1";
+    mat_wrong_row_count: "fn main() { mat1x3(vec2(1.0,2.0)); }" => "type mismatch";
+    mat_wrong_component_type: "fn main() { mat1x2(vec2i32(1,2)); }" => "type mismatch";
+    mat_scalar_constructor: "fn main() { mat1x1(1.0); }" => "type mismatch";
+    mat_invalid_index_type: "fn main() { let m = mat1x1i32(vec1i32(1)); m[true]; }" => "index must be an integer";
+    mat_column_out_of_bounds: "fn main() { mat1x2i32(vec2i32(1,2))[1]; }" => "out of bounds for length 1";
+    mat_row_out_of_bounds: "fn main() { mat1x2i32(vec2i32(1,2))[0][2]; }" => "out of bounds for length 2";
+    mat_negative_index: "fn main() { mat1x1i32(vec1i32(1))[-1]; }" => "out of bounds";
+    mat_immutable_element: "fn main() { let m = mat1x1i32(vec1i32(1)); m[0][0] = 2; }" => "immutable";
+    mat_wrong_update_type: "fn main() { let mut m = mat1x1i32(vec1i32(1)); m[0][0] = 2.0; }" => "type mismatch";
+    mat_wrong_column_update: "fn main() { let mut m = mat1x2i32(vec2i32(1,2)); m[0] = vec1i32(3); }" => "type mismatch";
+    mat_wrong_product_dimensions: "fn main() { mat1x2i32(vec2i32(1,2)) * mat1x2i32(vec2i32(1,2)); }" => "incompatible matrix operation";
+    mat_wrong_vector_dimensions: "fn main() { mat1x2i32(vec2i32(1,2)) * vec2i32(1,2); }" => "incompatible matrix operation";
+    mat_wrong_left_vector_dimensions: "fn main() { vec1i32(1) * mat1x2i32(vec2i32(1,2)); }" => "incompatible matrix operation";
+    mat_wrong_scalar_type: "fn main() { mat1x1i32(vec1i32(1)) * 2.0; }" => "incompatible matrix operation";
+    mat_wrong_add_dimensions: "fn main() { mat1x1i32(vec1i32(1)) + mat1x2i32(vec2i32(1,2)); }" => "incompatible matrix operation";
+    mat_divide_matrix: "fn main() { let m = mat1x1i32(vec1i32(1)); m / m; }" => "incompatible matrix operation";
+    mat_scalar_div_matrix: "fn main() { 2 / mat1x1i32(vec1i32(1)); }" => "incompatible matrix operation";
+    mat_compound_shape_change: "fn main() { let mut m = mat1x2i32(vec2i32(1,2)); m *= mat2x1i32(vec1i32(1),vec1i32(2)); }" => "type mismatch";
+    mat_missing_return: "fn main() -> mat1x1 {}" => "return type mismatch";
+    mat_zero_dimension: "fn main(m: mat0x2) {}" => "cannot determine type";
+    mat_unsupported_component_width: "fn main(m: mat2x2f16) {}" => "cannot determine type";
     vec_constructor_arity: "fn main() { vec3(1.0, 2.0); }" => "expects 3 components, found 2";
     vec_constructor_type: "fn main() { vec3(1.0, 2, 3.0); }" => "type mismatch";
     vec_constructor_scalar_width: "fn main() { vec2i16(1, 2); }" => "type mismatch";
