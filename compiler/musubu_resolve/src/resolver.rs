@@ -3,6 +3,7 @@ mod control_flow;
 mod enumeration;
 mod match_coverage;
 mod match_expression;
+mod matrices;
 mod structures;
 mod tuples;
 mod vectors;
@@ -109,6 +110,7 @@ impl<'a> Resolver<'a> {
                             | PrimitiveType::NamedEnum { .. }
                             | PrimitiveType::Tuple { .. }
                             | PrimitiveType::Vector { .. }
+                            | PrimitiveType::Matrix { .. }
                     ) && control_flow::can_complete(&body)))
             {
                 return Err(
@@ -404,7 +406,9 @@ impl<'a> Resolver<'a> {
 
         if !matches!(
             &lhs.hir,
-            HIRExpression::Variable { .. } | HIRExpression::Field { .. }
+            HIRExpression::Variable { .. }
+                | HIRExpression::Field { .. }
+                | HIRExpression::Index { .. }
         ) {
             return Err(ResolveError::from(
                 musubu_desugar::errors::DesugarError::UnsupportedAssignTarget,
@@ -484,6 +488,11 @@ impl<'a> Resolver<'a> {
                 return self.resolve_enum_tuple(path.as_ref_spanned(), arguments);
             }
             let name = path.node.last_ident();
+            if let Some(ty @ PrimitiveType::Matrix { .. }) = PrimitiveType::from(name) {
+                return self
+                    .resolve_matrix_constructor(ty, arguments)
+                    .map_err(|e| e.at(function.span));
+            }
             if let Some(ty @ PrimitiveType::Vector { .. }) = PrimitiveType::from(name) {
                 return self
                     .resolve_vector_constructor(ty, arguments)
@@ -635,9 +644,7 @@ impl<'a> Resolver<'a> {
         parent: Spanned<&'a Expression>,
         index: Spanned<&'a Expression>,
     ) -> ResolveResult<Lowered<HIRExpression>> {
-        Err(ResolveError::Unsupported {
-            feature: "index expressions",
-        })
+        self.resolve_numeric_index(parent, index)
     }
 
     fn resolve_path(

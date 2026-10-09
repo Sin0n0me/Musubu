@@ -55,7 +55,11 @@ fn scalar_matches(vector: &Vector, scalar: &Value) -> bool {
     matches!(scalar, Value::Integer(_) | Value::Float(_)) && scalar.to_type() == *type_kind
 }
 
-fn checked_integer(op: &BinaryOperator, lhs: &Integer, rhs: &Integer) -> VMResult<Integer> {
+pub(super) fn checked_integer(
+    op: &BinaryOperator,
+    lhs: &Integer,
+    rhs: &Integer,
+) -> VMResult<Integer> {
     macro_rules! calculate {
         ($($kind:ident),*) => {
             match (lhs, rhs) {

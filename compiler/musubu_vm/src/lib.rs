@@ -6,7 +6,9 @@ pub mod errors;
 
 mod enumeration;
 mod frame;
+mod indexing;
 mod iterator;
+mod matrices;
 mod structures;
 mod vectors;
 
@@ -56,6 +58,9 @@ impl<'a> VM<'a> {
         frame.ip += 1;
 
         match inst {
+            Instruction::LoadIndex { .. } | Instruction::StoreIndex { .. } => {
+                Self::execute_index(frame, inst)?
+            }
             Instruction::Unreachable => return Err(VMError::InvalidOperand),
             Instruction::MakeEnum { .. } | Instruction::IsVariant { .. } => {
                 Self::execute_enum(frame, inst)?
@@ -209,6 +214,9 @@ impl<'a> VM<'a> {
     }
 
     fn eval_binop(op: &BinaryOperator, l: &Value, r: &Value) -> VMResult<Value> {
+        if matches!(l, Value::Matrix(_)) || matches!(r, Value::Matrix(_)) {
+            return Self::eval_matrix_operator(op, l, r);
+        }
         if matches!(l, Value::Vector(_)) || matches!(r, Value::Vector(_)) {
             return Self::eval_vector_operator(op, l, r);
         }
@@ -235,8 +243,6 @@ impl<'a> VM<'a> {
                 Value::Integer(a * b)
             }
             (BinaryOperator::Divide, Value::Integer(a), Value::Integer(b)) => Value::Integer(a / b),
-
-            (BinaryOperator::Multiply, Value::Matrix(a), Value::Matrix(b)) => Value::Matrix(a * b),
 
             _ => return Err(VMError::InvalidOperand),
         })

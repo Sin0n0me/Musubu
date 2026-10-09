@@ -13,6 +13,9 @@ use musubu_type_check::errors::TypeCheckError;
 
 #[derive(Debug)]
 pub enum ResolveError {
+    InvalidMatrix {
+        message: String,
+    },
     InvalidVector {
         message: String,
     },
@@ -110,6 +113,7 @@ impl fmt::Display for ResolveError {
             Self::Located { error, .. } => write!(f, "{error}"),
             Self::InvalidEnum { message } => write!(f, "{message}"),
             Self::InvalidVector { message } => write!(f, "{message}"),
+            Self::InvalidMatrix { message } => write!(f, "{message}"),
             Self::InvalidTuple { message } => write!(f, "{message}"),
             Self::InvalidStruct { message } => write!(f, "{message}"),
             Self::Unsupported { feature } => write!(f, "unsupported feature: {feature}"),

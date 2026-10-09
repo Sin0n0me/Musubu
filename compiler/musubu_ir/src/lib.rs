@@ -16,6 +16,16 @@ pub struct Register(pub usize);
 
 #[derive(Debug, Clone)]
 pub enum Instruction {
+    LoadIndex {
+        dst: Register,
+        parent: Register,
+        index: Register,
+    },
+    StoreIndex {
+        target: Register,
+        path: Vec<Register>,
+        value: Register,
+    },
     MakeEnum {
         dst: Register,
         variant: usize,

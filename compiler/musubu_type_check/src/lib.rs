@@ -3,6 +3,7 @@
 extern crate alloc;
 
 pub mod errors;
+mod matrices;
 mod vectors;
 
 use crate::errors::TypeCheckError;
@@ -69,6 +70,13 @@ impl TypeChecker {
         lhs: TypeSymbol,
         rhs: TypeSymbol,
     ) -> TypeCheckResult<TypeSymbol> {
+        if matches!(lhs.type_kind, PrimitiveType::Matrix { .. })
+            || matches!(rhs.type_kind, PrimitiveType::Matrix { .. })
+        {
+            return self
+                .check_matrix_operator(operator, &lhs.type_kind, &rhs.type_kind)
+                .map(TypeSymbol::new);
+        }
         if matches!(lhs.type_kind, PrimitiveType::Vector { .. })
             || matches!(rhs.type_kind, PrimitiveType::Vector { .. })
         {
@@ -114,6 +122,12 @@ impl TypeChecker {
         lhs: TypeSymbol,
         rhs: TypeSymbol,
     ) -> TypeCheckResult<TypeSymbol> {
+        if (matches!(lhs.type_kind, PrimitiveType::Matrix { .. })
+            || matches!(rhs.type_kind, PrimitiveType::Matrix { .. }))
+            && !matches!(operator, AssignOperator::Assign)
+        {
+            return self.check_matrix_assignment(operator, lhs, rhs);
+        }
         if matches!(lhs.type_kind, PrimitiveType::Vector { .. })
             && !matches!(operator, AssignOperator::Assign)
         {

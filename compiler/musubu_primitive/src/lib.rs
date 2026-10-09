@@ -2,8 +2,10 @@
 
 extern crate alloc;
 mod enumeration;
+mod matrix;
 mod vector;
 pub use enumeration::{EnumVariant, EnumVariantKind};
+pub use matrix::matrix_result_type;
 
 use alloc::boxed::Box;
 use alloc::format;
@@ -280,6 +282,9 @@ impl PrimitiveType {
             return None;
         }
         let rows = Self::parse_number(&mut chars)?;
+        if columns == 0 || rows == 0 {
+            return None;
+        }
 
         // 型
         // 型なしはvec同様f32として扱う
@@ -292,7 +297,13 @@ impl PrimitiveType {
             });
         }
         let ty = Self::from(spec_ty)?;
-        if !ty.is_scalar_type() {
+        if !matches!(
+            ty,
+            Self::Integer {
+                byte: 1 | 2 | 4 | 8,
+                ..
+            } | Self::Float { byte: 4 | 8 }
+        ) {
             return None;
         }
 
@@ -429,6 +440,7 @@ impl ToPrimitiveType for Value {
         match self {
             Self::Unit => PrimitiveType::Unit,
             Self::Vector(vector) => vector.to_type(),
+            Self::Matrix(matrix) => matrix.to_type(),
             Self::Tuple { tuple_type, .. } => tuple_type.clone(),
             Self::Struct { struct_type, .. } => struct_type.clone(),
             Self::Enum { enum_type, .. } => enum_type.clone(),
@@ -460,8 +472,12 @@ pub enum Vector {
     Vector4(Vector4<f32>),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Matrix {
+    Columns {
+        columns: Vec<Value>,
+        matrix_type: PrimitiveType,
+    },
     Matrix3(Matrix3<f32>),
     Matrix4(Matrix4<f32>),
 }

@@ -17,6 +17,11 @@ impl VM<'_> {
                         fields,
                         tuple_type: struct_type.clone(),
                     }
+                } else if matches!(struct_type, PrimitiveType::Matrix { .. }) {
+                    Value::Matrix(Matrix::Columns {
+                        columns: fields,
+                        matrix_type: struct_type.clone(),
+                    })
                 } else if let PrimitiveType::Vector { type_kind, .. } = struct_type {
                     Value::Vector(Vector::Components {
                         elements: fields,
