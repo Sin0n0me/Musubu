@@ -107,7 +107,7 @@ fn mat_multiplication_order() {
 #[test]
 fn mat_chained_rectangular_products() {
     let definitions = "let a = mat2x3i32(vec3i32(1,2,3),vec3i32(4,5,6)); let b = mat3x2i32(vec2i32(7,8),vec2i32(9,10),vec2i32(11,12)); let c = mat1x3i32(vec3i32(1,-1,2));";
-    for expression in ["let ab = a * b; ab * c", "let bc = b * c; a * bc"] {
+    for expression in ["(a * b) * c", "a * (b * c)"] {
         assert_matrix(
             &alloc::format!("fn main() -> mat1x3i32 {{ {definitions} {expression} }}"),
             "mat1x3i32",

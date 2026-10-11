@@ -7,7 +7,17 @@ macro_rules! execution_cases {
 }
 
 execution_cases! {
-    recursive_factorial: "fn main() -> i32 { factorial(6) } fn factorial(n: i32) -> i32 { if n == 0 { 1 } else { let previous = factorial(n - 1); n * previous } }" => 720;
+    recursive_factorial: "fn main() -> i32 { factorial(6) } fn factorial(n: i32) -> i32 { if n == 0 { 1 } else { n * factorial(n - 1) } }" => 720;
+    grouped_rhs_lower_precedence: "fn main() -> i32 { 2 * (3 + 4) }" => 14;
+    grouped_rhs_same_precedence: "fn main() -> i32 { 24 / (2 * 3) }" => 4;
+    ungrouped_multiplication_precedence: "fn main() -> i32 { 2 + 3 * 4 - 5 }" => 9;
+    left_associative_division: "fn main() -> i32 { 24 / 2 / 3 }" => 4;
+    left_associative_subtraction: "fn main() -> i32 { 20 - 6 - 3 }" => 11;
+    call_rhs_multiple_argument_expressions: "fn main() -> i32 { 2 * add(7 - 3, 2 * 3) + 1 } fn add(a: i32, b: i32) -> i32 { a + b }" => 21;
+    nested_grouping_and_calls: "fn main() -> i32 { 3 * add(2 * (4 + 1), add(8 - 3, 1)) } fn add(a: i32, b: i32) -> i32 { a + b }" => 48;
+    tuple_expression_on_rhs: "fn main() -> i32 { 2 * (3 + 4, 5 * 6).0 }" => 14;
+    indexed_expression_on_rhs: "fn main() -> i32 { let v = vec3i32(2,4,7); 3 * v[2 - 1] }" => 12;
+    block_expression_on_rhs: "fn main() -> i32 { 2 * { let x = 3 + 4; x } + 1 }" => 15;
     mutual_recursion: "fn main() -> i32 { if even(12) && odd(11) { 1 } else { 0 } } fn even(n: i32) -> bool { if n == 0 { true } else { odd(n - 1) } } fn odd(n: i32) -> bool { if n == 0 { false } else { even(n - 1) } }" => 1;
     nested_calls_keep_arguments: "fn main() -> i32 { combine(inc(1), inc(inc(2)), inc(3)) } fn inc(x: i32) -> i32 { x + 1 } fn combine(a: i32, b: i32, c: i32) -> i32 { a * 100 + b * 10 + c }" => 244;
     call_argument_order: "fn main() -> i32 { let mut n = 0; encode({ n += 1; n }, { n += 1; n }, { n += 1; n }) } fn encode(a: i32, b: i32, c: i32) -> i32 { a * 100 + b * 10 + c }" => 123;

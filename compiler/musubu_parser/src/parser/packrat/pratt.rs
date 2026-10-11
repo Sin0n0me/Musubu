@@ -14,7 +14,6 @@ impl PackratAndPrattParser {
     // メモ化はしない
     pub(in crate::parser) fn pratt_parse(&mut self, min_bp: u16) -> ParseResult {
         let key = self.make_key("<Pratt>");
-        self.bp_stack.push(min_bp);
 
         // 前置演算子or式
         let mut lhs = self.expr_or_prefix_op()?;
@@ -93,11 +92,16 @@ impl PackratAndPrattParser {
             break;
         }
 
-        self.bp_stack.pop();
         Ok(MemoResult::from_node(lhs, self.tokens.get_position()))
     }
 
     fn expr_or_prefix_op(&mut self) -> Result<Rc<ASTNode>, ParseError> {
+        if self.tokens.get_operator() == Some(&MusubuOperator::LeftBrace) {
+            return self
+                .parse_primary_expression()?
+                .get_node()
+                .ok_or(ParseError::NotMatch);
+        }
         if self.tokens.get_operator() == Some(&MusubuOperator::LeftParenthesis) {
             return self.parse_tuple_expression();
         }
@@ -116,7 +120,7 @@ impl PackratAndPrattParser {
         }
         let Some(op) = self.tokens.get_operator() else {
             return self
-                .parse_expression()?
+                .parse_primary_expression()?
                 .get_node()
                 .ok_or(ParseError::NotMatch);
         };
