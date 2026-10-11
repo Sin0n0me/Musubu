@@ -2,6 +2,9 @@ use crate::{VMResult, errors::VMError};
 use alloc::vec::IntoIter;
 use musubu_primitive::{Integer, Value};
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Debug)]
 pub(crate) enum IteratorState {
     Array(IntoIter<Value>),
