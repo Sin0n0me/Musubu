@@ -64,6 +64,54 @@ mod tests {
             render("a", "あx", 0, 0, "bad")
         );
     }
+
+    #[test]
+    fn reversed_span_becomes_insertion_caret() {
+        assert_eq!(
+            render("a", "abcd", 3, 1, "bad"),
+            render("a", "abcd", 3, 3, "bad")
+        );
+    }
+
+    #[test]
+    fn end_at_next_line_start_does_not_highlight_next_line() {
+        assert_eq!(
+            render("a", "abc\ndef", 1, 4, "bad"),
+            "error: bad\n   --> a:1:2\n  |\n1 | abc\n  |  ^^\n2 | def\n  |\n"
+        );
+    }
+
+    #[test]
+    fn tabs_inside_highlight_expand_caret_width() {
+        assert_eq!(
+            render("a", "x\ty", 1, 2, "bad"),
+            "error: bad\n   --> a:1:2\n  |\n1 | x    y\n  |  ^^^^\n  |\n"
+        );
+    }
+
+    #[test]
+    fn multiline_span_includes_caret_on_empty_line() {
+        assert_eq!(
+            render("a", "a\n\nb", 0, 4, "bad"),
+            "error: bad\n   --> a:1:1\n  |\n1 | a\n  | ^\n2 | \n  | ^\n3 | b\n  | ^\n  |\n"
+        );
+    }
+
+    #[test]
+    fn two_digit_lines_align_context_and_carets() {
+        assert_eq!(
+            render("a", "1\n2\n3\n4\n5\n6\n7\n8\nbad\nend", 16, 19, "bad"),
+            "error: bad\n   --> a:9:1\n   |\n 8 | 8\n 9 | bad\n   | ^^^\n10 | end\n   |\n"
+        );
+    }
+
+    #[test]
+    fn unicode_filename_and_eof_without_newline_are_preserved() {
+        assert_eq!(
+            render("src/日本語.msb", "あ", 3, 3, "missing"),
+            "error: missing\n   --> src/日本語.msb:1:2\n  |\n1 | あ\n  |  ^\n  |\n"
+        );
+    }
 }
 
 fn boundary(source: &str, offset: usize) -> usize {
