@@ -96,6 +96,17 @@ impl ToPrimitiveType for HIRBlock {
 
 #[derive(Debug, Clone)]
 pub enum HIRExpression {
+    Index {
+        parent: Box<HIRExpression>,
+        index: Box<HIRExpression>,
+        element_type: PrimitiveType,
+    },
+    StoreIndex {
+        target: usize,
+        path: Vec<HIRExpression>,
+        value: Box<HIRExpression>,
+        operator: Option<BinaryOperator>,
+    },
     Enum {
         variant: usize,
         fields: Vec<(usize, HIRExpression)>,
@@ -211,6 +222,8 @@ impl HIRExpression {
 impl ToPrimitiveType for HIRExpression {
     fn to_type(&self) -> PrimitiveType {
         match self {
+            Self::Index { element_type, .. } => element_type.clone(),
+            Self::StoreIndex { .. } => PrimitiveType::Unit,
             Self::Enum { enum_type, .. } => enum_type.clone(),
             Self::Match { result_type, .. } => result_type.clone(),
             Self::Struct { struct_type, .. } => struct_type.clone(),
@@ -233,7 +246,18 @@ impl ToPrimitiveType for HIRExpression {
             Self::For { .. } | Self::Store { .. } => PrimitiveType::Unit,
             Self::Variable { id: _, symbol_type } => symbol_type.clone(),
             Self::CmpOp { .. } => PrimitiveType::Boolean,
-            Self::BinOp { op: _, lhs, rhs: _ } => lhs.to_type(),
+            Self::BinOp { op, lhs, rhs } => {
+                let left = lhs.to_type();
+                let right = rhs.to_type();
+                if let Some(ty) = matrix_result_type(op, &left, &right) {
+                    return ty;
+                }
+                if matches!(right, PrimitiveType::Vector { .. }) {
+                    right
+                } else {
+                    left
+                }
+            }
             Self::Return(expr) => expr.as_ref().map_or(PrimitiveType::Unit, |e| e.to_type()),
             Self::Literal(v) => v.to_type(),
             Self::Continue => PrimitiveType::Unit,

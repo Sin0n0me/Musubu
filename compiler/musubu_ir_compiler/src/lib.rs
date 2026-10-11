@@ -5,6 +5,7 @@ extern crate alloc;
 mod collections;
 mod enumeration;
 pub mod errors;
+mod indexing;
 mod locals;
 mod register_allocator;
 mod structures;
@@ -168,6 +169,9 @@ impl IRCompiler {
 
     fn compile_expr_inner(&mut self, expr: &HIRExpression) -> IRCompileResult<Option<Register>> {
         match expr {
+            HIRExpression::Index { .. } | HIRExpression::StoreIndex { .. } => {
+                self.compile_index_expression(expr)
+            }
             HIRExpression::Enum { .. } | HIRExpression::Match { .. } => {
                 self.compile_enum_expression(expr)
             }

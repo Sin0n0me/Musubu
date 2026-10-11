@@ -215,6 +215,13 @@ fn make_ast_from_operator(
             feature: "unary operators",
         }),
         [Some(lhs), None, Some(rhs)] => match op {
+            MusubuOperator::LeftBrackets => Ok(Rc::new(
+                Expression::Index {
+                    parent: lhs,
+                    index: rhs,
+                }
+                .make_node(span),
+            )),
             MusubuOperator::Binary(op) => make_binary_op_ast(span, op, lhs, rhs),
             MusubuOperator::Assign(op) => make_assign_op_ast(span, op, lhs, rhs),
             MusubuOperator::Comparison(op) => make_comparison_op_ast(span, op, lhs, rhs),

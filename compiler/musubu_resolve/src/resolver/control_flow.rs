@@ -37,6 +37,13 @@ fn block_flow(block: &HIRBlock) -> Flow {
 
 fn expression_flow(expr: &HIRExpression) -> Flow {
     match expr {
+        HIRExpression::Index { parent, index, .. } => {
+            expression_flow(parent).then(expression_flow(index))
+        }
+        HIRExpression::StoreIndex { path, value, .. } => path
+            .iter()
+            .fold(Flow::NEXT, |flow, index| flow.then(expression_flow(index)))
+            .then(expression_flow(value)),
         HIRExpression::Return(value) | HIRExpression::Break(value) => {
             let flow = value.as_deref().map(expression_flow).unwrap_or(Flow::NEXT);
             Flow {

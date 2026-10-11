@@ -36,6 +36,22 @@ fn visit_block(block: &HIRBlock, count: &mut usize) {
 
 fn visit_expression(expression: &HIRExpression, count: &mut usize) {
     match expression {
+        HIRExpression::Index { parent, index, .. } => {
+            visit_expression(parent, count);
+            visit_expression(index, count);
+        }
+        HIRExpression::StoreIndex {
+            target,
+            path,
+            value,
+            ..
+        } => {
+            include(count, *target);
+            for index in path {
+                visit_expression(index, count);
+            }
+            visit_expression(value, count);
+        }
         HIRExpression::Variable { id, .. } => include(count, *id),
         HIRExpression::Store { target, value }
         | HIRExpression::StoreField { target, value, .. } => {
