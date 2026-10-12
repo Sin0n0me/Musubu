@@ -7,7 +7,7 @@ use alloc::{rc::Rc, string::ToString, vec, vec::Vec};
 use musubu_ast::{ASTNode, Item, StructField, Visibility};
 use musubu_span::Spanned;
 
-impl<'a> PackratAndPrattParser<'a> {
+impl PackratAndPrattParser {
     // Struct ::= StructStruct | TupleStruct
     pub(in crate::parser) fn parse_struct(&mut self) -> ParseResult {
         let key = self.make_key("Struct");
@@ -41,7 +41,7 @@ impl<'a> PackratAndPrattParser<'a> {
 
         // `{`
         if self.tokens.get_operator() != Some(&MusubuOperator::LeftBrace) {
-            return self.make_memo_from_result(key, Err(ParseError::NotMatch));
+            return self.make_memo_from_result(key, Err(ParseError::Expected { rule: "`{`" }));
         }
         self.tokens.next();
 
@@ -60,7 +60,7 @@ impl<'a> PackratAndPrattParser<'a> {
 
         // `}`
         if self.tokens.get_operator() != Some(&MusubuOperator::RightBrace) {
-            return self.make_memo_from_result(key, Err(ParseError::NotMatch));
+            return self.make_memo_from_result(key, Err(ParseError::Expected { rule: "`}`" }));
         }
         self.tokens.next();
 
@@ -142,7 +142,7 @@ impl<'a> PackratAndPrattParser<'a> {
 
         // `:`
         if self.tokens.get_operator() != Some(&MusubuOperator::Colon) {
-            return self.make_memo_from_result(key, Err(ParseError::NotMatch));
+            return self.make_memo_from_result(key, Err(ParseError::Expected { rule: "`:`" }));
         }
         self.tokens.next();
 

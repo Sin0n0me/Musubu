@@ -9,6 +9,17 @@ pub struct Token<'a> {
 }
 
 impl<'a> Token<'a> {
+    pub fn end(&self) -> usize {
+        // End byte offset = token start + UTF-8 byte length.
+        let length = match &self.token_kind {
+            TokenKind::Identifier(text) | TokenKind::Number(text) => text.len(),
+            TokenKind::Symbol(_) => 1,
+            TokenKind::LineBreak(chars) => chars.len(),
+            TokenKind::WhiteSpace(chars) => chars.len(),
+        };
+        self.token_pos + length
+    }
+
     pub fn get_operator(&'a self) -> Option<&'a Symbol> {
         let TokenKind::Symbol(symbol) = &self.token_kind else {
             return None;

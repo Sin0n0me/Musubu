@@ -1,5 +1,5 @@
 use alloc::boxed::Box;
-use alloc::string::{String, ToString};
+use alloc::string::String;
 use musubu_ast::{AssignOperator, Literal, TypeKind};
 use musubu_primitive::*;
 use musubu_span::*;
@@ -34,7 +34,11 @@ impl MusubuLiteral {
     pub fn to_literal(self) -> Result<Literal, ParseError> {
         let make_type = |suffix: Option<String>, default_type: TypeKind| -> TypeKind {
             suffix
-                .map(|s| TypeKind::make_single_type(s, Span::default()))
+                .map(|s| {
+                    PrimitiveType::from(&s)
+                        .map(TypeKind::Primitive)
+                        .unwrap_or_else(|| TypeKind::make_single_type(s, Span::default()))
+                })
                 .unwrap_or(default_type)
         };
 
@@ -63,14 +67,12 @@ impl MusubuLiteral {
                     exponent,
                     suffix,
                 } => Literal::Float {
-                    value: || -> Result<String, ParseError> {
-                        // TODO: 二重パースの解消
-                        let mantissa: f64 = significand.parse()?;
-                        let exponent: i32 = exponent.parse()?;
-                        let sign = if is_plus_exponent { 1 } else { -1 };
-                        let result = mantissa * 10.0_f64.powi(exponent * sign);
-                        Ok(result.to_string())
-                    }()?,
+                    value: alloc::format!(
+                        "{}e{}{}",
+                        significand,
+                        if is_plus_exponent { "+" } else { "-" },
+                        exponent
+                    ),
                     value_type: make_type(
                         suffix,
                         TypeKind::Primitive(PrimitiveType::Float { byte: 4 }),
@@ -113,12 +115,14 @@ pub enum MusubuOperator {
     Comparison(ComparisonOperator),
     Logical(LogicalOperator),
 
-    Question,         // ?
-    Dot,              // .
+    Question, // ?
+    Dot,      // .
+    DotDotEqual,
     DotDot,           // ..
     DotDotDot,        // ...
     LeftArrow,        // <-
     RightArrow,       // ->
+    FatArrow,         // =>
     Path,             // ::
     LeftParenthesis,  // (
     RightParenthesis, // )
@@ -178,6 +182,7 @@ impl MusubuOperator {
 
             // 代入演算子(右結合なので L < R)
             Self::Assign(_) => (100, 99),
+            Self::DotDot | Self::DotDotEqual => (120, 121),
 
             _ => return None,
         };

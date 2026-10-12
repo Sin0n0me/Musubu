@@ -10,7 +10,8 @@ use musubu_scope::*;
 pub(crate) struct NameResolver<'a> {
     root_module: Module<'a>,           // 定義済みモジュール
     current_module_path: Vec<&'a str>, // 現在 stack
-    scope_stack: Vec<Scope<'a>>,       // 一時
+    function_scope_starts: Vec<usize>,
+    scope_stack: Vec<Scope<'a>>, // 一時
 }
 
 impl<'a> ScopeControl<ResolveError> for NameResolver<'a> {
@@ -75,19 +76,19 @@ impl<'a> ItemStoreReader<'a> for NameResolver<'a> {
 
 impl<'a> SymbolStore<'a, ResolveError> for NameResolver<'a> {
     fn get_type(&self, name: &'a str) -> Option<&TypeSymbol> {
-        self.get_scope()?.get_type(name)
+        self.find_scope(name)?.get_type(name)
     }
 
     fn get_type_option(&self, name: &'a str) -> Option<&TypeOption> {
-        self.get_scope()?.get_type_option(name)
+        self.find_scope(name)?.get_type_option(name)
     }
 
     fn is_variable(&self, name: &'a str) -> bool {
-        self.get_scope().is_some_and(|s| s.is_variable(name))
+        self.find_scope(name).is_some_and(|s| s.is_variable(name))
     }
 
     fn is_type(&self, name: &'a str) -> bool {
-        self.get_scope().is_some_and(|s| s.is_type(name))
+        self.find_scope(name).is_some_and(|s| s.is_type(name))
     }
 
     fn resolve_variable_type(
@@ -95,10 +96,15 @@ impl<'a> SymbolStore<'a, ResolveError> for NameResolver<'a> {
         name: &'a str,
         ty: PrimitiveType,
     ) -> Result<(), ResolveError> {
-        Ok(self
-            .get_mut_scope()
-            .ok_or(ScopeError::InvalidScope)?
-            .resolve_variable_type(name, ty)?)
+        let start = self.function_scope_starts.last().copied().unwrap_or(0);
+        let scope = self.scope_stack[start..]
+            .iter_mut()
+            .rev()
+            .find(|scope| scope.contains(name))
+            .ok_or(ScopeError::UnresolvedVariable {
+                name: alloc::string::String::from(name),
+            })?;
+        Ok(scope.resolve_variable_type(name, ty)?)
     }
 
     fn add_variable(
@@ -114,11 +120,11 @@ impl<'a> SymbolStore<'a, ResolveError> for NameResolver<'a> {
     }
 
     fn get_variable_id(&self, name: &'a str) -> Option<&usize> {
-        self.get_scope()?.get_variable_id(name)
+        self.find_scope(name)?.get_variable_id(name)
     }
 
     fn get_symbol(&self, name: &'a str) -> Option<&Symbol> {
-        self.get_scope()?.get_symbol(name)
+        self.find_scope(name)?.get_symbol(name)
     }
 
     fn add_type(&mut self, name: &'a str, ty: TypeRequirement) -> Result<(), ResolveError> {
@@ -129,7 +135,7 @@ impl<'a> SymbolStore<'a, ResolveError> for NameResolver<'a> {
     }
 
     fn contains(&self, name: &'a str) -> bool {
-        self.get_scope().is_some_and(|scope| scope.contains(name))
+        self.find_scope(name).is_some()
     }
 }
 
@@ -139,6 +145,7 @@ impl<'a> NameResolver<'a> {
             root_module: Module::new(project_name),
             current_module_path: Vec::new(),
             scope_stack: Vec::new(),
+            function_scope_starts: Vec::new(),
         }
     }
 
@@ -160,8 +167,8 @@ impl<'a> NameResolver<'a> {
 
     pub fn get_type(&self, name: &'a str) -> Option<&TypeSymbol> {
         // 変数や型が優先される
-        if let Some(symbol) = self.get_scope()?.get_type(name) {
-            return Some(symbol);
+        if let Some(scope) = self.find_scope(name) {
+            return scope.get_type(name);
         }
         if let Some(symbol) = self.get_name_space()?.get_type(name) {
             return Some(symbol);
@@ -172,6 +179,23 @@ impl<'a> NameResolver<'a> {
 
     pub fn get_item(&self, name: &'a str) -> Option<&ItemSymbol<'a>> {
         self.get_name_space()?.get_item(name)
+    }
+
+    pub fn enter_function_scope(&mut self) {
+        self.function_scope_starts.push(self.scope_stack.len());
+    }
+
+    pub fn exit_function_scope(&mut self) {
+        self.function_scope_starts.pop();
+    }
+
+    fn find_scope(&self, name: &'a str) -> Option<&Scope<'a>> {
+        // Blocks inherit locals; a nested function cannot capture its enclosing function's locals.
+        let start = self.function_scope_starts.last().copied().unwrap_or(0);
+        self.scope_stack[start..]
+            .iter()
+            .rev()
+            .find(|scope| scope.contains(name))
     }
 
     pub fn get_scope(&self) -> Option<&Scope<'a>> {

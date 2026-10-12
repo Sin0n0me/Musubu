@@ -14,10 +14,10 @@ impl Display for TokenizeError {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         match self {
             TokenizeError::InvalidCharacters { c, position: _ } => {
-                write!(f, "Invalid characters were used: {c}")
+                write!(f, "invalid character {c:?}")
             }
             TokenizeError::UnusableWhitespace { c, position: _ } => {
-                write!(f, "Unusable whitespace: {c}")
+                write!(f, "unsupported whitespace {c:?}")
             }
             TokenizeError::NotSymbol => write!(f, "Not a symbol"),
         }

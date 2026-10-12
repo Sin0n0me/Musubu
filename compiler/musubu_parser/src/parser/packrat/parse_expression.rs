@@ -11,7 +11,7 @@ use alloc::{rc::Rc, vec, vec::Vec};
 use musubu_ast::{ASTNode, AssignOperator, Expression, Literal, Statement};
 use musubu_span::Spanned;
 
-impl<'a> PackratAndPrattParser<'a> {
+impl PackratAndPrattParser {
     // Expression ::= ExpressionWithoutBlock | ExpressionWithBlock
     pub(super) fn parse_expression(&mut self) -> ParseResult {
         let key = self.make_key("Expression");
@@ -82,12 +82,13 @@ impl<'a> PackratAndPrattParser<'a> {
                 Err(err) => return self.make_memo_from_result(key, Err(err)),
             }
         } else if let Some(keyword) = self.tokens.get_keyword().cloned() {
-            self.tokens.next();
-            match keyword {
+            let literal = match keyword {
                 MusubuKeyword::True => Literal::Bool(true),
                 MusubuKeyword::False => Literal::Bool(false),
                 _ => return self.make_memo_from_result(key, Err(ParseError::NotMatch)),
-            }
+            };
+            self.tokens.next();
+            literal
         } else {
             return self.make_memo_from_result(key, Err(ParseError::NotMatch));
         };
@@ -155,11 +156,18 @@ impl<'a> PackratAndPrattParser<'a> {
         }
         self.tokens.next();
 
+        let expression = self
+            .option(Self::parse_expression)
+            .and_then(|memo| memo.get_node())
+            .and_then(|node| match node.as_ref() {
+                ASTNode::Expression(expression) => Some(expression.clone()),
+                _ => None,
+            });
         self.make_memo_from(
             key,
             Expression::Break {
                 label: None,
-                expression: None,
+                expression,
             },
         )
     }
@@ -204,6 +212,7 @@ impl<'a> PackratAndPrattParser<'a> {
             Self::parse_block_expression,
             Self::parse_loop_expression,
             Self::parse_if_expression,
+            Self::parse_match_expression,
         ]);
 
         self.make_memo_from_result(key, result)
@@ -218,7 +227,7 @@ impl<'a> PackratAndPrattParser<'a> {
 
         // `{`
         let Some(MusubuOperator::LeftBrace) = self.tokens.get_operator() else {
-            return self.make_memo_from_result(key, Err(ParseError::NotMatch));
+            return self.make_memo_from_result(key, Err(ParseError::Expected { rule: "`{`" }));
         };
         self.tokens.next();
 
@@ -236,7 +245,7 @@ impl<'a> PackratAndPrattParser<'a> {
 
         // `}`
         let Some(MusubuOperator::RightBrace) = self.tokens.get_operator() else {
-            return self.make_memo_from_result(key, Err(ParseError::NotMatch));
+            return self.make_memo_from_result(key, Err(ParseError::Expected { rule: "`}`" }));
         };
         self.tokens.next();
 
@@ -288,7 +297,7 @@ impl<'a> PackratAndPrattParser<'a> {
 
         // Expression
         // 条件式
-        let Ok(condition) = self.get_expr(Self::parse_expression) else {
+        let Ok(condition) = self.get_expr(Self::parse_condition_expression) else {
             return self.make_memo_from_result(key, Err(ParseError::NotMatch));
         };
 
@@ -434,12 +443,18 @@ impl<'a> PackratAndPrattParser<'a> {
         // ( `:` Type )?
         let variable_type = if let Some(MusubuOperator::Colon) = self.tokens.get_operator() {
             self.tokens.next();
-            self.get_node(Self::parse_type).ok().and_then(|k| {
-                let ASTNode::Type(t) = k.as_ref() else {
-                    unreachable!();
-                };
-                Some(t.clone())
-            })
+            let Ok(node) = self.get_node(Self::parse_type) else {
+                return self.make_memo_from_result(
+                    key,
+                    Err(ParseError::Expected {
+                        rule: "a type after `:`",
+                    }),
+                );
+            };
+            let ASTNode::Type(ty) = node.as_ref() else {
+                unreachable!();
+            };
+            Some(ty.clone())
         } else {
             None
         };
@@ -447,18 +462,24 @@ impl<'a> PackratAndPrattParser<'a> {
         // (`=` Expression )?
         let initializer = if let Some(AssignOperator::Assign) = self.tokens.get_assign_operator() {
             self.tokens.next();
-            self.get_node(Self::parse_expression).ok().and_then(|node| {
-                let ASTNode::Expression(expr) = node.as_ref() else {
-                    unreachable!();
-                };
-                Some(expr.clone())
-            })
+            let Ok(node) = self.get_node(Self::parse_expression) else {
+                return self.make_memo_from_result(
+                    key,
+                    Err(ParseError::Expected {
+                        rule: "an expression after `=`",
+                    }),
+                );
+            };
+            let ASTNode::Expression(expr) = node.as_ref() else {
+                unreachable!();
+            };
+            Some(expr.clone())
         } else {
             None
         };
 
         if self.tokens.get_operator() != Some(&MusubuOperator::Semicolon) {
-            return self.make_memo_from_result(key, Err(ParseError::NotMatch));
+            return self.make_memo_from_result(key, Err(ParseError::Expected { rule: "`;`" }));
         }
         self.tokens.next();
 
@@ -518,6 +539,10 @@ impl<'a> PackratAndPrattParser<'a> {
         let key = self.make_key("CallParams");
         if let Some(memo) = self.get_memo(&key) {
             return Ok(memo);
+        }
+
+        if self.tokens.get_operator() == Some(&MusubuOperator::RightParenthesis) {
+            return self.make_memo_from_node(key, Rc::new(ASTNode::CallParams(Vec::new())));
         }
 
         // Expression

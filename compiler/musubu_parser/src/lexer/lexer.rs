@@ -20,11 +20,36 @@ use musubu_primitive::*;
 pub(crate) struct TokenStream {
     tokens: Vec<MusubuToken>,
     index: usize,
+    ends: Vec<usize>,
+    source_end: usize,
+    furthest: core::cell::Cell<usize>,
 }
 
 impl TokenStream {
-    fn new(tokens: Vec<MusubuToken>) -> Self {
-        Self { tokens, index: 0 }
+    fn new(tokens: Vec<MusubuToken>, ends: Vec<usize>, source_end: usize) -> Self {
+        Self {
+            tokens,
+            index: 0,
+            ends,
+            source_end,
+            furthest: core::cell::Cell::new(0),
+        }
+    }
+
+    pub fn furthest(&self) -> usize {
+        self.furthest.get()
+    }
+
+    pub fn reset_furthest(&self) {
+        self.furthest.set(self.index);
+    }
+
+    pub fn source_end(&self) -> usize {
+        self.source_end
+    }
+
+    pub fn token_end(&self, index: usize) -> usize {
+        self.ends.get(index).copied().unwrap_or(self.source_end)
     }
 
     pub fn set_position(&mut self, position: usize) {
@@ -46,6 +71,7 @@ impl TokenStream {
     }
 
     pub fn get(&self) -> Option<&MusubuToken> {
+        self.furthest.set(self.furthest.get().max(self.index));
         self.tokens.get(self.index)
     }
 
@@ -114,24 +140,81 @@ type ParseIter<'a> = Peekable<Iter<'a, Token<'a>>>;
 type ParseResult = Result<MusubuToken, TokenStreamParseError>;
 
 pub(crate) fn tokenize<'a>(tokens: &Tokens<'a>) -> Result<TokenStream, TokenStreamParseError> {
+    tokenize_located(tokens).map_err(|error| match error {
+        TokenStreamParseError::Located { error, .. } => *error,
+        error => error,
+    })
+}
+
+pub(crate) fn tokenize_located<'a>(
+    tokens: &Tokens<'a>,
+) -> Result<TokenStream, TokenStreamParseError> {
     let mut iter = tokens.iter().peekable();
     let mut new_tokens = Vec::with_capacity(tokens.len() / 2);
     while let Some(token) = iter.peek() {
         let position = token.token_pos;
-        let new_token = match &token.token_kind {
-            TokenKind::Identifier(ident) => tokenize_identifier(&mut iter, ident, position)?,
-            TokenKind::Number(num) => tokenize_number(&mut iter, num, position)?,
-            TokenKind::Symbol(symbol) => tokenize_operator(&mut iter, symbol, position)?,
+        let result = match &token.token_kind {
+            TokenKind::Identifier(ident) => tokenize_identifier(&mut iter, ident, position),
+            TokenKind::Number(_)
+                if matches!(
+                    new_tokens.last(),
+                    Some(MusubuToken {
+                        token_kind: MusubuTokenKind::Operator(MusubuOperator::Dot),
+                        ..
+                    })
+                ) =>
+            {
+                eat_dec_digit(&mut iter).map(|value| MusubuToken {
+                    token_kind: MusubuTokenKind::Literal(MusubuLiteral::Integer {
+                        value,
+                        suffix: None,
+                    }),
+                    position,
+                })
+            }
+            TokenKind::Number(num) => tokenize_number(&mut iter, num, position),
+            TokenKind::Symbol(symbol) => tokenize_operator(&mut iter, symbol, position),
             TokenKind::LineBreak(_) | TokenKind::WhiteSpace(_) => {
                 eat_whitespace(&mut iter);
                 continue;
             }
         };
 
+        let new_token = result.map_err(|error| TokenStreamParseError::Located {
+            start: position,
+            end: iter
+                .peek()
+                .map(|token| token.token_pos)
+                .unwrap_or_else(|| tokens.last().map(Token::end).unwrap_or(0)),
+            error: alloc::boxed::Box::new(error),
+        })?;
         new_tokens.push(new_token);
     }
 
-    Ok(TokenStream::new(new_tokens))
+    let source_end = tokens.last().map(Token::end).unwrap_or(0);
+    let mut raw_index = 0;
+    let ends = new_tokens
+        .iter()
+        .enumerate()
+        .map(|(index, token)| {
+            let next = new_tokens
+                .get(index + 1)
+                .map(|token| token.position)
+                .unwrap_or(source_end);
+            let mut end = token.position;
+            while let Some(raw) = tokens.get(raw_index).filter(|raw| raw.token_pos < next) {
+                if !matches!(
+                    raw.token_kind,
+                    TokenKind::WhiteSpace(_) | TokenKind::LineBreak(_)
+                ) {
+                    end = raw.end();
+                }
+                raw_index += 1;
+            }
+            end
+        })
+        .collect();
+    Ok(TokenStream::new(new_tokens, ends, source_end))
 }
 
 // Identifier or Keyword
@@ -175,15 +258,38 @@ fn tokenize_number(iter: &mut ParseIter, _number: &str, position: usize) -> Pars
                 return tokenize_float_literal_exponent(iter, value, position);
             }
 
+            let suffix = ident.to_string();
+            iter.next();
             Ok(MusubuToken {
                 token_kind: MusubuTokenKind::Literal(MusubuLiteral::Integer {
                     value,
-                    suffix: Some(ident.to_string()),
+                    suffix: Some(suffix),
                 }),
                 position,
             })
         }
-        TokenKind::Symbol(Symbol::Dot) => tokenize_float_literal(iter, &value, position),
+        TokenKind::Symbol(Symbol::Dot) => {
+            let mut lookahead = iter.clone();
+            lookahead.next();
+            if matches!(
+                lookahead.peek().map(|token| &token.token_kind),
+                Some(TokenKind::Symbol(Symbol::Dot))
+            ) {
+                lookahead.next();
+                if lookahead.peek().is_none() {
+                    return Err(TokenStreamParseError::InvalidNumber);
+                }
+                Ok(MusubuToken {
+                    token_kind: MusubuTokenKind::Literal(MusubuLiteral::Integer {
+                        value,
+                        suffix: None,
+                    }),
+                    position,
+                })
+            } else {
+                tokenize_float_literal(iter, &value, position)
+            }
+        }
         _ => Ok(MusubuToken {
             token_kind: MusubuTokenKind::Literal(MusubuLiteral::Integer {
                 value,
@@ -384,6 +490,7 @@ fn get_trinary_operator(iter: &mut ParseIter) -> Option<MusubuOperator> {
             MusubuOperator::Assign(AssignOperator::LeftShiftAssign)
         }
         [Symbol::Dot, Symbol::Dot, Symbol::Dot] => MusubuOperator::DotDotDot,
+        [Symbol::Dot, Symbol::Dot, Symbol::Equal] => MusubuOperator::DotDotEqual,
         _ => return None,
     };
 
@@ -430,6 +537,7 @@ fn get_binary_operator(iter: &mut ParseIter) -> Option<MusubuOperator> {
         [Symbol::Dot, Symbol::Dot] => MusubuOperator::DotDot,
         [Symbol::LessThan, Symbol::Minus] => MusubuOperator::LeftArrow,
         [Symbol::Minus, Symbol::GreaterThan] => MusubuOperator::RightArrow,
+        [Symbol::Equal, Symbol::GreaterThan] => MusubuOperator::FatArrow,
         [Symbol::Colon, Symbol::Colon] => MusubuOperator::Path,
 
         _ => return None,

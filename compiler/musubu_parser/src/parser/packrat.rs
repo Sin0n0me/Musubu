@@ -1,6 +1,10 @@
+mod parse_collection;
 mod parse_expression;
 mod parse_item;
+mod parse_match;
 mod parse_pattern;
+mod parse_struct_literal;
+mod parse_tuple;
 mod parse_type;
 mod pratt;
 
@@ -25,8 +29,9 @@ pub(crate) enum Memo {
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub(crate) struct MemoKey<'a> {
-    rule: &'a str,
+pub(crate) struct MemoKey {
+    allow_struct_literal: bool,
+    rule: &'static str,
     position: usize,
 }
 
@@ -58,11 +63,13 @@ impl MemoResult {
 }
 
 #[derive(Debug)]
-pub(crate) struct PackratAndPrattParser<'a> {
-    memo: IndexMap<MemoKey<'a>, MemoResult>,
+pub(crate) struct PackratAndPrattParser {
+    allow_struct_literal: bool,
+    memo: IndexMap<MemoKey, MemoResult>,
     tokens: TokenStream,
     max_read_position: usize,
-    last_fail_rule: Option<&'a str>,
+    last_fail_rule: Option<&'static str>,
+    failure: Option<(usize, usize, ParseError)>,
     bp_stack: Vec<BindingPower>,
 }
 
@@ -73,13 +80,15 @@ pub(crate) type ParseResult = Result<MemoResult, ParseError>;
 // 仕様上想定していない場合には unreachable! マクロを使用
 // それ以外コンパイルエラーとして Err を返す
 //
-impl<'a> PackratAndPrattParser<'a> {
+impl PackratAndPrattParser {
     pub fn new(tokens: TokenStream) -> Self {
         Self {
+            allow_struct_literal: true,
             memo: make_index_map(),
             tokens,
             max_read_position: 0,
             last_fail_rule: None,
+            failure: None,
             bp_stack: Vec::new(),
         }
     }
@@ -89,15 +98,55 @@ impl<'a> PackratAndPrattParser<'a> {
 
         let mut ast_items = Vec::new();
         while self.tokens.get().is_some() {
-            let item = self
-                .parse_item()?
-                .get_node()
-                .ok_or(ParseError::UnexpectedAST)?;
+            self.failure = None;
+            self.max_read_position = self.tokens.get_position();
+            self.last_fail_rule = None;
+            self.tokens.reset_furthest();
+            let result = self
+                .parse_item()
+                .and_then(|memo| memo.get_node().ok_or(ParseError::UnexpectedAST));
+            let item = result.map_err(|error| self.diagnostic(error))?;
 
             ast_items.push(item);
         }
 
         Ok(ast_items)
+    }
+
+    fn diagnostic(&mut self, error: ParseError) -> ParseError {
+        let index = self.max_read_position.max(self.tokens.furthest());
+        let furthest_start = self
+            .tokens
+            .get_from_index(index)
+            .map(|token| token.position)
+            .unwrap_or(self.tokens.source_end());
+        let failure = self.failure.take().filter(|(start, _, error)| {
+            *start >= furthest_start || !matches!(error, ParseError::Expected { .. })
+        });
+        let (start, end, error) = failure.unwrap_or_else(|| {
+            let start = self
+                .tokens
+                .get_from_index(index)
+                .map(|token| token.position)
+                .unwrap_or(self.tokens.source_end());
+            (
+                start,
+                self.tokens.token_end(index),
+                match error {
+                    ParseError::NotMatch | ParseError::UnexpectedAST => ParseError::Expected {
+                        rule: self
+                            .last_fail_rule
+                            .unwrap_or("an item (fn, struct or enum)"),
+                    },
+                    error => error,
+                },
+            )
+        });
+        ParseError::Located {
+            start,
+            end,
+            error: alloc::boxed::Box::new(error),
+        }
     }
 
     // Item ::= VisItem
@@ -239,14 +288,15 @@ impl<'a> PackratAndPrattParser<'a> {
         vec
     }
 
-    fn make_key(&self, rule: &'a str) -> MemoKey<'a> {
+    fn make_key(&self, rule: &'static str) -> MemoKey {
         MemoKey {
+            allow_struct_literal: self.allow_struct_literal,
             rule,
             position: self.tokens.get_position(),
         }
     }
 
-    fn get_memo(&mut self, key: &MemoKey<'a>) -> Option<MemoResult> {
+    fn get_memo(&mut self, key: &MemoKey) -> Option<MemoResult> {
         let memo = self.get_memo_uncheck(key)?;
         if matches!(memo, MemoResult::Pending) {
             return None; // 左再帰を起こしている
@@ -255,7 +305,7 @@ impl<'a> PackratAndPrattParser<'a> {
         Some(memo)
     }
 
-    fn get_memo_uncheck(&mut self, key: &MemoKey<'a>) -> Option<MemoResult> {
+    fn get_memo_uncheck(&mut self, key: &MemoKey) -> Option<MemoResult> {
         // メモが存在した場合はその内容を返す
         if let Some(memo) = self.memo.get(key) {
             match memo {
@@ -278,17 +328,17 @@ impl<'a> PackratAndPrattParser<'a> {
         None
     }
 
-    fn make_span(&self, key: &MemoKey<'a>) -> Span {
+    fn make_span(&self, key: &MemoKey) -> Span {
         let start = self
             .tokens
             .get_from_index(key.position)
             .map(|token| token.position)
             .unwrap_or(0);
-        let end = self
-            .tokens
-            .get()
-            .map(|token| token.position)
-            .unwrap_or(start);
+        let end = if self.tokens.get_position() > key.position {
+            self.tokens.token_end(self.tokens.get_position() - 1)
+        } else {
+            start
+        };
         Span {
             file_id: 0, // 仮
             start: start as u32,
@@ -296,7 +346,7 @@ impl<'a> PackratAndPrattParser<'a> {
         }
     }
 
-    fn make_memo_from<N>(&mut self, key: MemoKey<'a>, node_kind: N) -> ParseResult
+    fn make_memo_from<N>(&mut self, key: MemoKey, node_kind: N) -> ParseResult
     where
         N: NodeMaker,
     {
@@ -308,7 +358,7 @@ impl<'a> PackratAndPrattParser<'a> {
         self.make_memo_from_result(key, Ok(memo))
     }
 
-    fn make_memo_from_node(&mut self, key: MemoKey<'a>, node: Rc<ASTNode>) -> ParseResult {
+    fn make_memo_from_node(&mut self, key: MemoKey, node: Rc<ASTNode>) -> ParseResult {
         let memo = MemoResult::Match {
             memo: Memo::ASTNode(node),
             next_position: self.tokens.get_position(),
@@ -316,7 +366,7 @@ impl<'a> PackratAndPrattParser<'a> {
         self.make_memo_from_result(key, Ok(memo))
     }
 
-    fn make_memo_from_result(&mut self, key: MemoKey<'a>, result: ParseResult) -> ParseResult {
+    fn make_memo_from_result(&mut self, key: MemoKey, result: ParseResult) -> ParseResult {
         let memo = match &result {
             Ok(memo) => {
                 let pos = self.tokens.get_position();
@@ -326,7 +376,43 @@ impl<'a> PackratAndPrattParser<'a> {
 
                 memo.clone()
             }
-            Err(_) => {
+            Err(error) => {
+                let position = self.tokens.get_position();
+                if position > self.max_read_position || self.last_fail_rule.is_none() {
+                    self.max_read_position = position;
+                    self.last_fail_rule = Some(key.rule);
+                }
+                if matches!(
+                    error,
+                    ParseError::IntErr(_)
+                        | ParseError::FloatErr(_)
+                        | ParseError::Unsupported { .. }
+                ) {
+                    let start = self
+                        .tokens
+                        .get_from_index(key.position)
+                        .map(|token| token.position)
+                        .unwrap_or(self.tokens.source_end());
+                    let end = self.tokens.token_end(position.saturating_sub(1));
+                    self.failure = Some((start, end, error.clone()));
+                } else if matches!(error, ParseError::Expected { .. }) {
+                    let start = self
+                        .tokens
+                        .get()
+                        .map(|token| token.position)
+                        .unwrap_or(self.tokens.source_end());
+                    if self
+                        .failure
+                        .as_ref()
+                        .map(|(previous, _, error)| {
+                            matches!(error, ParseError::Expected { .. }) && start >= *previous
+                        })
+                        .unwrap_or(true)
+                    {
+                        self.failure =
+                            Some((start, self.tokens.token_end(position), error.clone()));
+                    }
+                }
                 self.tokens.set_position(key.position);
                 MemoResult::NotMatch
             }

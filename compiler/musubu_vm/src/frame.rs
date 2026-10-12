@@ -1,3 +1,5 @@
+use crate::iterator::IteratorState;
+use alloc::collections::BTreeMap;
 use alloc::{vec, vec::Vec};
 use musubu_ir::{Instruction, Register};
 use musubu_primitive::{Integer, Value};
@@ -7,6 +9,7 @@ const INITIAL_IP: usize = 0;
 
 #[derive(Debug)]
 pub(crate) struct Frame<'a> {
+    pub iterators: BTreeMap<usize, IteratorState>,
     pub registers: Vec<Value>, // TODO 初期化コストが重たいのでVM側に移動して1つのVecでやる(オフセットで位置を定められる)
     pub ip: usize,
     pub code: &'a [Instruction],
@@ -16,6 +19,7 @@ pub(crate) struct Frame<'a> {
 impl<'a> Frame<'a> {
     pub fn new(registers: usize, code: &'a [Instruction], args: Vec<Value>) -> Self {
         let mut frame = Self {
+            iterators: BTreeMap::new(),
             registers: vec![Value::Integer(Integer::Int32(0)); registers],
             ip: INITIAL_IP,
             code,
@@ -27,6 +31,7 @@ impl<'a> Frame<'a> {
     }
 
     pub fn init(&mut self, args: Vec<Value>) {
+        self.iterators.clear();
         let args_len = args.len();
 
         // 引数セット
