@@ -2,6 +2,9 @@
 
 extern crate alloc;
 
+mod function_ffi;
+pub use function_ffi::{MusubuValue, call_function, get_runtime_error};
+
 #[cfg(test)]
 mod tests;
 
@@ -145,10 +148,6 @@ pub unsafe extern "C" fn get_compile_error(
     }
     error.as_ptr().cast::<c_char>()
 }
-
-// TODO 以下2つの中身の実装
-#[unsafe(no_mangle)]
-pub extern "C" fn call_function() {}
 
 // 初期化せずに使用する場合
 // キャッシュを使用しないので毎回
