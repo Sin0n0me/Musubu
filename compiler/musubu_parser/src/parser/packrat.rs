@@ -8,7 +8,7 @@ mod parse_tuple;
 mod parse_type;
 mod pratt;
 
-use crate::{TokenStream, errors::ParseError, lexer::token::BindingPower};
+use crate::{TokenStream, errors::ParseError};
 use alloc::rc::Rc;
 use alloc::{vec, vec::Vec};
 use core::hash::BuildHasherDefault;
@@ -70,7 +70,6 @@ pub(crate) struct PackratAndPrattParser {
     max_read_position: usize,
     last_fail_rule: Option<&'static str>,
     failure: Option<(usize, usize, ParseError)>,
-    bp_stack: Vec<BindingPower>,
 }
 
 pub(crate) type ParseResult = Result<MemoResult, ParseError>;
@@ -89,7 +88,6 @@ impl PackratAndPrattParser {
             max_read_position: 0,
             last_fail_rule: None,
             failure: None,
-            bp_stack: Vec::new(),
         }
     }
 

@@ -46,26 +46,23 @@ impl PackratAndPrattParser {
     //                          | ReturnExpression
     fn parse_expression_without_block(&mut self) -> ParseResult {
         let key = self.make_key("ExpressionWithoutBlock");
-        let memo = self.get_memo_uncheck(&key);
-        match memo {
-            Some(MemoResult::Match { .. }) | Some(MemoResult::NotMatch) => return Ok(memo.unwrap()),
-            Some(MemoResult::Pending) => {
-                let result = self.or(vec![
-                    Self::parse_literal_expression,
-                    Self::parse_path_expression,
-                    Self::parse_continue_expression,
-                    Self::parse_break_expression,
-                    Self::parse_return_expression,
-                ]);
-                self.make_memo_from_result(key, result)
-            }
-            None => {
-                // Expression + Expression などの演算子用
-                let bp = self.bp_stack.pop().unwrap_or(0);
-                let result = self.pratt_parse(bp);
-                self.make_memo_from_result(key, result)
-            }
+        if let Some(memo) = self.get_memo(&key) {
+            return Ok(memo);
         }
+        let result = self.pratt_parse(0);
+        self.make_memo_from_result(key, result)
+    }
+
+    pub(super) fn parse_primary_expression(&mut self) -> ParseResult {
+        // Pratt owns operator precedence; nested expressions start independently at binding power 0.
+        self.or(vec![
+            Self::parse_literal_expression,
+            Self::parse_path_expression,
+            Self::parse_continue_expression,
+            Self::parse_break_expression,
+            Self::parse_return_expression,
+            Self::parse_expression_with_block,
+        ])
     }
 
     // LiteralExpression ::= CHAR_LITERAL

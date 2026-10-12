@@ -133,3 +133,74 @@ impl Allocator for LinearAllocator {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec;
+
+    #[test]
+    fn allocator_reuses_names_without_consuming_ids() {
+        let mut cache = Cache::new();
+        let allocator = cache.get_function_allocator();
+        assert_eq!(allocator.alloc("first".into()), 0);
+        assert_eq!(allocator.alloc("first".into()), 0);
+        assert_eq!(allocator.alloc("second".into()), 1);
+        assert_eq!(allocator.alloc("first".into()), 0);
+        assert_eq!(allocator.alloc("third".into()), 2);
+    }
+
+    #[test]
+    fn caches_allocate_independently() {
+        let mut first = Cache::new();
+        let mut second = Cache::new();
+        first.get_function_allocator().alloc("a".into());
+        assert_eq!(second.get_function_allocator().alloc("b".into()), 0);
+    }
+
+    #[test]
+    fn sparse_function_registration_and_replacement() {
+        let mut cache = Cache::new();
+        assert!(cache.get_function(&42).is_none());
+        cache.register_function(
+            42,
+            CompiledFunction {
+                code: vec![],
+                registers: 3,
+            },
+        );
+        cache.register_function(
+            7,
+            CompiledFunction {
+                code: vec![],
+                registers: 1,
+            },
+        );
+        cache.register_function(
+            42,
+            CompiledFunction {
+                code: vec![],
+                registers: 8,
+            },
+        );
+        assert_eq!(cache.get_function(&42).unwrap().registers, 8);
+        assert_eq!(cache.get_function(&7).unwrap().registers, 1);
+        assert!(cache.get_function(&0).is_none());
+    }
+
+    #[test]
+    fn type_registration_does_not_modify_function_cache() {
+        let mut cache = Cache::new();
+        cache.register_type(7, PrimitiveType::default_integer());
+        assert_eq!(
+            cache.type_cache.get(&7),
+            Some(&PrimitiveType::default_integer())
+        );
+        cache.register_type(7, PrimitiveType::default_float());
+        assert_eq!(
+            cache.type_cache.get(&7),
+            Some(&PrimitiveType::default_float())
+        );
+        assert!(cache.get_function(&7).is_none());
+    }
+}

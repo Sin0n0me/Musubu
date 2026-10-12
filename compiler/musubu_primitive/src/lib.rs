@@ -1,6 +1,9 @@
 #![no_std]
 
 extern crate alloc;
+
+#[cfg(test)]
+mod tests;
 mod enumeration;
 mod matrix;
 mod vector;

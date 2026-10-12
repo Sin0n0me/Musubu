@@ -2,6 +2,9 @@
 
 extern crate alloc;
 
+#[cfg(test)]
+mod tests;
+
 pub mod errors;
 
 use crate::errors::NameSpaceError;
