@@ -30,8 +30,12 @@ impl MusubuValue {
     pub const U64: u32 = 9;
     pub const F32: u32 = 10;
     pub const F64: u32 = 11;
+    pub const VECTOR: u32 = 12;
+    pub const MATRIX: u32 = 13;
+    pub const ENUM: u32 = 14;
+    pub const INVALID: u32 = u32::MAX;
 
-    fn to_value(self) -> Result<Value, String> {
+    pub(super) fn to_value(self) -> Result<Value, String> {
         let out_of_range = || String::from("scalar value is out of range for its kind");
         let integer = match self.kind {
             Self::UNIT => return Ok(Value::Unit),
@@ -64,7 +68,7 @@ impl MusubuValue {
         Ok(Value::Integer(integer))
     }
 
-    fn from_value(value: Value) -> Result<Self, String> {
+    pub(super) fn from_value(value: Value) -> Result<Self, String> {
         let mut result = Self::default();
         match value {
             Value::Unit => (),
@@ -124,7 +128,7 @@ impl MusubuValue {
     }
 }
 
-fn supported(ty: &PrimitiveType) -> bool {
+pub(super) fn supported(ty: &PrimitiveType) -> bool {
     matches!(
         ty,
         PrimitiveType::Unit
@@ -245,7 +249,7 @@ pub unsafe extern "C" fn call_function(
 }
 
 /// Returns borrowed UTF-8 bytes without a NUL terminator. Null means no error.
-/// The bytes remain valid until the next call_function or engine destruction.
+/// The bytes remain valid until the next FFI operation taking a mutable engine or destruction.
 ///
 /// # Safety
 /// Non-null engine must be live. Non-null length must be writable, aligned, and

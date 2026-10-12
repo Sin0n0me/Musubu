@@ -4,6 +4,8 @@ extern crate alloc;
 
 mod function_ffi;
 pub use function_ffi::{MusubuValue, call_function, get_runtime_error};
+mod composite_ffi;
+pub use composite_ffi::*;
 
 #[cfg(test)]
 mod tests;

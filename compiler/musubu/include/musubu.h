@@ -40,6 +40,10 @@ const char *get_compile_error(const MusubuEngine *engine, size_t *length);
 #define MUSUBU_U64 UINT32_C(9)
 #define MUSUBU_F32 UINT32_C(10)
 #define MUSUBU_F64 UINT32_C(11)
+#define MUSUBU_VECTOR UINT32_C(12)
+#define MUSUBU_MATRIX UINT32_C(13)
+#define MUSUBU_ENUM UINT32_C(14)
+#define MUSUBU_INVALID UINT32_MAX
 
 /* Initialize all fields (e.g. MusubuValue value = {0}).
  * I8..I64 use signed_value; U8..U64 and BOOL use unsigned_value.
@@ -66,9 +70,72 @@ bool call_function(MusubuEngine *engine, const char *name, size_t name_length,
                    MusubuValue *output);
 
 /* Borrowed UTF-8 bytes, NOT NUL-terminated. Do not free. Valid until the next
- * call_function or uninit. NULL engine/no error writes zero length and returns
+ * API call taking a mutable engine or uninit. NULL engine/no error writes zero length and returns
  * NULL. A NULL length pointer returns NULL. Copy before the next call. */
 const char *get_runtime_error(const MusubuEngine *engine, size_t *length);
+
+typedef struct MusubuValueHandle MusubuValueHandle;
+
+/* Handle API: scalar, enum, vec and mat (including recursively nested enum payloads
+ * made of these types). Struct/tuple/array payloads are not yet supported.
+ * Existing MusubuValue/call_function remain scalar-only; do not put aggregate
+ * tags into MusubuValue. Use handles and call_function_value for aggregate calls.
+ *
+ * Each successful constructor/call/value_get_element writes a NEW owned handle.
+ * Release each with value_free exactly once. Handles are immutable, independent
+ * of engines, and remain valid across calls, recompilation and engine destruction.
+ * Inputs are copied, never consumed. You may free a parent after extracting a child.
+ * Output slots must be writable; release old owned handles before reusing a slot.
+ * Failures leave output unchanged. NULL engine/output fails. Each bool-returning
+ * API clears the engine's previous runtime error and records a new error on failure.
+ * All pointers must be valid and aligned; inputs/output must not alias engine
+ * storage. Calls on the same engine must not overlap. Counts are element counts.
+ * Null input arrays are allowed only for zero count. Names are UTF-8 byte ranges
+ * without NUL terminators. */
+bool value_create_scalar(MusubuEngine *engine, const MusubuValue *scalar,
+                         MusubuValueHandle **output);
+
+/* Nonempty vector of identically typed numeric components. */
+bool value_create_vector(MusubuEngine *engine, const MusubuValue *components,
+                         size_t count, MusubuValueHandle **output);
+
+/* Nonempty matrix of equally typed/sized vector columns, in column-major order.
+ * value_get_length(matrix) is columns; value_get_length(column) is rows. */
+bool value_create_matrix(MusubuEngine *engine, const MusubuValueHandle *const *columns,
+                         size_t count, MusubuValueHandle **output);
+
+/* Enum descriptor: type/variant names are matched against the called function's
+ * signature at call time. Unknown variants, wrong field count/types are rejected
+ * there. Unit variants have zero fields. Tuple and named variant fields must be
+ * supplied/read in SOURCE DECLARATION ORDER (not alphabetical order). */
+bool value_create_enum(MusubuEngine *engine, const char *type_name, size_t type_length,
+                       const char *variant, size_t variant_length,
+                       const MusubuValueHandle *const *fields, size_t count,
+                       MusubuValueHandle **output);
+
+bool call_function_value(MusubuEngine *engine, const char *name, size_t name_length,
+                         const MusubuValueHandle *const *arguments, size_t count,
+                         MusubuValueHandle **output);
+
+bool value_get_scalar(MusubuEngine *engine, const MusubuValueHandle *value,
+                      MusubuValue *output);
+bool value_get_element(MusubuEngine *engine, const MusubuValueHandle *value,
+                       size_t index, MusubuValueHandle **output);
+
+/* Read-only accessors do not change runtime diagnostics.
+ * Null value: kind is MUSUBU_INVALID, length is zero.
+ * Scalar length is zero; other lengths are components, columns or fields. */
+uint32_t value_get_kind(const MusubuValueHandle *value);
+size_t value_get_length(const MusubuValueHandle *value);
+
+/* Borrowed UTF-8 bytes without terminator, valid until value_free(value).
+ * NULL/non-enum returns NULL and zero length. NULL length returns NULL.
+ * length must not alias value storage. */
+const char *value_get_enum_type(const MusubuValueHandle *value, size_t *length);
+const char *value_get_enum_variant(const MusubuValueHandle *value, size_t *length);
+
+/* NULL is a no-op. Do not use or free a handle again after this call. */
+void value_free(MusubuValueHandle *value);
 
 #ifdef __cplusplus
 }
