@@ -1,9 +1,11 @@
+mod matrix_buffer;
 #[cfg(test)]
 mod tests;
 mod value;
 use crate::MusubuValue;
 use alloc::{boxed::Box, format, string::String, vec::Vec};
 use core::{ffi::c_char, ptr, slice, str};
+pub use matrix_buffer::*;
 use musubu_engine::MusubuEngine;
 use musubu_primitive::{ToPrimitiveType, Value};
 use value::HostValue;

@@ -104,6 +104,24 @@ bool value_create_vector(MusubuEngine *engine, const MusubuValue *components,
 bool value_create_matrix(MusubuEngine *engine, const MusubuValueHandle *const *columns,
                          size_t count, MusubuValueHandle **output);
 
+/* Packed column-major buffers: data[column * rows + row].
+ * No padding between columns. For GLM packed matrices use glm::value_ptr(matrix).
+ * Constructors COPY columns * rows scalars; input memory is not retained.
+ * Copy functions require an exact shape/scalar type match and writable storage
+ * for columns * rows scalars. Failure leaves output/buffer unchanged.
+ * Dimensions must be nonzero; data must be non-NULL and correctly aligned.
+ * Buffers must not alias engine or handle storage. Handle API ownership and
+ * runtime diagnostic rules above apply. Aligned/padded matrices must be packed
+ * before calling these APIs. Existing APIs and layouts are unchanged. */
+bool value_create_matrix_f32(MusubuEngine *engine, const float *data,
+                             size_t columns, size_t rows, MusubuValueHandle **output);
+bool value_create_matrix_f64(MusubuEngine *engine, const double *data,
+                             size_t columns, size_t rows, MusubuValueHandle **output);
+bool value_copy_matrix_f32(MusubuEngine *engine, const MusubuValueHandle *value,
+                           float *data, size_t columns, size_t rows);
+bool value_copy_matrix_f64(MusubuEngine *engine, const MusubuValueHandle *value,
+                           double *data, size_t columns, size_t rows);
+
 /* Enum descriptor: type/variant names are matched against the called function's
  * signature at call time. Unknown variants, wrong field count/types are rejected
  * there. Unit variants have zero fields. Tuple and named variant fields must be
