@@ -69,3 +69,75 @@ fn unknown_function_id_returns_specific_error() {
         Err(musubu_vm::errors::VMError::IllegalFunctionCall)
     ));
 }
+
+#[test]
+fn host_call_checks_argument_count_before_creating_frame() {
+    let mut engine = MusubuEngine::new();
+    assert!(compile(
+        &mut engine,
+        "fn add(a: i32, b: i32) -> i32 { a + b }"
+    ));
+    let id = engine.get_function_id("musubu::add").unwrap();
+    for count in [0, 1, 3, 100] {
+        let args = vec![Value::Integer(Integer::Int32(1)); count];
+        assert!(matches!(
+            engine.run_function(id, args),
+            Err(musubu_vm::errors::VMError::ArgumentCountMismatch)
+        ));
+    }
+    assert!(engine.get_function_id("musubu::missing").is_none());
+    assert!(matches!(
+        engine.run_function(
+            id,
+            vec![
+                Value::Integer(Integer::Int32(3)),
+                Value::Integer(Integer::Int32(4))
+            ]
+        ),
+        Ok(Some(Value::Integer(Integer::Int32(7))))
+    ));
+}
+
+#[test]
+fn host_call_rejects_wrong_scalar_width_and_kind() {
+    let mut engine = MusubuEngine::new();
+    assert!(compile(&mut engine, "fn identity(a: i32) -> i32 { a }"));
+    for value in [
+        Value::Bool(true),
+        Value::Integer(Integer::Int64(1)),
+        Value::Integer(Integer::Uint32(1)),
+    ] {
+        assert!(matches!(
+            engine.run_function(0, vec![value]),
+            Err(musubu_vm::errors::VMError::ArgumentTypeMismatch)
+        ));
+    }
+}
+
+#[test]
+fn scalar_arithmetic_errors_return_to_host() {
+    for expression in [
+        "1 / 0",
+        "2147483647 + 1",
+        "-2147483648 - 1",
+        "2147483647 * 2",
+        "-2147483648 / -1",
+    ] {
+        let mut engine = MusubuEngine::new();
+        assert!(
+            compile(
+                &mut engine,
+                &alloc::format!("fn main() -> i32 {{ {expression} }}")
+            ),
+            "{}",
+            engine.compile_error()
+        );
+        assert!(
+            matches!(
+                engine.run_function(0, vec![]),
+                Err(musubu_vm::errors::VMError::InvalidOperand)
+            ),
+            "{expression}"
+        );
+    }
+}

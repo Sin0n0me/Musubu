@@ -40,6 +40,11 @@ impl Cache {
         self.function_cache.get(id)
     }
 
+    pub fn get_function_id(&self, name: &str) -> Option<usize> {
+        let id = *self.function_cache.allocator.name_map.get(name)?;
+        self.get_function(&id).map(|_| id)
+    }
+
     pub fn get_function_allocator(&mut self) -> &mut impl Allocator {
         self.function_cache.get_allocator()
     }
@@ -167,6 +172,8 @@ mod tests {
             CompiledFunction {
                 code: vec![],
                 registers: 3,
+                parameters: vec![],
+                return_type: PrimitiveType::Unit,
             },
         );
         cache.register_function(
@@ -174,6 +181,8 @@ mod tests {
             CompiledFunction {
                 code: vec![],
                 registers: 1,
+                parameters: vec![],
+                return_type: PrimitiveType::Unit,
             },
         );
         cache.register_function(
@@ -181,6 +190,8 @@ mod tests {
             CompiledFunction {
                 code: vec![],
                 registers: 8,
+                parameters: vec![],
+                return_type: PrimitiveType::Unit,
             },
         );
         assert_eq!(cache.get_function(&42).unwrap().registers, 8);
