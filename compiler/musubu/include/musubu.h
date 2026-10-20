@@ -135,6 +135,20 @@ bool call_function_value(MusubuEngine *engine, const char *name, size_t name_len
                          const MusubuValueHandle *const *arguments, size_t count,
                          MusubuValueHandle **output);
 
+/* Resolve a source name once, then call without UTF-8 parsing or name lookup.
+ * IDs are engine-local size_t values; zero is a valid ID. Resolve again after
+ * EVERY compilation attempt. Never reuse an ID with another engine.
+ * Stale/foreign IDs are not detected if their numeric value names a function.
+ * Lookup does not validate FFI signature support; calls perform the same type
+ * and argument checks as call_function_value. Unknown IDs fail.
+ * Both functions clear runtime diagnostics; failures leave output unchanged.
+ * Existing handle API pointer/ownership rules apply. No ID release is needed. */
+bool get_function_id(MusubuEngine *engine, const char *name, size_t name_length,
+                     size_t *output);
+bool call_function_value_by_id(MusubuEngine *engine, size_t function_id,
+                               const MusubuValueHandle *const *arguments, size_t count,
+                               MusubuValueHandle **output);
+
 bool value_get_scalar(MusubuEngine *engine, const MusubuValueHandle *value,
                       MusubuValue *output);
 bool value_get_element(MusubuEngine *engine, const MusubuValueHandle *value,

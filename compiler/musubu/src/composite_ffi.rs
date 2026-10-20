@@ -166,13 +166,21 @@ pub unsafe extern "C" fn value_create_enum(
     }
 }
 
-fn execute(engine: &MusubuEngine, name: &str, args: &[HostValue]) -> Result<HostValue, String> {
-    let id = engine
+fn resolve_function(engine: &MusubuEngine, name: &str) -> Result<usize, String> {
+    engine
         .get_function_id(&format!("musubu::{name}"))
-        .ok_or_else(|| format!("undefined function `{name}`"))?;
+        .ok_or_else(|| format!("undefined function `{name}`"))
+}
+
+fn execute(
+    engine: &MusubuEngine,
+    id: usize,
+    name: Option<&str>,
+    args: &[HostValue],
+) -> Result<HostValue, String> {
     let function = engine
         .get_function(id)
-        .ok_or_else(|| format!("undefined function `{name}`"))?;
+        .ok_or_else(|| format!("undefined function ID {id}"))?;
     if !value::supported(&function.return_type)
         || function.parameters.iter().any(|ty| !value::supported(ty))
     {
@@ -181,8 +189,12 @@ fn execute(engine: &MusubuEngine, name: &str, args: &[HostValue]) -> Result<Host
         ));
     }
     if args.len() != function.parameters.len() {
+        let label = match name {
+            Some(name) => format!("`{name}`"),
+            None => format!("ID {id}"),
+        };
         return Err(format!(
-            "function `{name}` expects {} arguments, found {}",
+            "function {label} expects {} arguments, found {}",
             function.parameters.len(),
             args.len()
         ));
@@ -223,11 +235,52 @@ pub unsafe extern "C" fn call_function_value(
 ) -> bool {
     unsafe {
         write_result(engine, output, |engine| {
+            let name = text(name, name_length)?;
             let result = execute(
                 engine,
-                text(name, name_length)?,
+                resolve_function(engine, name)?,
+                Some(name),
                 &children(arguments, count)?,
             )?;
+            Ok(MusubuValueHandle::owned(result))
+        })
+    }
+}
+
+/// Resolves a source function name once for repeated calls by ID.
+/// IDs are engine-local; resolve again after any compilation attempt.
+/// # Safety
+/// Same contract as value_create_scalar. name contains name_length UTF-8 bytes.
+/// output must point to writable usize storage.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn get_function_id(
+    engine: *mut MusubuEngine,
+    name: *const c_char,
+    name_length: usize,
+    output: *mut usize,
+) -> bool {
+    unsafe {
+        write_result(engine, output, |engine| {
+            resolve_function(engine, text(name, name_length)?)
+        })
+    }
+}
+
+/// Calls a resolved function without string construction or name lookup.
+/// IDs must be obtained from this engine since its last compilation attempt.
+/// # Safety
+/// Same pointer and ownership contract as call_function_value.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn call_function_value_by_id(
+    engine: *mut MusubuEngine,
+    function_id: usize,
+    arguments: *const *const MusubuValueHandle,
+    count: usize,
+    output: *mut *mut MusubuValueHandle,
+) -> bool {
+    unsafe {
+        write_result(engine, output, |engine| {
+            let result = execute(engine, function_id, None, &children(arguments, count)?)?;
             Ok(MusubuValueHandle::owned(result))
         })
     }
