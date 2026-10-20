@@ -361,7 +361,8 @@ fn null_and_invalid_inputs_leave_output_unchanged() {
 #[test]
 fn ffi_engine_compile_call_and_destroy_lifecycle() {
     let mut engine = ptr::null_mut();
-    assert!(crate::init(&mut engine));
+    // The output is writable and owns no existing engine.
+    assert!(unsafe { crate::init(&mut engine) });
     let source = "fn add(a: i32, b: i32) -> i32 { a + b }";
     let args = [signed(MusubuValue::I32, 3), signed(MusubuValue::I32, 4)];
     let mut output = MusubuValue::default();
@@ -376,8 +377,8 @@ fn ffi_engine_compile_call_and_destroy_lifecycle() {
             args.len(),
             &mut output
         ));
+        crate::uninit(engine);
     }
-    crate::uninit(engine);
     assert_eq!(output.kind, MusubuValue::I32);
     assert_eq!(output.signed_value, 7);
 }

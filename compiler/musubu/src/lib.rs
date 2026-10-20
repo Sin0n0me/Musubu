@@ -18,8 +18,13 @@ use core::slice::from_raw_parts;
 use core::str::from_utf8;
 use musubu_engine::MusubuEngine;
 
+/// Creates an engine owned by the caller. Returns false for null output.
+///
+/// # Safety
+/// Non-null output must be aligned and writable for one engine pointer. Release
+/// the returned engine exactly once with uninit after all borrows have ended.
 #[unsafe(no_mangle)]
-pub extern "C" fn init(output: *mut *mut MusubuEngine) -> bool {
+pub unsafe extern "C" fn init(output: *mut *mut MusubuEngine) -> bool {
     if output.is_null() {
         return false;
     }
@@ -34,8 +39,13 @@ pub extern "C" fn init(output: *mut *mut MusubuEngine) -> bool {
     true
 }
 
+/// Destroys an engine. Null is a no-op.
+///
+/// # Safety
+/// A non-null engine must have been returned by init and must not have been freed.
+/// No references, borrowed diagnostics or concurrent calls may remain in use.
 #[unsafe(no_mangle)]
-pub extern "C" fn uninit(engine: *mut MusubuEngine) {
+pub unsafe extern "C" fn uninit(engine: *mut MusubuEngine) {
     if engine.is_null() {
         return;
     }
@@ -46,8 +56,19 @@ pub extern "C" fn uninit(engine: *mut MusubuEngine) {
     }
 }
 
+/// Compiles a UTF-8 byte range. Null engine or source returns false.
+///
+/// # Safety
+/// A non-null engine must be live, aligned and exclusively accessible. A non-null
+/// source must reference len readable initialized bytes in one allocation, with
+/// len at most isize::MAX. The source must not alias engine storage. Calls on the
+/// same engine must not overlap; prior diagnostic borrows must have ended.
 #[unsafe(no_mangle)]
-pub extern "C" fn compile(engine: *mut MusubuEngine, code_ptr: *const c_char, len: usize) -> bool {
+pub unsafe extern "C" fn compile(
+    engine: *mut MusubuEngine,
+    code_ptr: *const c_char,
+    len: usize,
+) -> bool {
     if engine.is_null() {
         return false;
     }
