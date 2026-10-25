@@ -2,11 +2,67 @@
 
 自作アプリケーション用の組み込み言語
 
-## MSVC
+## C / C++からの利用（MSVC・GCC・Clang）
 
 公開APIは [musubu.h](compiler/musubu/include/musubu.h) に定義されています。
 呼び出し側では、このヘッダをインクルードしてください。
 以前の `compile(code, length)` 宣言や `run_script()` ではなく、エンジンを作成して関数を呼び出します。
+
+Rust側は `extern "C"` の共有ライブラリを出力します。C / C++側のコンパイラに
+Rust側を合わせる必要はありませんが、OSとCPUアーキテクチャは一致させてください。
+Windowsでは公開ヘッダがDLLインポートとCの呼び出し規約を指定します。
+エンジンや値ハンドルは、作成したMusubuライブラリのAPIで解放してください。
+
+### Windows
+
+RustのMSVCツールチェーンでビルドします（MSVCのビルドツールが必要です）。
+
+```powershell
+cargo build -p musubu --release --target x86_64-pc-windows-msvc
+```
+
+以下は `main.c` を呼び出し元とする例です。各コンパイラと必要なツールチェーンは
+事前に用意してください。MSVCとMSVCターゲットのClangはインポートライブラリ
+`musubu.dll.lib`、MinGW-w64 GCCとGNUターゲットのClangは `musubu.dll` を直接リンクします。
+
+```powershell
+# MSVC（Developer PowerShell / Command Prompt）
+cl /Icompiler/musubu/include main.c target/x86_64-pc-windows-msvc/release/musubu.dll.lib /Fe:app.exe
+
+# MinGW-w64 GCC（x86_64）
+gcc -Icompiler/musubu/include main.c target/x86_64-pc-windows-msvc/release/musubu.dll -o app.exe
+
+# Clang（MSVCターゲット、MSVCのビルド環境）
+clang --target=x86_64-pc-windows-msvc -Icompiler/musubu/include main.c target/x86_64-pc-windows-msvc/release/musubu.dll.lib -o app.exe
+
+# Clang（MinGW-w64のヘッダ・ライブラリ・リンカを利用できる環境）
+clang --target=x86_64-w64-windows-gnu -Icompiler/musubu/include main.c target/x86_64-pc-windows-msvc/release/musubu.dll -o app.exe
+
+Copy-Item target/x86_64-pc-windows-msvc/release/musubu.dll .
+.\app.exe
+```
+
+MinGW-w64だけでRust側もビルドする場合は、インストール済みの
+`x86_64-pc-windows-gnu` ターゲットを `cargo build` に指定し、上記のDLLのパスを
+`target/x86_64-pc-windows-gnu/release/musubu.dll` に変更してください。
+C++では `main.cpp` と `g++` / `clang++`（MSVCでは `cl`）を使います。
+
+### Linux
+
+Linux上のRustツールチェーンでビルドし、生成した `libmusubu.so` をリンクします。
+以下のコマンドはリポジトリのルートで実行します。
+
+```sh
+cargo build -p musubu --release
+gcc -Icompiler/musubu/include main.c -Ltarget/release -lmusubu -o app
+# Clangを使う場合
+clang -Icompiler/musubu/include main.c -Ltarget/release -lmusubu -o app
+LD_LIBRARY_PATH="$PWD/target/release${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" ./app
+```
+
+C++では `main.cpp` と `g++` / `clang++` を使います。
+`main.c` / `main.cpp` は利用側で用意するソースファイルです。
+以下のFFIの呼び出し手順とAPIは、いずれのコンパイラでも共通です。
 
 ## FFIからの関数呼び出し
 
