@@ -9,6 +9,8 @@ use musubu_primitive::*;
 pub struct CompiledFunction {
     pub code: Vec<Instruction>,
     pub registers: usize,
+    pub parameters: Vec<PrimitiveType>,
+    pub return_type: PrimitiveType,
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -54,6 +54,12 @@ pub fn compile_function(func: &HIRFunction) -> IRCompileResult<CompiledFunction>
     let code = CompiledFunction {
         code: compiler.code,
         registers: compiler.register_allocator.get_size(),
+        parameters: func
+            .params
+            .iter()
+            .map(|param| param.argument_type.clone())
+            .collect(),
+        return_type: func.return_type.clone(),
     };
 
     Ok(code)

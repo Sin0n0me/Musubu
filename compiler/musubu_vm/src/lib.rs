@@ -209,11 +209,24 @@ impl<'a> VM<'a> {
             .cache
             .get_function(&func_id)
             .ok_or(VMError::IllegalFunctionCall)?;
+        if args.len() != func.parameters.len() {
+            return Err(VMError::ArgumentCountMismatch);
+        }
+        if args
+            .iter()
+            .zip(&func.parameters)
+            .any(|(value, expected)| value.to_type() != *expected)
+        {
+            return Err(VMError::ArgumentTypeMismatch);
+        }
         let frame = Frame::new(func.registers, &func.code, args);
         Ok(frame)
     }
 
     fn eval_binop(op: &BinaryOperator, l: &Value, r: &Value) -> VMResult<Value> {
+        if let (Value::Integer(a), Value::Integer(b)) = (l, r) {
+            return vectors::checked_integer(op, a, b).map(Value::Integer);
+        }
         if matches!(l, Value::Matrix(_)) || matches!(r, Value::Matrix(_)) {
             return Self::eval_matrix_operator(op, l, r);
         }
@@ -232,20 +245,7 @@ impl<'a> VM<'a> {
                 _ => return Err(VMError::InvalidOperand),
             }));
         }
-        Ok(match (op, l, r) {
-            (BinaryOperator::Addition, Value::Integer(a), Value::Integer(b)) => {
-                Value::Integer(a + b)
-            }
-            (BinaryOperator::Subtract, Value::Integer(a), Value::Integer(b)) => {
-                Value::Integer(a - b)
-            }
-            (BinaryOperator::Multiply, Value::Integer(a), Value::Integer(b)) => {
-                Value::Integer(a * b)
-            }
-            (BinaryOperator::Divide, Value::Integer(a), Value::Integer(b)) => Value::Integer(a / b),
-
-            _ => return Err(VMError::InvalidOperand),
-        })
+        Err(VMError::InvalidOperand)
     }
 
     fn eval_cmp(op: &ComparisonOperator, l: &Value, r: &Value) -> VMResult<Value> {

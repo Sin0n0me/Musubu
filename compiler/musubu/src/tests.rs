@@ -514,10 +514,13 @@ diagnostic_tests! {
 fn ffi_null_arguments_are_rejected() {
     use core::ptr::{null, null_mut};
     let mut engine = MusubuEngine::new();
-    assert!(!crate::init(null_mut()));
-    crate::uninit(null_mut());
-    assert!(!crate::compile(null_mut(), null(), 0));
-    assert!(!crate::compile(&mut engine, null(), 0));
+    // Nulls are explicitly handled; the non-null engine is exclusively borrowed.
+    unsafe {
+        assert!(!crate::init(null_mut()));
+        crate::uninit(null_mut());
+        assert!(!crate::compile(null_mut(), null(), 0));
+        assert!(!crate::compile(&mut engine, null(), 0));
+    }
     assert!(
         engine
             .compile_error()
@@ -552,11 +555,14 @@ fn ffi_null_arguments_are_rejected() {
 fn ffi_invalid_utf8_is_rejected() {
     let mut engine = MusubuEngine::new();
     let invalid = [0xffu8];
-    assert!(!crate::compile(
-        &mut engine,
-        invalid.as_ptr().cast(),
-        invalid.len()
-    ));
+    // Invalid UTF-8 still occupies a valid, live byte range independent of the engine.
+    unsafe {
+        assert!(!crate::compile(
+            &mut engine,
+            invalid.as_ptr().cast(),
+            invalid.len()
+        ));
+    }
     assert!(engine.compile_error().contains("source is not valid UTF-8"));
     let source = "fn main() {}";
     // Both input slices and the engine are valid for the duration of the call.
@@ -579,14 +585,15 @@ fn ffi_invalid_utf8_is_rejected() {
 #[test]
 fn ffi_engine_lifecycle_and_empty_diagnostic() {
     let mut engine = core::ptr::null_mut();
-    assert!(crate::init(&mut engine));
+    // The output is writable and owns no existing engine.
+    assert!(unsafe { crate::init(&mut engine) });
     assert!(!engine.is_null());
     let mut len = 99;
     // init returned a live engine; it is destroyed only after the borrowed result is checked.
     unsafe {
         assert!(crate::get_compile_error(engine, &mut len).is_null());
+        crate::uninit(engine);
     }
-    crate::uninit(engine);
     assert_eq!(len, 0);
 }
 
