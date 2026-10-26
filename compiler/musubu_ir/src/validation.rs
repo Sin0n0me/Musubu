@@ -111,6 +111,7 @@ mod tests {
     fn function(instruction: Instruction) -> CompiledFunction {
         CompiledFunction {
             code: alloc::vec![instruction],
+            source_ranges: Vec::new(),
             registers: 1,
             parameters: Vec::new(),
             return_type: PrimitiveType::Unit,

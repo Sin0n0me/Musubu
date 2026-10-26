@@ -135,7 +135,9 @@ fn scalar_arithmetic_errors_return_to_host() {
         assert!(
             matches!(
                 engine.run_function(0, vec![]),
-                Err(musubu_vm::errors::VMError::InvalidOperand)
+                Err(musubu_vm::errors::VMError::DivisionByZero) if expression == "1 / 0"
+            ) || matches!(engine.run_function(0, vec![]),
+                Err(musubu_vm::errors::VMError::ArithmeticOverflow) if expression != "1 / 0"
             ),
             "{expression}"
         );

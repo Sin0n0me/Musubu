@@ -64,6 +64,9 @@ pub(super) fn checked_integer(
         ($($kind:ident),*) => {
             match (lhs, rhs) {
                 $((Integer::$kind(a), Integer::$kind(b)) => {
+                    if matches!(op, BinaryOperator::Divide) && *b == 0 {
+                        return Err(VMError::DivisionByZero);
+                    }
                     let value = match op {
                         BinaryOperator::Addition => a.checked_add(*b),
                         BinaryOperator::Subtract => a.checked_sub(*b),
@@ -71,7 +74,7 @@ pub(super) fn checked_integer(
                         BinaryOperator::Divide => a.checked_div(*b),
                         _ => return Err(VMError::InvalidOperand),
                     };
-                    value.map(Integer::$kind).ok_or(VMError::InvalidOperand)
+                    value.map(Integer::$kind).ok_or(VMError::ArithmeticOverflow)
                 }),*
                 _ => Err(VMError::InvalidOperand),
             }

@@ -22,6 +22,12 @@ use musubu_primitive::*;
 pub type VMResult<T> = Result<T, VMError>;
 
 #[derive(Debug, Clone, Copy)]
+pub struct TraceFrame {
+    pub function: usize,
+    pub instruction: usize,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct ExecutionLimits {
     pub instructions: u64,
     pub call_depth: usize,
@@ -40,6 +46,7 @@ impl Default for ExecutionLimits {
 pub struct VM<'a> {
     cache: &'a Cache,
     limits: ExecutionLimits,
+    trace: Vec<TraceFrame>,
 }
 
 impl<'a> VM<'a> {
@@ -48,10 +55,35 @@ impl<'a> VM<'a> {
     }
 
     pub fn with_limits(cache: &'a Cache, limits: ExecutionLimits) -> Self {
-        Self { cache, limits }
+        Self {
+            cache,
+            limits,
+            trace: Vec::new(),
+        }
+    }
+
+    pub fn stack_trace(&self) -> &[TraceFrame] {
+        &self.trace
+    }
+
+    fn capture_trace(&mut self, frames: &[Frame<'_>], pending: bool) {
+        self.trace = frames
+            .iter()
+            .rev()
+            .enumerate()
+            .map(|(index, frame)| TraceFrame {
+                function: frame.function_id,
+                instruction: if pending && index == 0 {
+                    frame.ip
+                } else {
+                    frame.ip.saturating_sub(1)
+                },
+            })
+            .collect();
     }
 
     pub fn run_function(&mut self, func_id: usize, args: Vec<Value>) -> VMResult<Option<Value>> {
+        self.trace.clear();
         if self.limits.call_depth == 0 {
             return Err(VMError::StackOverflow);
         }
@@ -65,10 +97,17 @@ impl<'a> VM<'a> {
         let mut remaining = self.limits.instructions;
         loop {
             if remaining == 0 {
+                self.capture_trace(&frame_stack, true);
                 return Err(VMError::InstructionLimitExceeded);
             }
             remaining -= 1;
-            let ret = self.next(&mut frame_stack)?;
+            let ret = match self.next(&mut frame_stack) {
+                Ok(value) => value,
+                Err(error) => {
+                    self.capture_trace(&frame_stack, false);
+                    return Err(error);
+                }
+            };
             if frame_stack.is_empty() {
                 return Ok(ret);
             }
@@ -251,7 +290,8 @@ impl<'a> VM<'a> {
         {
             return Err(VMError::ArgumentTypeMismatch);
         }
-        let frame = Frame::new(func.registers, &func.code, args);
+        let mut frame = Frame::new(func.registers, &func.code, args);
+        frame.function_id = func_id;
         Ok(frame)
     }
 

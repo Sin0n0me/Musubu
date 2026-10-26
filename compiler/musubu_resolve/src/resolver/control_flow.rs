@@ -37,6 +37,7 @@ fn block_flow(block: &HIRBlock) -> Flow {
 
 fn expression_flow(expr: &HIRExpression) -> Flow {
     match expr {
+        HIRExpression::Located { expression, .. } => expression_flow(expression),
         HIRExpression::Index { parent, index, .. } => {
             expression_flow(parent).then(expression_flow(index))
         }

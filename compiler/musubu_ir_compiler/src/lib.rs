@@ -53,6 +53,7 @@ pub fn compile_function(func: &HIRFunction) -> IRCompileResult<CompiledFunction>
 
     let code = CompiledFunction {
         code: compiler.code,
+        source_ranges: compiler.source_ranges,
         registers: compiler.register_allocator.get_size(),
         parameters: func
             .params
@@ -68,6 +69,7 @@ pub fn compile_function(func: &HIRFunction) -> IRCompileResult<CompiledFunction>
 #[derive(Debug)]
 struct IRCompiler {
     code: Vec<Instruction>,
+    source_ranges: Vec<Option<(usize, usize)>>,
     register_allocator: RegisterAllocator,
     loop_statement: Vec<LoopStatement>,
 }
@@ -93,6 +95,7 @@ impl IRCompiler {
     pub fn new() -> Self {
         Self {
             code: Vec::new(),
+            source_ranges: Vec::new(),
             register_allocator: RegisterAllocator::new(),
             loop_statement: Vec::new(),
         }
@@ -160,6 +163,18 @@ impl IRCompiler {
     }
 
     fn compile_expr(&mut self, expr: &HIRExpression) -> IRCompileResult<Option<Register>> {
+        if let HIRExpression::Located { range, expression } = expr {
+            let start = self.code.len();
+            let result = self.compile_expr(expression);
+            self.source_ranges.resize(self.code.len(), None);
+            for location in &mut self.source_ranges[start..] {
+                // Nested expressions retain their narrower locations.
+                if location.is_none() {
+                    *location = Some(*range);
+                }
+            }
+            return result;
+        }
         let value = self.compile_expr_inner(expr)?;
         if value.is_none() && expr.to_type().is_unit() {
             // Unit is a value when stored in tuples, bindings or argument slots.

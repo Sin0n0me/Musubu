@@ -2,6 +2,8 @@
 
 extern crate alloc;
 
+mod diagnostic;
+
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::sync::atomic::{AtomicU64, Ordering};
@@ -37,6 +39,8 @@ pub struct MusubuEngine {
     runtime_error: String,
     limits: ExecutionLimits,
     program: u64,
+    source: String,
+    filename: String,
 }
 
 impl MusubuEngine {
@@ -47,6 +51,8 @@ impl MusubuEngine {
             runtime_error: String::new(),
             limits: ExecutionLimits::default(),
             program: program_identity(),
+            source: String::new(),
+            filename: String::new(),
         }
     }
 
@@ -63,12 +69,36 @@ impl MusubuEngine {
     /// Atomically replaces all compiled functions, including their name allocator.
     pub fn replace_program(&mut self, program: Self) {
         self.cache = program.cache;
+        self.source = program.source;
+        self.filename = program.filename;
         self.program = program_identity();
     }
 
     pub fn run_function(&self, function_id: usize, args: Vec<Value>) -> VMResult<Option<Value>> {
         let mut vm = VM::with_limits(&self.cache, self.limits);
         vm.run_function(function_id, args)
+    }
+
+    pub fn set_source(&mut self, filename: &str, source: &str) {
+        self.filename = String::from(filename);
+        self.source = String::from(source);
+    }
+
+    pub fn run_function_diagnostic(
+        &self,
+        id: usize,
+        args: Vec<Value>,
+    ) -> Result<Option<Value>, String> {
+        let mut vm = VM::with_limits(&self.cache, self.limits);
+        vm.run_function(id, args).map_err(|error| {
+            diagnostic::render(
+                &self.cache,
+                &self.filename,
+                &self.source,
+                &error,
+                vm.stack_trace(),
+            )
+        })
     }
 
     pub fn set_execution_limits(&mut self, limits: ExecutionLimits) -> bool {

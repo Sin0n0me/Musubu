@@ -11,6 +11,8 @@ use musubu_primitive::*;
 #[derive(Debug, Clone)]
 pub struct CompiledFunction {
     pub code: Vec<Instruction>,
+    /// Optional half-open source byte range for each instruction. Empty for host IR.
+    pub source_ranges: Vec<Option<(usize, usize)>>,
     pub registers: usize,
     pub parameters: Vec<PrimitiveType>,
     pub return_type: PrimitiveType,

@@ -239,7 +239,7 @@ fn runtime_errors_are_readable_and_cleared_on_success() {
             &[signed(MusubuValue::I32, 1), signed(MusubuValue::I32, 0)]
         )
         .unwrap_err()
-        .contains("InvalidOperand")
+        .contains("DivisionByZero")
     );
     let mut length = 0;
     // The diagnostic is borrowed only while the engine is unmodified.
@@ -441,7 +441,7 @@ fn vm_bounds_and_overflow_failures_leave_output_unchanged() {
     );
     for (name, value, error) in [
         ("bounds", 1, "IndexOutOfBounds"),
-        ("overflow", i32::MAX, "InvalidOperand"),
+        ("overflow", i32::MAX, "ArithmeticOverflow"),
     ] {
         let args = [signed(MusubuValue::I32, i64::from(value))];
         let mut output = signed(MusubuValue::I32, 99);
@@ -494,5 +494,35 @@ fn execution_limits_stop_loops_and_recursion_and_allow_recovery() {
         call(&mut engine, "spin", &[])
             .unwrap_err()
             .contains("InstructionLimitExceeded")
+    );
+}
+
+#[test]
+fn runtime_diagnostics_include_precise_source_and_callers() {
+    let mut engine = MusubuEngine::new();
+    let source =
+        "fn inner(x: i32) -> i32 {\n    let y = 1;\n    y / x\n}\nfn outer() -> i32 { inner(0) }";
+    assert!(musubu_driver::compile_with_filename(
+        &mut engine,
+        "scripts/runtime.msb",
+        source
+    ));
+    let error = call(&mut engine, "outer", &[]).unwrap_err();
+    assert!(error.contains("DivisionByZero"), "{error}");
+    assert!(error.contains("scripts/runtime.msb:3:5"), "{error}");
+    assert!(error.contains("y / x"), "{error}");
+    assert!(error.contains("^^^^^"), "{error}");
+    assert!(error.contains("musubu::inner"), "{error}");
+    assert!(error.contains("musubu::outer"), "{error}");
+    assert!(error.contains("scripts/runtime.msb:5:"), "{error}");
+    assert!(!musubu_driver::compile_with_filename(
+        &mut engine,
+        "bad.msb",
+        "fn broken"
+    ));
+    assert!(
+        call(&mut engine, "outer", &[])
+            .unwrap_err()
+            .contains("scripts/runtime.msb:3:5")
     );
 }

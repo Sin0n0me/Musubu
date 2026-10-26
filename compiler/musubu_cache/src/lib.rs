@@ -51,6 +51,14 @@ impl Cache {
         self.get_function(&id).map(|_| id)
     }
 
+    pub fn get_function_name(&self, id: usize) -> Option<&str> {
+        self.function_cache
+            .allocator
+            .name_map
+            .iter()
+            .find_map(|(name, value)| (*value == id).then_some(name.as_str()))
+    }
+
     pub fn get_function_allocator(&mut self) -> &mut impl Allocator {
         self.function_cache.get_allocator()
     }
@@ -178,6 +186,7 @@ mod tests {
                 42,
                 CompiledFunction {
                     code: vec![],
+                    source_ranges: alloc::vec::Vec::new(),
                     registers: 3,
                     parameters: vec![],
                     return_type: PrimitiveType::Unit,
@@ -189,6 +198,7 @@ mod tests {
                 7,
                 CompiledFunction {
                     code: vec![],
+                    source_ranges: alloc::vec::Vec::new(),
                     registers: 1,
                     parameters: vec![],
                     return_type: PrimitiveType::Unit,
@@ -200,6 +210,7 @@ mod tests {
                 42,
                 CompiledFunction {
                     code: vec![],
+                    source_ranges: alloc::vec::Vec::new(),
                     registers: 8,
                     parameters: vec![],
                     return_type: PrimitiveType::Unit,

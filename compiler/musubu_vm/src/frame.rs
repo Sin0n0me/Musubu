@@ -9,6 +9,7 @@ const INITIAL_IP: usize = 0;
 
 #[derive(Debug)]
 pub(crate) struct Frame<'a> {
+    pub function_id: usize,
     pub iterators: BTreeMap<usize, IteratorState>,
     pub registers: Vec<Value>, // TODO 初期化コストが重たいのでVM側に移動して1つのVecでやる(オフセットで位置を定められる)
     pub ip: usize,
@@ -21,6 +22,7 @@ impl<'a> Frame<'a> {
         // Reuse the owned argument storage; initialize only the remaining registers once.
         args.resize(registers, Value::Integer(Integer::Int32(0)));
         Self {
+            function_id: 0,
             iterators: BTreeMap::new(),
             registers: args,
             ip: INITIAL_IP,

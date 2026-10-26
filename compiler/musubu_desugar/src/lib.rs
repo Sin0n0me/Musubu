@@ -200,7 +200,7 @@ impl<'a> Desugar<'a> {
     }
 
     fn assignment_place(expr: &HIRExpression) -> DesugarResult<(usize, Vec<usize>)> {
-        match expr {
+        match expr.unlocated() {
             HIRExpression::Variable { id, .. } => Ok((*id, Vec::new())),
             HIRExpression::Field { parent, index, .. } => {
                 let (target, mut path) = Self::assignment_place(parent)?;
@@ -278,7 +278,7 @@ impl<'a> Desugar<'a> {
         function: HIRExpression,
         arguments: Vec<HIRExpression>,
     ) -> DesugarResult<HIRExpression> {
-        let mut function = function;
+        let mut function = function.into_unlocated();
         match &mut function {
             HIRExpression::Call {
                 function: _,

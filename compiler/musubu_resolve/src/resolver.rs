@@ -303,7 +303,13 @@ impl<'a> Resolver<'a> {
                 )?,
             };
 
-            Ok(lowered)
+            Ok(Lowered {
+                type_symbol: lowered.type_symbol,
+                hir: HIRExpression::Located {
+                    range: (diagnostic_span.start as usize, diagnostic_span.end as usize),
+                    expression: alloc::boxed::Box::new(lowered.hir),
+                },
+            })
         })()
         .map_err(|error: ResolveError| error.at(diagnostic_span))
     }
@@ -405,7 +411,7 @@ impl<'a> Resolver<'a> {
         let rhs = self.resolve_expression(&right)?;
 
         if !matches!(
-            &lhs.hir,
+            lhs.hir.unlocated(),
             HIRExpression::Variable { .. }
                 | HIRExpression::Field { .. }
                 | HIRExpression::Index { .. }

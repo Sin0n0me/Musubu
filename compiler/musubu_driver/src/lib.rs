@@ -95,6 +95,7 @@ pub fn compile_with_filename(engine: &mut MusubuEngine, filename: &str, code: &s
             return false;
         }
     }
+    staged.set_source(filename, code);
     engine.replace_program(staged);
     true
 }

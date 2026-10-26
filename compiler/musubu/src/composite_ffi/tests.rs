@@ -495,7 +495,7 @@ fn vm_error_and_success_clear_diagnostics() {
     assert!(
         call(&mut engine, "f", &[&v, &zero])
             .unwrap_err()
-            .contains("InvalidOperand")
+            .contains("DivisionByZero")
     );
     assert_eq!(unsafe { value_get_kind(v.0) }, MusubuValue::VECTOR);
     assert!(!engine.runtime_error().is_empty());
