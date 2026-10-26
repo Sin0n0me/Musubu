@@ -51,6 +51,16 @@ unsafe fn children(
         .collect()
 }
 
+unsafe fn borrowed_children<'a>(
+    values: *const *const MusubuValueHandle,
+    count: usize,
+) -> Result<Vec<&'a HostValue>, String> {
+    unsafe { input(values, count) }?
+        .iter()
+        .map(|value| unsafe { handle(*value) })
+        .collect()
+}
+
 // Validate output before allocating owned handles; every failure leaves it unchanged.
 unsafe fn write_result<T>(
     engine: *mut MusubuEngine,
@@ -177,7 +187,7 @@ fn execute(
     engine: &MusubuEngine,
     id: usize,
     name: Option<&str>,
-    args: &[HostValue],
+    args: &[&HostValue],
 ) -> Result<HostValue, String> {
     let function = engine
         .get_function(id)
@@ -241,7 +251,7 @@ pub unsafe extern "C" fn call_function_value(
                 engine,
                 resolve_function(engine, name)?,
                 Some(name),
-                &children(arguments, count)?,
+                &borrowed_children(arguments, count)?,
             )?;
             Ok(MusubuValueHandle::owned(result))
         })
@@ -281,7 +291,12 @@ pub unsafe extern "C" fn call_function_value_by_id(
 ) -> bool {
     unsafe {
         write_result(engine, output, |engine| {
-            let result = execute(engine, function_id, None, &children(arguments, count)?)?;
+            let result = execute(
+                engine,
+                function_id,
+                None,
+                &borrowed_children(arguments, count)?,
+            )?;
             Ok(MusubuValueHandle::owned(result))
         })
     }
@@ -326,7 +341,7 @@ pub unsafe extern "C" fn call_function_value_by_token(
             let id = engine
                 .token_function(*token)
                 .ok_or_else(|| String::from("stale or foreign function token"))?;
-            let result = execute(engine, id, None, &children(arguments, count)?)?;
+            let result = execute(engine, id, None, &borrowed_children(arguments, count)?)?;
             Ok(MusubuValueHandle::owned(result))
         })
     }

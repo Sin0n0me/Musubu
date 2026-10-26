@@ -1,6 +1,6 @@
 use crate::iterator::IteratorState;
 use alloc::collections::BTreeMap;
-use alloc::{vec, vec::Vec};
+use alloc::vec::Vec;
 use musubu_ir::{Instruction, Register};
 use musubu_primitive::{Integer, Value};
 
@@ -17,29 +17,15 @@ pub(crate) struct Frame<'a> {
 }
 
 impl<'a> Frame<'a> {
-    pub fn new(registers: usize, code: &'a [Instruction], args: Vec<Value>) -> Self {
-        let mut frame = Self {
+    pub fn new(registers: usize, code: &'a [Instruction], mut args: Vec<Value>) -> Self {
+        // Reuse the owned argument storage; initialize only the remaining registers once.
+        args.resize(registers, Value::Integer(Integer::Int32(0)));
+        Self {
             iterators: BTreeMap::new(),
-            registers: vec![Value::Integer(Integer::Int32(0)); registers],
+            registers: args,
             ip: INITIAL_IP,
             code,
             next_reg: None,
-        };
-
-        frame.init(args);
-        frame
-    }
-
-    pub fn init(&mut self, args: Vec<Value>) {
-        self.iterators.clear();
-        let args_len = args.len();
-
-        // 引数セット
-        for (i, arg) in args.into_iter().enumerate() {
-            self.registers[i] = arg;
         }
-
-        self.registers[args_len..].fill(Value::Integer(Integer::Int32(0)));
-        self.ip = INITIAL_IP;
     }
 }
