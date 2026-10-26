@@ -30,16 +30,17 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             ~/.cargo/bin
-          key: cargo-registry-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          key: cargo-deny-${{ runner.os }}-${{ env.CARGO_DENY_VERSION }}-${{ hashFiles('**/Cargo.lock') }}
 
-      # インストール済みであればバージョン表示
       - name: Install cargo-deny
         run: |
-          if ! command -v cargo-deny >/dev/null 2>&1; then
-            cargo install cargo-deny --version ${CARGO_DENY_VERSION} --locked
-          else
-            cargo-deny --version
+          expected="cargo-deny ${CARGO_DENY_VERSION}"
+          actual="$(cargo-deny --version 2>/dev/null || true)"
+          if [ "$actual" != "$expected" ]; then
+            cargo +stable install cargo-deny --version "${CARGO_DENY_VERSION}" --locked --force
           fi
+          test "$(cargo-deny --version)" = "$expected"
+          cargo-deny --version
 
       - name: License check
         run: |
