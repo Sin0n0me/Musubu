@@ -3,6 +3,7 @@ use alloc::vec;
 use musubu_driver::compile;
 
 mod buffer_and_id;
+mod performance;
 
 #[derive(Debug)]
 struct Owned(*mut MusubuValueHandle);
