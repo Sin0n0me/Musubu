@@ -2,6 +2,8 @@ use super::*;
 use alloc::vec;
 use musubu_driver::compile;
 
+mod buffer_and_id;
+
 #[derive(Debug)]
 struct Owned(*mut MusubuValueHandle);
 impl Drop for Owned {
