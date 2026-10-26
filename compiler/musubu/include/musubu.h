@@ -30,6 +30,12 @@ typedef struct MusubuEngine MusubuEngine;
 MUSUBU_API bool MUSUBU_CALL init(MusubuEngine **output);
 MUSUBU_API void MUSUBU_CALL uninit(MusubuEngine *engine);
 
+/* Per-call limits, reset for each call (including after failure).
+ * Defaults: 1,000,000 instructions and 256 frames including the entry function.
+ * Both must be positive. Failure leaves settings unchanged; runtime errors apply.
+ * Recompilation preserves limits. This is not a total memory/time sandbox. */
+MUSUBU_API bool MUSUBU_CALL set_execution_limits(MusubuEngine *engine, uint64_t instructions, size_t call_depth);
+
 /* Input strings are UTF-8 byte ranges; lengths exclude any NUL terminator.
  * Compilation clears the previous diagnostic, including on success.
  * Use a path relative to your project root for filename. */

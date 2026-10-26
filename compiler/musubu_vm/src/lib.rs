@@ -21,17 +21,40 @@ use musubu_primitive::*;
 
 pub type VMResult<T> = Result<T, VMError>;
 
+#[derive(Debug, Clone, Copy)]
+pub struct ExecutionLimits {
+    pub instructions: u64,
+    pub call_depth: usize,
+}
+
+impl Default for ExecutionLimits {
+    fn default() -> Self {
+        Self {
+            instructions: 1_000_000,
+            call_depth: 256,
+        }
+    }
+}
+
 // TODO デバッグ用のスタックトレース
 pub struct VM<'a> {
     cache: &'a Cache,
+    limits: ExecutionLimits,
 }
 
 impl<'a> VM<'a> {
     pub fn new(cache: &'a Cache) -> Self {
-        Self { cache }
+        Self::with_limits(cache, ExecutionLimits::default())
+    }
+
+    pub fn with_limits(cache: &'a Cache, limits: ExecutionLimits) -> Self {
+        Self { cache, limits }
     }
 
     pub fn run_function(&mut self, func_id: usize, args: Vec<Value>) -> VMResult<Option<Value>> {
+        if self.limits.call_depth == 0 {
+            return Err(VMError::StackOverflow);
+        }
         let frame = self.load_function(func_id, args)?;
         self.execute_frame(frame)
     }
@@ -39,7 +62,12 @@ impl<'a> VM<'a> {
     fn execute_frame(&mut self, frame: Frame<'a>) -> VMResult<Option<Value>> {
         // 順次実行
         let mut frame_stack = vec![frame];
+        let mut remaining = self.limits.instructions;
         loop {
+            if remaining == 0 {
+                return Err(VMError::InstructionLimitExceeded);
+            }
+            remaining -= 1;
             let ret = self.next(&mut frame_stack)?;
             if frame_stack.is_empty() {
                 return Ok(ret);
@@ -48,6 +76,7 @@ impl<'a> VM<'a> {
     }
 
     fn next(&self, frame_stack: &mut Vec<Frame<'a>>) -> VMResult<Option<Value>> {
+        let depth = frame_stack.len();
         let Some(frame) = frame_stack.last_mut() else {
             return Ok(None);
         };
@@ -99,6 +128,9 @@ impl<'a> VM<'a> {
                 frame.ip = *target;
             }
             Instruction::Call { dst, func, args } => {
+                if depth >= self.limits.call_depth {
+                    return Err(VMError::StackOverflow);
+                }
                 frame.next_reg = dst.map(|reg| reg.0);
 
                 let mut call_args = Vec::with_capacity(args.len());

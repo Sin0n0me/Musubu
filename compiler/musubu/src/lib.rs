@@ -16,6 +16,30 @@ use core::ffi::c_char;
 use core::ptr;
 use core::slice::from_raw_parts;
 use core::str::from_utf8;
+
+/// Sets positive per-call instruction and call-depth limits; zero leaves settings unchanged.
+/// # Safety
+/// engine must be null or a live, aligned, exclusively accessible engine.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn set_execution_limits(
+    engine: *mut MusubuEngine,
+    instructions: u64,
+    call_depth: usize,
+) -> bool {
+    let Some(engine) = (unsafe { engine.as_mut() }) else {
+        return false;
+    };
+    engine.clear_runtime_error();
+    if engine.set_execution_limits(musubu_engine::ExecutionLimits {
+        instructions,
+        call_depth,
+    }) {
+        true
+    } else {
+        engine.set_runtime_error("execution limits must be positive".to_string());
+        false
+    }
+}
 use musubu_engine::MusubuEngine;
 
 /// Creates an engine owned by the caller. Returns false for null output.

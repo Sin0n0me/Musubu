@@ -7,6 +7,7 @@ use alloc::vec::Vec;
 use musubu_cache::Cache;
 use musubu_ir::CompiledFunction;
 use musubu_primitive::Value;
+pub use musubu_vm::ExecutionLimits;
 use musubu_vm::{VM, VMResult};
 
 // 外部で保持してもらう
@@ -17,6 +18,7 @@ pub struct MusubuEngine {
     cache: Cache,
     compile_error: String,
     runtime_error: String,
+    limits: ExecutionLimits,
 }
 
 impl MusubuEngine {
@@ -25,6 +27,7 @@ impl MusubuEngine {
             cache: Cache::new(),
             compile_error: String::new(),
             runtime_error: String::new(),
+            limits: ExecutionLimits::default(),
         }
     }
 
@@ -42,8 +45,16 @@ impl MusubuEngine {
     }
 
     pub fn run_function(&self, function_id: usize, args: Vec<Value>) -> VMResult<Option<Value>> {
-        let mut vm = VM::new(&self.cache);
+        let mut vm = VM::with_limits(&self.cache, self.limits);
         vm.run_function(function_id, args)
+    }
+
+    pub fn set_execution_limits(&mut self, limits: ExecutionLimits) -> bool {
+        if limits.instructions == 0 || limits.call_depth == 0 {
+            return false;
+        }
+        self.limits = limits;
+        true
     }
 
     pub fn get_cache(&mut self) -> &mut Cache {

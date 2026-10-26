@@ -460,3 +460,39 @@ fn vm_bounds_and_overflow_failures_leave_output_unchanged() {
         assert!(engine.runtime_error().contains(error));
     }
 }
+
+#[test]
+fn execution_limits_stop_loops_and_recursion_and_allow_recovery() {
+    let mut engine = engine(
+        "fn spin() { loop {} } fn recurse(n: i32) -> i32 { if n == 0 { 1 } else { recurse(n - 1) } } fn ok() -> i32 { 7 }",
+    );
+    unsafe {
+        assert!(crate::set_execution_limits(&mut engine, 1000, 8));
+        assert!(!crate::set_execution_limits(&mut engine, 0, 8));
+        assert!(!crate::set_execution_limits(&mut engine, 1000, 0));
+        assert!(!crate::set_execution_limits(ptr::null_mut(), 1000, 8));
+    }
+    assert!(
+        call(&mut engine, "spin", &[])
+            .unwrap_err()
+            .contains("InstructionLimitExceeded")
+    );
+    assert!(
+        call(&mut engine, "recurse", &[signed(MusubuValue::I32, -1)])
+            .unwrap_err()
+            .contains("StackOverflow")
+    );
+    assert_eq!(
+        call(&mut engine, "recurse", &[signed(MusubuValue::I32, 6)])
+            .unwrap()
+            .signed_value,
+        1
+    );
+    assert_eq!(call(&mut engine, "ok", &[]).unwrap().signed_value, 7);
+    assert!(compile(&mut engine, "fn spin() { loop {} }"));
+    assert!(
+        call(&mut engine, "spin", &[])
+            .unwrap_err()
+            .contains("InstructionLimitExceeded")
+    );
+}

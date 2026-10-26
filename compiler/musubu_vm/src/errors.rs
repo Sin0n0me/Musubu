@@ -2,6 +2,7 @@
 pub enum VMError {
     InvalidOperand,
     StackOverflow,
+    InstructionLimitExceeded,
     IllegalFunctionCall,
     ArgumentCountMismatch,
     ArgumentTypeMismatch,
