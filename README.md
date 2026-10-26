@@ -2,6 +2,39 @@
 
 自作アプリケーション用の組み込み言語
 
+## 開発環境と検証
+
+開発・品質検査の基準はRust **1.88.0**です。`rust-toolchain.toml` で固定しています。
+CIでは固定版のWindows/Linux・debug/releaseに加え、最新stableとの互換性も別ジョブで検証します。
+
+```sh
+cargo test --workspace --locked
+cargo build --workspace --locked
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo fmt --all -- --check
+```
+
+依存を取得済みなら `--offline` を追加して検証できます。
+外部C++クライアントによるDLL接続テストは、MSVCのDeveloper PowerShellで実行します。
+スクリプトの実行は環境の署名ポリシーに従ってください。
+
+```powershell
+./scripts/test-ffi.ps1 -Profile debug
+./scripts/test-ffi.ps1 -Profile release
+```
+
+このテストは `cl /std:c++17 /EHsc /W4 /WX` で
+[ffi_smoke.cpp](tests/ffi_smoke.cpp) をビルドし、生成した `musubu.dll.lib` へリンクします。
+GLMには依存せず、スカラー・ID・関数トークンと列優先の非対称なfloat/double行列を往復検証します。
+LinuxのC++共有ライブラリ接続もCIで検証します。
+
+反復FFI呼び出しの時間・割り当て数は、ほかのテストを混ぜずに計測できます。
+速度の数値は環境に依存するため、合否判定には使用しません。
+
+```sh
+cargo test -p musubu --release --locked ffi_performance -- --ignored --nocapture --test-threads=1
+```
+
 ## C / C++からの利用（MSVC・GCC・Clang）
 
 公開APIは [musubu.h](compiler/musubu/include/musubu.h) に定義されています。
@@ -68,12 +101,23 @@ C++では `main.cpp` と `g++` / `clang++` を使います。
 
 1. `init()` でエンジンを作成します。
 2. `compile()` または `compile_with_filename()` でソースをコンパイルします。
-3. `get_function_id()` でソース上の関数名からIDを取得します。
-4. `call_function_value_by_id()` で呼び出し、戻り値のハンドルを取得します。
+3. `get_function_token()` でソース上の関数名からトークンを取得します。
+4. `call_function_value_by_token()` で呼び出し、戻り値のハンドルを取得します。
 5. 値ハンドルは `value_free()`、エンジンは `uninit()` で解放します。
 
 関数名は `"transform"` のように指定します。`main` や `extern "C"` の定義は不要です。
 ソース・関数名・ファイル名はUTF-8で渡し、長さには終端NULを含まない**バイト数**を指定します。
+
+コンパイル成功時はプログラム全体を置換します。新しいソースにない関数は削除されます。
+失敗した場合は、直前に成功したコードとそのソース情報を保持します。
+
+### 世代検査付き関数トークン（推奨）
+
+`MusubuFunctionToken` はエンジンとプログラム世代を識別します。
+初回に `get_function_token()` で取得し、以降は `call_function_value_by_token()` で
+名前検索なしに呼び出せます。別エンジンや成功した再コンパイル以前のトークンは拒否されます。
+コンパイルに失敗した場合は既存トークンを引き続き使用できます。
+フィールドを直接変更せず、取得した値をそのまま保持してください。解放は不要です。
 
 ### 関数IDの再利用
 
@@ -120,7 +164,7 @@ void print_error(const MusubuEngine* engine, bool compilation) {
     }
 }
 
-bool transform_matrix(MusubuEngine* engine, size_t functionId,
+bool transform_matrix(MusubuEngine* engine, const MusubuFunctionToken& function,
                       const glm::mat4& input, glm::mat4& output) {
     constexpr size_t dimension = 4;
     static_assert(sizeof(glm::mat4) ==
@@ -137,7 +181,7 @@ bool transform_matrix(MusubuEngine* engine, size_t functionId,
     constexpr size_t argumentCount = 1;
 
     MusubuValueHandle* rawResult = nullptr;
-    if (!call_function_value_by_id(engine, functionId,
+    if (!call_function_value_by_token(engine, &function,
                                     arguments, argumentCount, &rawResult)) {
         return false;
     }
@@ -163,17 +207,17 @@ int main() {
     }
 
     constexpr char functionName[] = "transform";
-    size_t functionId = 0;
-    if (!get_function_id(engine.get(), functionName,
-                         sizeof(functionName) - 1, &functionId)) {
+    MusubuFunctionToken function{};
+    if (!get_function_token(engine.get(), functionName,
+                            sizeof(functionName) - 1, &function)) {
         print_error(engine.get(), false);
         return 1;
     }
 
     const glm::mat4 input(1.0f);
     glm::mat4 output(0.0f);
-    // 以降も同じfunctionIdでtransform_matrixを繰り返し呼び出せます。
-    if (!transform_matrix(engine.get(), functionId, input, output)) {
+    // 再コンパイルに成功するまでは同じトークンを再利用できます。
+    if (!transform_matrix(engine.get(), function, input, output)) {
         print_error(engine.get(), false);
         return 1;
     }
@@ -197,7 +241,7 @@ int main() {
 | API | 引数・戻り値 |
 | --- | --- |
 | `call_function` | `MusubuValue` による整数・浮動小数点・bool・unit |
-| `call_function_value` / `call_function_value_by_id` | ハンドルによる上記の型・vec・mat・enum |
+| `call_function_value` / `call_function_value_by_id` / `call_function_value_by_token` | ハンドルによる上記の型・vec・mat・enum |
 
 構造体・タプル値・配列・文字列のFFI受け渡しは未対応です。
 enumも、いずれかのバリアントのフィールドに未対応型が含まれる場合は受け渡せません。
@@ -208,6 +252,20 @@ enumも、いずれかのバリアントのフィールドに未対応型が含�
 `compile_with_filename()` を使って相対パスを指定してください。
 診断文字列は借用したUTF-8バイト列で、解放してはいけません。
 特に実行時診断は、次にエンジンを変更するAPIを呼ぶ前に読み出すかコピーしてください。
+
+ソースからコンパイルした関数の実行時エラーには、命令に対応するファイル名・行・列・コードと
+呼び出し履歴が付属します。整数のゼロ除算は `DivisionByZero`、演算結果が型に収まらない場合は
+`ArithmeticOverflow` として区別します。
+
+### 実行制限
+
+既定では1呼び出しあたり100万命令・256フレーム（入口の関数を含む）まで実行します。
+`set_execution_limits(engine, instructions, call_depth)` で正の値に変更できます。
+0の指定は失敗し、以前の設定を保持します。設定は再コンパイル後も維持されます。
+
+命令数超過は `InstructionLimitExceeded`、呼び出し深度超過は `StackOverflow` で戻り、
+次の呼び出しでは新しい予算で実行します。上限は無限ループ・無限再帰からホストへ制御を戻すためのもので、
+総メモリ量や実時間の上限を保証するサンドボックスではありません。
 
 関数呼び出しで取得した値ハンドルは入力とは独立しています。
 成功した値の生成・関数呼び出し・`value_get_element()` ごとに、返されたハンドルを

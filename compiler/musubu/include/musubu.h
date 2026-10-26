@@ -38,6 +38,8 @@ MUSUBU_API bool MUSUBU_CALL set_execution_limits(MusubuEngine *engine, uint64_t 
 
 /* Input strings are UTF-8 byte ranges; lengths exclude any NUL terminator.
  * Compilation clears the previous diagnostic, including on success.
+ * Success replaces the entire program; removed functions no longer exist.
+ * Failure preserves the previous program, source metadata and function tokens.
  * Use a path relative to your project root for filename. */
 MUSUBU_API bool MUSUBU_CALL compile(MusubuEngine *engine, const char *code, size_t length);
 MUSUBU_API bool MUSUBU_CALL compile_with_filename(MusubuEngine *engine, const char *code, size_t code_length,
