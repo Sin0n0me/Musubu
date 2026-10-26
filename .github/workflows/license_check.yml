@@ -44,4 +44,4 @@ jobs:
 
       - name: License check
         run: |
-          cargo deny check licenses
+          cargo +stable deny check licenses
