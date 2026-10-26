@@ -1,5 +1,4 @@
 use alloc::string::String;
-use alloc::string::ToString;
 use alloc::vec::Vec;
 use musubu_name_space::errors::NameSpaceError;
 use musubu_primitive::*;
@@ -78,26 +77,19 @@ impl core::fmt::Display for TypeCheckError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::TypeMismatch { expected, found } => {
-                write!(
-                    f,
-                    "type mismatch: expected {}, found {}",
-                    expected.to_string(),
-                    found.to_string()
-                )
+                write!(f, "type mismatch: expected {expected}, found {found}")
             }
             Self::FunctionReturnMismatch { expected, found } => write!(
                 f,
-                "return type mismatch: expected {}, found {}",
-                expected.to_string(),
-                found.to_string()
+                "return type mismatch: expected {expected}, found {found}"
             ),
-            Self::NotIterable { found } => write!(f, "type {} is not iterable", found.to_string()),
+            Self::NotIterable { found } => write!(f, "type {found} is not iterable"),
             Self::NotMutable { name } => write!(f, "cannot assign to immutable value `{name}`"),
             Self::InvalidOperation { op, reason } => {
                 write!(f, "invalid operation `{op}`: {reason}")
             }
             Self::InvalidConditionType { found } => {
-                write!(f, "condition must be bool, found {}", found.to_string())
+                write!(f, "condition must be bool, found {found}")
             }
             Self::TupleCountMismatch { expected, found } => write!(
                 f,
@@ -108,7 +100,7 @@ impl core::fmt::Display for TypeCheckError {
                 "argument count mismatch: expected {expected}, found {found}"
             ),
             Self::NotCallable { found } => {
-                write!(f, "cannot call value of type {}", found.to_string())
+                write!(f, "cannot call value of type {found}")
             }
             Self::InvalidPath { name } => write!(f, "invalid path `{name}`"),
             Self::InvalidReturnScope => write!(f, "`return` is only allowed inside a function"),

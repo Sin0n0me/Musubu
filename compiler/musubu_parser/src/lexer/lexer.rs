@@ -127,18 +127,12 @@ impl TokenStream {
         };
         Some(op)
     }
-
-    pub fn get_logical_operator(&self) -> Option<&LogicalOperator> {
-        let MusubuOperator::Logical(op) = self.get_operator()? else {
-            return None;
-        };
-        Some(op)
-    }
 }
 
 type ParseIter<'a> = Peekable<Iter<'a, Token<'a>>>;
 type ParseResult = Result<MusubuToken, TokenStreamParseError>;
 
+#[cfg(test)]
 pub(crate) fn tokenize<'a>(tokens: &Tokens<'a>) -> Result<TokenStream, TokenStreamParseError> {
     tokenize_located(tokens).map_err(|error| match error {
         TokenStreamParseError::Located { error, .. } => *error,
@@ -669,18 +663,4 @@ fn eat_digit(
     })
     .map(func)
     .collect()
-}
-
-fn is_valid_number(iter: &mut ParseIter) -> bool {
-    let Some(token) = iter.peek() else {
-        return false;
-    };
-    if !matches!(
-        token.token_kind,
-        TokenKind::Number(_) | TokenKind::Symbol(Symbol::Underscore)
-    ) {
-        return false;
-    }
-
-    true
 }

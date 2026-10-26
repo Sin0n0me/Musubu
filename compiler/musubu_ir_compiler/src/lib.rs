@@ -137,7 +137,7 @@ impl IRCompiler {
         let reg = match statement {
             HIRStatement::Let {
                 symbol,
-                symbol_type,
+                symbol_type: _,
                 initializer,
             } => {
                 if let Some(expr) = initializer {

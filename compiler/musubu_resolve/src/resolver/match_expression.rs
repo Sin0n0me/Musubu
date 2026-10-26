@@ -15,11 +15,10 @@ impl<'a> Resolver<'a> {
             ty,
             PrimitiveType::NamedEnum { .. } | PrimitiveType::Tuple { .. } | PrimitiveType::Unit
         ) {
-            return Err(enum_error(format!(
-                "match requires an enum value or tuple, found {}",
-                ty.to_string()
-            ))
-            .at(value.span));
+            return Err(
+                enum_error(format!("match requires an enum value or tuple, found {ty}"))
+                    .at(value.span),
+            );
         }
         let mut lowered = Vec::new();
         let mut patterns = Vec::new();
@@ -63,8 +62,7 @@ impl<'a> Resolver<'a> {
         }
         if match_coverage::useful(&patterns, &HIRMatchPattern::Wildcard, ty) {
             return Err(enum_error(format!(
-                "non-exhaustive match for {}; add the missing variants or `_`",
-                ty.to_string()
+                "non-exhaustive match for {ty}; add the missing variants or `_`"
             ))
             .at(value.span));
         }

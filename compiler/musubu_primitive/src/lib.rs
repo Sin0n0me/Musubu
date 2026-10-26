@@ -347,60 +347,63 @@ impl PrimitiveType {
     }
 }
 
-impl ToString for PrimitiveType {
-    fn to_string(&self) -> String {
-        match self {
-            Self::NamedStruct { name, .. } => name.clone(),
-            Self::NamedEnum { name, .. } => name.clone(),
-            Self::Unit => "void".to_string(),
-            Self::Boolean => "bool".to_string(),
-            Self::Integer { signed, byte } => {
-                let bit = (*byte as SizeCount) * BYTE_BIT_WIDTH;
-                if *signed {
-                    format!("int_{bit}")
-                } else {
-                    format!("uint_{bit}")
+impl core::fmt::Display for PrimitiveType {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let rendered: String = {
+            match self {
+                Self::NamedStruct { name, .. } => name.clone(),
+                Self::NamedEnum { name, .. } => name.clone(),
+                Self::Unit => "void".to_string(),
+                Self::Boolean => "bool".to_string(),
+                Self::Integer { signed, byte } => {
+                    let bit = (*byte as SizeCount) * BYTE_BIT_WIDTH;
+                    if *signed {
+                        format!("int_{bit}")
+                    } else {
+                        format!("uint_{bit}")
+                    }
                 }
+                Self::Float { byte } => format!("float_{}", (*byte as SizeCount) * BYTE_BIT_WIDTH),
+                Self::Tuple { elements } => format!(
+                    "({}{})",
+                    elements
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                    if elements.len() == 1 { "," } else { "" }
+                ),
+                Self::Struct { elements } => elements.iter().map(|elem| elem.to_string()).collect(),
+                Self::Enumeration { variants } => {
+                    variants.iter().map(|variant| variant.to_string()).collect()
+                }
+                Self::Range { type_kind } => format!("Range<{type_kind}>"),
+                Self::Array { type_kind, size } => format!("{type_kind}[{size}]"),
+                Self::Pointer { point } => format!("{point}_ptr"),
+                Self::Function {
+                    return_type,
+                    arguments,
+                } => format!(
+                    "fn({})->{}",
+                    arguments
+                        .iter()
+                        .map(|arg| arg.to_string())
+                        .collect::<Vec<String>>()
+                        .join("_"),
+                    return_type
+                ),
+                Self::Vector {
+                    type_kind,
+                    dimension,
+                } => format!("vec<{type_kind}>{dimension}"),
+                Self::Matrix {
+                    type_kind,
+                    rows,
+                    columns,
+                } => format!("matrix<{type_kind}>{rows}x{columns}"),
             }
-            Self::Float { byte } => format!("float_{}", (*byte as SizeCount) * BYTE_BIT_WIDTH),
-            Self::Tuple { elements } => format!(
-                "({}{})",
-                elements
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join(", "),
-                if elements.len() == 1 { "," } else { "" }
-            ),
-            Self::Struct { elements } => elements.iter().map(|elem| elem.to_string()).collect(),
-            Self::Enumeration { variants } => {
-                variants.iter().map(|variant| variant.to_string()).collect()
-            }
-            Self::Range { type_kind } => format!("Range<{}>", type_kind.to_string()),
-            Self::Array { type_kind, size } => format!("{}[{size}]", type_kind.to_string()),
-            Self::Pointer { point } => format!("{}_ptr", point.to_string()),
-            Self::Function {
-                return_type,
-                arguments,
-            } => format!(
-                "fn({})->{}",
-                arguments
-                    .iter()
-                    .map(|arg| arg.to_string())
-                    .collect::<Vec<String>>()
-                    .join("_"),
-                return_type.to_string()
-            ),
-            Self::Vector {
-                type_kind,
-                dimension,
-            } => format!("vec<{}>{dimension}", type_kind.to_string()),
-            Self::Matrix {
-                type_kind,
-                rows,
-                columns,
-            } => format!("matrix<{}>{rows}x{columns}", type_kind.to_string()),
-        }
+        };
+        f.write_str(&rendered)
     }
 }
 

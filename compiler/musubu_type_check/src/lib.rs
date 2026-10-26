@@ -519,6 +519,14 @@ impl TypeChecker {
         pattern: &'a Pattern,
         variable_type: &PrimitiveType,
     ) -> TypeCheckResult<()> {
+        Self::resolve_pattern_inner(scope, pattern, variable_type)
+    }
+
+    fn resolve_pattern_inner<'a>(
+        scope: &Scope<'a>,
+        pattern: &'a Pattern,
+        variable_type: &PrimitiveType,
+    ) -> TypeCheckResult<()> {
         match pattern {
             Pattern::Identifier { ident, .. } => {
                 if !scope.contains(ident) {
@@ -546,7 +554,7 @@ impl TypeChecker {
                     });
                 }
                 for (pattern, ty) in patterns.iter().zip(elements) {
-                    self.resolve_pattern(scope, &pattern.node, ty)?;
+                    Self::resolve_pattern_inner(scope, &pattern.node, ty)?;
                 }
             }
             Pattern::Multiply(patterns) => {
@@ -568,7 +576,7 @@ impl TypeChecker {
 
                 // TODO
             }
-            Pattern::Literal(literal) => {}
+            Pattern::Literal(_) => {}
             Pattern::None => {}
         }
 

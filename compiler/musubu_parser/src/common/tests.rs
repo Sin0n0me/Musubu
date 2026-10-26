@@ -1,5 +1,5 @@
 #[cfg(test)]
-pub(crate) mod tests {
+pub(crate) mod fixtures {
 
     use crate::*;
     use musubu_lexer::{

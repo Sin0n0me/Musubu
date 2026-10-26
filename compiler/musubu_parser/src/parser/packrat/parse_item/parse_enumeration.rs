@@ -205,11 +205,4 @@ impl PackratAndPrattParser {
     }
 
     // EnumItemDiscriminant ::= `=` Expression
-    fn parse_enum_item_discriminant(&mut self) -> ParseResult {
-        let key = self.make_key("EnumItemDiscriminant");
-        if let Some(memo) = self.get_memo(&key) {
-            return Ok(memo);
-        }
-        self.make_memo_from_result(key, Err(ParseError::NotMatch))
-    }
 }

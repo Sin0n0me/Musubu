@@ -2,8 +2,8 @@
 // 大半はChatGPTの生成
 
 #[cfg(test)]
-mod tests {
-    use crate::{PackratAndPrattParser, common::tests::tests::*};
+mod parser_cases {
+    use crate::{PackratAndPrattParser, common::tests::fixtures::*};
     use alloc::boxed::Box;
     use alloc::string::{String, ToString};
     use alloc::vec::Vec;
@@ -17,16 +17,6 @@ mod tests {
         start: 0,
         end: 0,
     };
-
-    trait SpannedTestUtility<T> {
-        fn unwrap_node(self) -> T;
-    }
-
-    impl<T> SpannedTestUtility<T> for Spanned<T> {
-        fn unwrap_node(self) -> T {
-            self.node
-        }
-    }
 
     fn sp<T>(node: T) -> Spanned<T> {
         Spanned {

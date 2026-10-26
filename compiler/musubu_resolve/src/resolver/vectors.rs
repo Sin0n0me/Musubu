@@ -58,7 +58,7 @@ impl<'a> Resolver<'a> {
             return Err(ResolveError::InvalidVector {
                 message: format!(
                     "vector {} has no component `{field}`",
-                    parent.type_symbol.type_kind.to_string()
+                    parent.type_symbol.type_kind
                 ),
             });
         };

@@ -74,7 +74,7 @@ impl PackratAndPrattParser {
 
         let literal = if let Some(literal) = self.tokens.get_literal().cloned() {
             self.tokens.next();
-            match literal.to_literal() {
+            match literal.into_literal() {
                 Ok(literal) => literal,
                 Err(err) => return self.make_memo_from_result(key, Err(err)),
             }

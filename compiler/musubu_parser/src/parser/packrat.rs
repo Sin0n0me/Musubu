@@ -179,7 +179,7 @@ impl PackratAndPrattParser {
             return Ok(memo);
         }
 
-        let vis = self.option(Self::parse_visibility);
+        let _vis = self.option(Self::parse_visibility);
 
         let result = self.or(vec![
             Self::parse_function,
@@ -253,7 +253,7 @@ impl PackratAndPrattParser {
     {
         let position = self.tokens.get_position();
         function(self)
-            .inspect_err(|err| {
+            .inspect_err(|_err| {
                 self.tokens.set_position(position);
             })
             .ok()

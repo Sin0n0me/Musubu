@@ -12,8 +12,7 @@ pub(super) fn tuple_elements(ty: &PrimitiveType, count: usize) -> ResolveResult<
         PrimitiveType::Unit => &[],
         _ => {
             return Err(tuple_error(format!(
-                "tuple pattern requires a tuple, found {}",
-                ty.to_string()
+                "tuple pattern requires a tuple, found {ty}"
             )));
         }
     };
@@ -85,7 +84,7 @@ impl<'a> Resolver<'a> {
         else {
             return Err(tuple_error(format!(
                 "tuple {} has no element `{field}`",
-                parent.type_symbol.type_kind.to_string()
+                parent.type_symbol.type_kind
             )));
         };
         let mut type_symbol = parent.type_symbol;

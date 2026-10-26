@@ -9,7 +9,7 @@ impl TypeChecker {
     ) -> TypeCheckResult<PrimitiveType> {
         matrix_result_type(op, lhs, rhs).ok_or_else(|| TypeCheckError::InvalidOperation {
             op: format!("{op:?}"),
-            reason: format!("incompatible matrix operation between {} and {} (check dimensions and component types)", lhs.to_string(), rhs.to_string()),
+            reason: format!("incompatible matrix operation between {lhs} and {rhs} (check dimensions and component types)"),
         })
     }
 

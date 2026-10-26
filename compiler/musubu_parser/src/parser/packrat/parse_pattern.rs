@@ -125,7 +125,7 @@ impl PackratAndPrattParser {
 
         if let Some(literal) = self.tokens.get_literal().cloned() {
             self.tokens.next();
-            return match literal.to_literal() {
+            return match literal.into_literal() {
                 Ok(literal) => self.make_memo_from(key, Pattern::Literal(literal)),
                 Err(err) => self.make_memo_from_result(key, Err(err)),
             };
@@ -157,7 +157,7 @@ impl PackratAndPrattParser {
         let name = name.to_string();
         self.tokens.next();
 
-        let subpattern = if let Some(MusubuOperator::At) = self.tokens.get_operator() {
+        let _subpattern = if let Some(MusubuOperator::At) = self.tokens.get_operator() {
             self.tokens.next();
 
             self.get_node(Self::parse_pattern_no_top_alt)

@@ -45,7 +45,7 @@ impl<'a> Resolver<'a> {
                 )?,
                 Item::Struct { name, fields } => self.resolve_struct(name, fields)?,
                 Item::Enumeration { name, items } => self.resolve_enumeration(name, items)?,
-                Item::Union { name, fields } => {
+                Item::Union { name: _, fields } => {
                     for field in fields {
                         self.resolve_type(field.node.field_type.as_ref_spanned())?;
                     }
@@ -711,8 +711,8 @@ impl<'a> Resolver<'a> {
                 let hir = self.desugar.lower_function_symbol(id, return_type)?;
                 Some(hir)
             }
-            ItemSymbol::Enumeration(enum_item) => None,
-            ItemSymbol::Struct(struct_item) => None,
+            ItemSymbol::Enumeration(_) => None,
+            ItemSymbol::Struct(_) => None,
         };
 
         Ok(Lowered { type_symbol, hir })
@@ -830,7 +830,7 @@ impl<'a> Resolver<'a> {
         // パターン
         let pattern = name.as_ref_spanned();
         let type_kind = variable_type.as_ref().or(initializer_type.as_ref());
-        let (id, symbol_type) = self.resolve_pattern(&pattern, type_kind)?;
+        let (id, _symbol_type) = self.resolve_pattern(&pattern, type_kind)?;
 
         // 型チェック
         let scope = self.get_scope()?;
@@ -1080,16 +1080,5 @@ impl<'a> Resolver<'a> {
             Ok(ty)
         })()
         .map_err(|error: ResolveError| error.at(diagnostic_span))
-    }
-
-    fn resolve_type_alias(&mut self, alias: Spanned<&'a TypeAlias>) -> ResolveResult<()> {
-        //self.insert(&alias.node.name, ResolvedSymbol::Type)?;
-
-        self.resolve_type(Spanned {
-            node: &alias.node.target,
-            span: alias.span,
-        })?;
-
-        Ok(())
     }
 }

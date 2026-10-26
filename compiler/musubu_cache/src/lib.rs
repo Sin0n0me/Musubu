@@ -108,14 +108,12 @@ impl CacheCollector<CompiledFunction> for FunctionCache {
 #[derive(Debug)]
 struct TypeCache {
     types: BTreeMap<usize, PrimitiveType>,
-    allocator: LinearAllocator,
 }
 
 impl TypeCache {
     fn new() -> Self {
         Self {
             types: BTreeMap::new(),
-            allocator: LinearAllocator::new(),
         }
     }
 }

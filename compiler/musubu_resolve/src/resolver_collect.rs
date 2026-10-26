@@ -12,7 +12,6 @@ use musubu_span::{Spanned, SpannedAsRef};
 #[derive(Debug)]
 pub(crate) struct SymbolCollector<'a> {
     collector: BTreeSet<&'a str>,
-    pending_items: Vec<ItemSymbol<'a>>,
     //pending_symbols: Vec<Symbol>
 }
 
@@ -20,7 +19,6 @@ impl<'a> SymbolCollector<'a> {
     pub fn new() -> Self {
         Self {
             collector: BTreeSet::new(),
-            pending_items: Vec::new(),
         }
     }
 
@@ -190,7 +188,7 @@ impl<'a> Resolver<'a> {
                 Item::Enumeration { name, items } => {
                     self.import_enumeration(name, items)?;
                 }
-                Item::Union { name, fields } => {
+                Item::Union { name, fields: _ } => {
                     // TODO
                     self.collector.insert(name)?;
                 }

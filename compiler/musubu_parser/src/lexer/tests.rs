@@ -1,6 +1,6 @@
 #[cfg(test)]
-mod tests {
-    use crate::common::tests::tests::*;
+mod lexer_cases {
+    use crate::common::tests::fixtures::*;
     use crate::errors::TokenStreamParseError;
     use crate::lexer::token::MusubuOperator;
     use crate::{
