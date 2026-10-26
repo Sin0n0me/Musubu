@@ -190,8 +190,8 @@ impl HostValue {
     pub(super) fn len(&self) -> usize {
         match self {
             Self::Enum { fields, .. } => fields.len(),
-            Self::Plain(Value::Vector(v)) => v.components().len(),
-            Self::Plain(Value::Matrix(m)) => m.columns().len(),
+            Self::Plain(Value::Vector(v)) => v.component_count(),
+            Self::Plain(Value::Matrix(m)) => m.column_count(),
             _ => 0,
         }
     }
@@ -199,8 +199,8 @@ impl HostValue {
     pub(super) fn element(&self, index: usize) -> Result<Self, String> {
         let value = match self {
             Self::Enum { fields, .. } => fields.get(index).cloned(),
-            Self::Plain(Value::Vector(v)) => v.components().get(index).cloned().map(Self::Plain),
-            Self::Plain(Value::Matrix(m)) => m.columns().get(index).cloned().map(Self::Plain),
+            Self::Plain(Value::Vector(v)) => v.component(index).map(Self::Plain),
+            Self::Plain(Value::Matrix(m)) => m.column(index).map(Self::Plain),
             _ => return Err(String::from("scalar values have no elements")),
         };
         value.ok_or_else(|| format!("element index {index} is out of bounds"))
