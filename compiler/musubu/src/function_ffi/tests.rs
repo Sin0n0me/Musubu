@@ -285,6 +285,24 @@ fn recompile_updates_signature_and_failed_compile_keeps_executable() {
 }
 
 #[test]
+fn successful_recompile_replaces_whole_program_and_failed_resolution_is_atomic() {
+    let mut engine = engine("fn f() -> i32 { 1 } fn g() -> i32 { f() + 1 }");
+    assert_eq!(call(&mut engine, "g", &[]).unwrap().signed_value, 2);
+    assert!(!compile(&mut engine, "fn new_name() -> i32 { missing }"));
+    assert_eq!(call(&mut engine, "g", &[]).unwrap().signed_value, 2);
+    assert!(engine.get_function_id("musubu::new_name").is_none());
+    assert!(compile(&mut engine, "fn f() -> bool { true }"));
+    assert!(call(&mut engine, "g", &[]).is_err());
+    assert_eq!(call(&mut engine, "f", &[]).unwrap().unsigned_value, 1);
+    assert!(compile(&mut engine, "fn new_name() -> i32 { 8 }"));
+    assert_eq!(engine.get_function_id("musubu::new_name"), Some(0));
+    assert!(call(&mut engine, "f", &[]).is_err());
+    assert_eq!(call(&mut engine, "new_name", &[]).unwrap().signed_value, 8);
+    assert!(compile(&mut engine, ""));
+    assert!(call(&mut engine, "new_name", &[]).is_err());
+}
+
+#[test]
 fn null_and_invalid_inputs_leave_output_unchanged() {
     let mut engine = engine("fn f() -> i32 { 7 }");
     let mut output = signed(MusubuValue::I32, 99);

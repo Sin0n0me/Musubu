@@ -32,6 +32,11 @@ impl MusubuEngine {
         self.cache.register_function(function_id, function);
     }
 
+    /// Atomically replaces all compiled functions, including their name allocator.
+    pub fn replace_program(&mut self, program: Self) {
+        self.cache = program.cache;
+    }
+
     pub fn run_function(&self, function_id: usize, args: Vec<Value>) -> VMResult<Option<Value>> {
         let mut vm = VM::new(&self.cache);
         vm.run_function(function_id, args)
