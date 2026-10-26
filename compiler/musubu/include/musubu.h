@@ -98,6 +98,20 @@ MUSUBU_API const char *MUSUBU_CALL get_runtime_error(const MusubuEngine *engine,
 
 typedef struct MusubuValueHandle MusubuValueHandle;
 
+/* Program identity includes engine identity and revision. Treat fields as opaque.
+ * Tokens remain valid after a failed compile, but not after a successful compile.
+ * No allocations to release. Numeric-ID APIs remain available for compatibility. */
+typedef struct MusubuFunctionToken {
+    uint64_t program;
+    size_t function;
+} MusubuFunctionToken;
+
+MUSUBU_API bool MUSUBU_CALL get_function_token(MusubuEngine *engine, const char *name,
+    size_t name_length, MusubuFunctionToken *output);
+MUSUBU_API bool MUSUBU_CALL call_function_value_by_token(MusubuEngine *engine,
+    const MusubuFunctionToken *token, const MusubuValueHandle *const *arguments,
+    size_t count, MusubuValueHandle **output);
+
 /* Handle API: scalar, enum, vec and mat (including recursively nested enum payloads
  * made of these types). Struct/tuple/array payloads are not yet supported.
  * Existing MusubuValue/call_function remain scalar-only; do not put aggregate

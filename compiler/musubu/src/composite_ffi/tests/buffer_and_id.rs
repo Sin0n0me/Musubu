@@ -151,3 +151,77 @@ buffer_tests!(
     value_copy_matrix_f64,
     "fn f(m: mat2x3f64) -> mat2x3f64 { m * 2.0f64 }"
 );
+
+#[test]
+fn tokens_reject_other_engines_and_replaced_programs() {
+    let mut engine = engine("fn f() -> i32 { 1 }");
+    let mut token = MusubuFunctionToken::default();
+    unsafe {
+        assert!(get_function_token(
+            &mut engine,
+            b"f".as_ptr().cast(),
+            1,
+            &mut token
+        ));
+        let result = receive(&mut engine, |e, out| {
+            call_function_value_by_token(e, &token, ptr::null(), 0, out)
+        })
+        .unwrap();
+        assert_eq!(read_scalar(&mut engine, &result).signed_value, 1);
+        let mut other = MusubuEngine::new();
+        assert!(compile(&mut other, "fn f() -> i32 { 9 }"));
+        assert!(
+            receive(&mut other, |e, out| call_function_value_by_token(
+                e,
+                &token,
+                ptr::null(),
+                0,
+                out
+            ))
+            .is_err()
+        );
+        assert!(!compile(&mut engine, "fn f() -> i32 { missing }"));
+        assert!(
+            receive(&mut engine, |e, out| call_function_value_by_token(
+                e,
+                &token,
+                ptr::null(),
+                0,
+                out
+            ))
+            .is_ok()
+        );
+        assert!(compile(&mut engine, "fn f() -> i32 { 2 }"));
+        assert!(
+            receive(&mut engine, |e, out| call_function_value_by_token(
+                e,
+                &token,
+                ptr::null(),
+                0,
+                out
+            ))
+            .is_err()
+        );
+        assert!(get_function_token(
+            &mut engine,
+            b"f".as_ptr().cast(),
+            1,
+            &mut token
+        ));
+        let result = receive(&mut engine, |e, out| {
+            call_function_value_by_token(e, &token, ptr::null(), 0, out)
+        })
+        .unwrap();
+        assert_eq!(read_scalar(&mut engine, &result).signed_value, 2);
+        assert!(
+            receive(&mut engine, |e, out| call_function_value_by_token(
+                e,
+                ptr::null(),
+                ptr::null(),
+                0,
+                out
+            ))
+            .is_err()
+        );
+    }
+}

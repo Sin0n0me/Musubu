@@ -6,6 +6,7 @@ use crate::MusubuValue;
 use alloc::{boxed::Box, format, string::String, vec::Vec};
 use core::{ffi::c_char, ptr, slice, str};
 pub use matrix_buffer::*;
+pub use musubu_engine::FunctionToken as MusubuFunctionToken;
 use musubu_engine::MusubuEngine;
 use musubu_primitive::{ToPrimitiveType, Value};
 use value::HostValue;
@@ -281,6 +282,51 @@ pub unsafe extern "C" fn call_function_value_by_id(
     unsafe {
         write_result(engine, output, |engine| {
             let result = execute(engine, function_id, None, &children(arguments, count)?)?;
+            Ok(MusubuValueHandle::owned(result))
+        })
+    }
+}
+
+/// Resolves a name into an engine- and revision-specific token.
+/// # Safety
+/// Same contract as get_function_id, with writable MusubuFunctionToken output.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn get_function_token(
+    engine: *mut MusubuEngine,
+    name: *const c_char,
+    name_length: usize,
+    output: *mut MusubuFunctionToken,
+) -> bool {
+    unsafe {
+        write_result(engine, output, |engine| {
+            let name = text(name, name_length)?;
+            engine
+                .get_function_token(&format!("musubu::{name}"))
+                .ok_or_else(|| format!("undefined function `{name}`"))
+        })
+    }
+}
+
+/// Calls a function token, rejecting other engines and replaced programs.
+/// # Safety
+/// Same contract as call_function_value. token must point to an initialized token.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn call_function_value_by_token(
+    engine: *mut MusubuEngine,
+    token: *const MusubuFunctionToken,
+    arguments: *const *const MusubuValueHandle,
+    count: usize,
+    output: *mut *mut MusubuValueHandle,
+) -> bool {
+    unsafe {
+        write_result(engine, output, |engine| {
+            let token = token
+                .as_ref()
+                .ok_or_else(|| String::from("token must not be null"))?;
+            let id = engine
+                .token_function(*token)
+                .ok_or_else(|| String::from("stale or foreign function token"))?;
+            let result = execute(engine, id, None, &children(arguments, count)?)?;
             Ok(MusubuValueHandle::owned(result))
         })
     }
