@@ -28,8 +28,12 @@ impl MusubuEngine {
         }
     }
 
-    pub fn register_function(&mut self, function_id: usize, function: CompiledFunction) {
-        self.cache.register_function(function_id, function);
+    pub fn register_function(
+        &mut self,
+        function_id: usize,
+        function: CompiledFunction,
+    ) -> Result<(), musubu_ir::InvalidIR> {
+        self.cache.register_function(function_id, function)
     }
 
     /// Atomically replaces all compiled functions, including their name allocator.

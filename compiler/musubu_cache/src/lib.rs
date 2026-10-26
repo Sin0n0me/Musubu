@@ -32,8 +32,14 @@ impl Cache {
         self.type_cache.register(id, primitive_type);
     }
 
-    pub fn register_function(&mut self, id: usize, function: CompiledFunction) {
+    pub fn register_function(
+        &mut self,
+        id: usize,
+        function: CompiledFunction,
+    ) -> Result<(), musubu_ir::InvalidIR> {
+        function.validate()?;
         self.function_cache.register(id, function);
+        Ok(())
     }
 
     pub fn get_function(&self, id: &usize) -> Option<&CompiledFunction> {
@@ -167,33 +173,39 @@ mod tests {
     fn sparse_function_registration_and_replacement() {
         let mut cache = Cache::new();
         assert!(cache.get_function(&42).is_none());
-        cache.register_function(
-            42,
-            CompiledFunction {
-                code: vec![],
-                registers: 3,
-                parameters: vec![],
-                return_type: PrimitiveType::Unit,
-            },
-        );
-        cache.register_function(
-            7,
-            CompiledFunction {
-                code: vec![],
-                registers: 1,
-                parameters: vec![],
-                return_type: PrimitiveType::Unit,
-            },
-        );
-        cache.register_function(
-            42,
-            CompiledFunction {
-                code: vec![],
-                registers: 8,
-                parameters: vec![],
-                return_type: PrimitiveType::Unit,
-            },
-        );
+        cache
+            .register_function(
+                42,
+                CompiledFunction {
+                    code: vec![],
+                    registers: 3,
+                    parameters: vec![],
+                    return_type: PrimitiveType::Unit,
+                },
+            )
+            .unwrap();
+        cache
+            .register_function(
+                7,
+                CompiledFunction {
+                    code: vec![],
+                    registers: 1,
+                    parameters: vec![],
+                    return_type: PrimitiveType::Unit,
+                },
+            )
+            .unwrap();
+        cache
+            .register_function(
+                42,
+                CompiledFunction {
+                    code: vec![],
+                    registers: 8,
+                    parameters: vec![],
+                    return_type: PrimitiveType::Unit,
+                },
+            )
+            .unwrap();
         assert_eq!(cache.get_function(&42).unwrap().registers, 8);
         assert_eq!(cache.get_function(&7).unwrap().registers, 1);
         assert!(cache.get_function(&0).is_none());

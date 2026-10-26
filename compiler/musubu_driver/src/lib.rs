@@ -88,7 +88,12 @@ pub fn compile_with_filename(engine: &mut MusubuEngine, filename: &str, code: &s
         }
     };
     for (id, function) in functions {
-        staged.register_function(id, function);
+        if let Err(error) = staged.register_function(id, function) {
+            engine.set_compile_error(alloc::format!(
+                "error: invalid compiler output: {error:?}\n"
+            ));
+            return false;
+        }
     }
     engine.replace_program(staged);
     true

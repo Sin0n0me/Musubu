@@ -2,6 +2,9 @@
 
 extern crate alloc;
 
+mod validation;
+pub use validation::InvalidIR;
+
 use alloc::vec::Vec;
 use musubu_primitive::*;
 
