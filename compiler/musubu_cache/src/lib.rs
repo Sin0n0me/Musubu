@@ -8,7 +8,7 @@ use core::fmt::Debug;
 
 use crate::errors::CacheError;
 use alloc::collections::btree_map::BTreeMap;
-use alloc::string::{String, ToString};
+use alloc::string::String;
 use musubu_ir::CompiledFunction;
 use musubu_primitive::PrimitiveType;
 
@@ -18,6 +18,12 @@ pub type CacheResult<T> = Result<T, CacheError>;
 pub struct Cache {
     function_cache: FunctionCache,
     type_cache: TypeCache,
+}
+
+impl Default for Cache {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Cache {

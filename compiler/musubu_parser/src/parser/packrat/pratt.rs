@@ -196,9 +196,8 @@ fn make_ast_from_operator(
     rhs: Option<Rc<ASTNode>>,
 ) -> Result<Rc<ASTNode>, ParseError> {
     // ()など特殊な文
-    match op {
-        MusubuOperator::LeftParenthesis => return make_brackets_ast(span, lhs, mhs, rhs),
-        _ => (),
+    if op == &MusubuOperator::LeftParenthesis {
+        return make_brackets_ast(span, lhs, mhs, rhs);
     };
 
     let convert = |node: Option<Rc<ASTNode>>| -> Option<_> {

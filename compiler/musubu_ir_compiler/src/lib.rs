@@ -12,7 +12,6 @@ mod structures;
 
 use crate::errors::IRCompileError;
 use crate::register_allocator::RegisterAllocator;
-use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use musubu_hir::*;
 use musubu_ir::*;

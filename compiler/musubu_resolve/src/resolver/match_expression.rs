@@ -32,7 +32,9 @@ impl<'a> Resolver<'a> {
                     &mut BTreeSet::new(),
                 )?;
                 if !match_coverage::useful(&patterns, &pattern, ty) {
-                    return Err(enum_error(format!("unreachable match arm")).at(arm.pattern.span));
+                    return Err(
+                        enum_error("unreachable match arm".to_string()).at(arm.pattern.span)
+                    );
                 }
                 let body = s.resolve_expression(&arm.body.as_ref_spanned())?;
                 Ok(Lowered {

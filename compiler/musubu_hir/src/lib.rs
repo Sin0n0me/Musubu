@@ -17,6 +17,12 @@ pub struct HIRModule {
     pub function_ranges: BTreeMap<usize, (usize, usize)>,
 }
 
+impl Default for HIRModule {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HIRModule {
     pub fn new() -> Self {
         Self {

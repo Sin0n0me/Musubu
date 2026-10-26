@@ -14,7 +14,7 @@ use alloc::format;
 use alloc::string::ToString;
 use alloc::vec::Vec;
 use musubu_ast::*;
-use musubu_hir::{HIRBlock, HIRExpression, HIRFunction, HIRFunctionParam, HIRStatement};
+use musubu_hir::{HIRBlock, HIRExpression, HIRFunctionParam, HIRStatement};
 use musubu_name_space::errors::NameSpaceError;
 use musubu_name_space::{FunctionItem, ItemStoreReader, ItemSymbol};
 use musubu_primitive::{
@@ -38,13 +38,13 @@ impl<'a> Resolver<'a> {
                     body,
                     return_type,
                 } => self.resolve_function(
-                    &name,
-                    &params,
+                    name,
+                    params,
                     body.as_ref().map(|b| b.as_ref_spanned()),
                     return_type.as_ref().map(|r| r.as_ref_spanned()),
                 )?,
-                Item::Struct { name, fields } => self.resolve_struct(&name, fields)?,
-                Item::Enumeration { name, items } => self.resolve_enumeration(&name, items)?,
+                Item::Struct { name, fields } => self.resolve_struct(name, fields)?,
+                Item::Enumeration { name, items } => self.resolve_enumeration(name, items)?,
                 Item::Union { name, fields } => {
                     for field in fields {
                         self.resolve_type(field.node.field_type.as_ref_spanned())?;
@@ -95,7 +95,7 @@ impl<'a> Resolver<'a> {
 
         // 関数本体
         let hir = self.enter_function(return_type.clone(), |s| {
-            let params = arguments.into_iter().zip(params).collect::<Vec<_>>();
+            let params = arguments.iter().zip(params).collect::<Vec<_>>();
             let args = s.resolve_arguments(params)?;
             let type_symbol = return_type.clone();
             let return_type = return_type.type_kind.clone();
@@ -146,7 +146,7 @@ impl<'a> Resolver<'a> {
             let param = param.get_node();
             let pattern = param.pattern.as_ref_spanned();
 
-            let (id, type_requirement) = self.resolve_pattern(&pattern, Some(&resolved_type))?;
+            let (id, type_requirement) = self.resolve_pattern(&pattern, Some(resolved_type))?;
             let TypeRequirement::Expect(type_symbol) = type_requirement else {
                 return Err(ResolveError::Unsupported {
                     feature: "function parameter patterns",
@@ -288,7 +288,7 @@ impl<'a> Resolver<'a> {
                     self.resolve_range(start.as_ref_spanned(), end.as_ref_spanned(), *inclusive)?
                 }
                 Expression::FieldAccess { parent, field_name } => {
-                    self.resolve_field_access(&parent.as_ref_spanned(), &field_name)?
+                    self.resolve_field_access(&parent.as_ref_spanned(), field_name)?
                 }
                 Expression::MethodCall(method) => self.resolve_method_call(method)?,
                 Expression::Index { parent, index } => {
@@ -507,8 +507,8 @@ impl<'a> Resolver<'a> {
         }
         let call = self.resolve_expression(&function)?;
         let args = arguments
-            .into_iter()
-            .map(|arg| self.resolve_expression(&arg))
+            .iter()
+            .map(|arg| self.resolve_expression(arg))
             .collect::<Result<Vec<_>, ResolveError>>()?;
 
         let type_symbol = self.type_checker.check_function_call(
@@ -622,9 +622,9 @@ impl<'a> Resolver<'a> {
             self.resolve_expression(&param.as_ref_spanned())?;
         }
 
-        return Err(ResolveError::Unsupported {
+        Err(ResolveError::Unsupported {
             feature: "method calls",
-        });
+        })
         // Ok(Lowered { type_symbol, hir })
     }
 
@@ -683,7 +683,7 @@ impl<'a> Resolver<'a> {
         if let Some(id) = self.name_resolver.get_variable_id(name) {
             let hir = self
                 .desugar
-                .lower_symbol(id.clone(), type_symbol.type_kind.clone())?;
+                .lower_symbol(*id, type_symbol.type_kind.clone())?;
 
             return Ok(Lowered {
                 type_symbol,
@@ -706,7 +706,7 @@ impl<'a> Resolver<'a> {
 
         let hir = match item {
             ItemSymbol::Function(function_item) => {
-                let id = function_item.id.clone();
+                let id = function_item.id;
                 let return_type = function_item.return_type.type_kind.clone();
                 let hir = self.desugar.lower_function_symbol(id, return_type)?;
                 Some(hir)

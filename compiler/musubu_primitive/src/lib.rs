@@ -2,10 +2,10 @@
 
 extern crate alloc;
 
-#[cfg(test)]
-mod tests;
 mod enumeration;
 mod matrix;
+#[cfg(test)]
+mod tests;
 mod vector;
 pub use enumeration::{EnumVariant, EnumVariantKind};
 pub use matrix::matrix_result_type;
@@ -269,10 +269,10 @@ impl PrimitiveType {
             return None;
         }
 
-        return Some(Self::Vector {
+        Some(Self::Vector {
             dimension,
             type_kind: Box::new(ty),
-        });
+        })
     }
 
     // 最初は列を表し次に行を表す
@@ -310,11 +310,11 @@ impl PrimitiveType {
             return None;
         }
 
-        return Some(Self::Matrix {
+        Some(Self::Matrix {
             columns,
             rows,
             type_kind: Box::new(ty),
-        });
+        })
     }
 
     fn parse_number(iter: &mut Chars) -> Option<u32> {
@@ -497,7 +497,7 @@ impl Mul for Matrix {
     }
 }
 
-impl<'a, 'b> Mul<&'b Matrix> for &'a Matrix {
+impl<'b> Mul<&'b Matrix> for &Matrix {
     type Output = Matrix;
 
     fn mul(self, rhs: &'b Matrix) -> Self::Output {
@@ -685,7 +685,7 @@ impl Div for Integer {
     }
 }
 
-impl<'a, 'b> Add<&'b Integer> for &'a Integer {
+impl<'b> Add<&'b Integer> for &Integer {
     type Output = Integer;
 
     fn add(self, rhs: &'b Integer) -> Self::Output {
@@ -703,7 +703,7 @@ impl<'a, 'b> Add<&'b Integer> for &'a Integer {
     }
 }
 
-impl<'a, 'b> Sub<&'b Integer> for &'a Integer {
+impl<'b> Sub<&'b Integer> for &Integer {
     type Output = Integer;
 
     fn sub(self, rhs: &'b Integer) -> Self::Output {
@@ -721,7 +721,7 @@ impl<'a, 'b> Sub<&'b Integer> for &'a Integer {
     }
 }
 
-impl<'a, 'b> Mul<&'b Integer> for &'a Integer {
+impl<'b> Mul<&'b Integer> for &Integer {
     type Output = Integer;
 
     fn mul(self, rhs: &'b Integer) -> Self::Output {
@@ -739,7 +739,7 @@ impl<'a, 'b> Mul<&'b Integer> for &'a Integer {
     }
 }
 
-impl<'a, 'b> Div<&'b Integer> for &'a Integer {
+impl<'b> Div<&'b Integer> for &Integer {
     type Output = Integer;
 
     fn div(self, rhs: &'b Integer) -> Self::Output {
@@ -840,7 +840,7 @@ impl Div for Float {
     }
 }
 
-impl<'a, 'b> Add<&'b Float> for &'a Float {
+impl<'b> Add<&'b Float> for &Float {
     type Output = Float;
 
     fn add(self, rhs: &'b Float) -> Self::Output {
@@ -852,7 +852,7 @@ impl<'a, 'b> Add<&'b Float> for &'a Float {
     }
 }
 
-impl<'a, 'b> Sub<&'b Float> for &'a Float {
+impl<'b> Sub<&'b Float> for &Float {
     type Output = Float;
 
     fn sub(self, rhs: &'b Float) -> Self::Output {
@@ -864,7 +864,7 @@ impl<'a, 'b> Sub<&'b Float> for &'a Float {
     }
 }
 
-impl<'a, 'b> Mul<&'b Float> for &'a Float {
+impl<'b> Mul<&'b Float> for &Float {
     type Output = Float;
 
     fn mul(self, rhs: &'b Float) -> Self::Output {
@@ -876,7 +876,7 @@ impl<'a, 'b> Mul<&'b Float> for &'a Float {
     }
 }
 
-impl<'a, 'b> Div<&'b Float> for &'a Float {
+impl<'b> Div<&'b Float> for &Float {
     type Output = Float;
 
     fn div(self, rhs: &'b Float) -> Self::Output {

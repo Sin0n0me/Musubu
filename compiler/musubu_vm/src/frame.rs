@@ -1,7 +1,7 @@
 use crate::iterator::IteratorState;
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
-use musubu_ir::{Instruction, Register};
+use musubu_ir::Instruction;
 use musubu_primitive::{Integer, Value};
 
 //const HALT: usize = usize::MAX;

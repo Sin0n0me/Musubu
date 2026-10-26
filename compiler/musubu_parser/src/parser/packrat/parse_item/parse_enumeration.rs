@@ -37,11 +37,11 @@ impl PackratAndPrattParser {
         let items = self
             .option(Self::parse_enum_items)
             .and_then(|memo| memo.get_node())
-            .and_then(|kind| {
+            .map(|kind| {
                 let ASTNode::EnumItems(items) = kind.as_ref() else {
                     unreachable!();
                 };
-                Some(items.clone())
+                items.clone()
             })
             .unwrap_or_default();
 

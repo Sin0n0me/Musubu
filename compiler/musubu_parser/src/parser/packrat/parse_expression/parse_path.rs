@@ -87,11 +87,11 @@ impl PackratAndPrattParser {
                 parser.parse_generic_args()
             })
             .and_then(|memo| memo.get_node())
-            .and_then(|kind| {
+            .map(|kind| {
                 let ASTNode::Arguments(args) = kind.as_ref() else {
                     unreachable!();
                 };
-                Some(args.clone())
+                args.clone()
             })
             .unwrap_or_default();
 
@@ -130,7 +130,8 @@ impl PackratAndPrattParser {
         if let Some(memo) = self.get_memo(&key) {
             return Ok(memo);
         }
-        let result = self.or(vec![
+
+        self.or(vec![
             // `<` `>`
             |parser: &mut Self| -> ParseResult {
                 let Some(ComparisonOperator::LessThan) = parser.tokens.get_comparison_operator()
@@ -178,9 +179,7 @@ impl PackratAndPrattParser {
                     parser.tokens.get_position(),
                 ))
             },
-        ]);
-
-        result
+        ])
     }
 
     // GenericArg ::= Type | GenericArgsConst | GenericArgsBinding | GenericArgsBounds

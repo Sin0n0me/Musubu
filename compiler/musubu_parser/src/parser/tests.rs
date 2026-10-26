@@ -319,7 +319,7 @@ mod tests {
     }
 
     fn wrap_fn(src: &str) -> String {
-        format!("fn main() {{ {} }}", src)
+        format!("fn main() {{ {src} }}")
     }
 
     fn parse_fn_err(src: &str) {

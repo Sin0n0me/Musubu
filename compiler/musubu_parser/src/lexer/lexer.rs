@@ -326,11 +326,11 @@ fn tokenize_float_literal(iter: &mut ParseIter, prefix: &str, position: usize) -
     // suffix
     let suffix = iter
         .next_if(|t| matches!(t.token_kind, TokenKind::Identifier(_)))
-        .and_then(|token| {
+        .map(|token| {
             let TokenKind::Identifier(ident) = token.token_kind else {
                 unreachable!();
             };
-            Some(ident.to_string())
+            ident.to_string()
         });
 
     Ok(MusubuToken {
@@ -402,11 +402,11 @@ fn tokenize_float_literal_exponent(
     //
     let suffix = iter
         .next_if(|t| matches!(t.token_kind, TokenKind::Identifier(_)))
-        .and_then(|token| {
+        .map(|token| {
             let TokenKind::Identifier(ident) = token.token_kind else {
                 unreachable!();
             };
-            Some(ident.to_string())
+            ident.to_string()
         });
 
     Ok(MusubuToken {
@@ -435,11 +435,11 @@ fn tokenize_float_literal_exponent_ident(
     let suffix = if suffix.is_empty() {
         eat_whitespace(iter);
         iter.next_if(|t| matches!(t.token_kind, TokenKind::Identifier(_)))
-            .and_then(|token| {
+            .map(|token| {
                 let TokenKind::Identifier(ident) = token.token_kind else {
                     unreachable!();
                 };
-                Some(ident.to_string())
+                ident.to_string()
             })
     } else {
         Some(suffix.to_string())

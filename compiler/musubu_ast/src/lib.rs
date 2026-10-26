@@ -308,7 +308,7 @@ impl ToString for TypeKind {
 impl TypeKind {
     pub fn make_single_type(type_name: String, span: Span) -> Self {
         Self::PathType(Spanned {
-            node: Box::new(Path::make(type_name, span.clone())),
+            node: Box::new(Path::make(type_name, span)),
             span,
         })
     }
@@ -471,7 +471,7 @@ impl ToString for PathSegment {
         let args = if args.is_empty() {
             args
         } else {
-            format!("<{}>", args)
+            format!("<{args}>")
         };
         format!("{}{}", self.ident, args)
     }

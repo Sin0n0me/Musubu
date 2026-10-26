@@ -8,9 +8,8 @@ mod indexing;
 
 use crate::errors::DesugarError;
 use alloc::boxed::Box;
-use alloc::collections::btree_map::BTreeMap;
 use alloc::string::ToString;
-use alloc::{vec, vec::Vec};
+use alloc::vec::Vec;
 use musubu_ast::*;
 use musubu_cache::Allocator;
 use musubu_hir::*;
@@ -116,12 +115,12 @@ impl<'a> Desugar<'a> {
     }
 
     pub fn lower_break(&mut self, expr: Option<HIRExpression>) -> DesugarResult<HIRExpression> {
-        let hir = HIRExpression::Break(expr.map(|hir| Box::new(hir)));
+        let hir = HIRExpression::Break(expr.map(Box::new));
         Ok(hir)
     }
 
     pub fn lower_return(&mut self, expr: Option<HIRExpression>) -> DesugarResult<HIRExpression> {
-        let hir = HIRExpression::Return(expr.map(|hir| Box::new(hir)));
+        let hir = HIRExpression::Return(expr.map(Box::new));
         Ok(hir)
     }
 

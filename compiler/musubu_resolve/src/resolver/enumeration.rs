@@ -13,7 +13,8 @@ impl<'a> Resolver<'a> {
     ) -> ResolveResult<(PrimitiveType, usize, EnumVariant)> {
         if path.node.segments.len() != 2 {
             return Err(
-                enum_error(format!("expected an enum variant path `Enum::Variant`")).at(path.span),
+                enum_error("expected an enum variant path `Enum::Variant`".to_string())
+                    .at(path.span),
             );
         }
         let name = &path.node.segments[0].node.ident;

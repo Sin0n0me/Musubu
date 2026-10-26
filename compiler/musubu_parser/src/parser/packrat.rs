@@ -225,9 +225,7 @@ impl PackratAndPrattParser {
             return Err(ParseError::UnexpectedAST);
         };
 
-        let ast = match memo {
-            Memo::ASTNode(ast) => ast,
-        };
+        let Memo::ASTNode(ast) = memo;
         Ok(ast)
     }
 
@@ -255,9 +253,8 @@ impl PackratAndPrattParser {
     {
         let position = self.tokens.get_position();
         function(self)
-            .map_err(|err| {
+            .inspect_err(|err| {
                 self.tokens.set_position(position);
-                err
             })
             .ok()
     }

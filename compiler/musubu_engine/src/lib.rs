@@ -43,6 +43,12 @@ pub struct MusubuEngine {
     filename: String,
 }
 
+impl Default for MusubuEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MusubuEngine {
     pub fn new() -> Self {
         Self {

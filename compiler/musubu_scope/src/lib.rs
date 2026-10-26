@@ -54,6 +54,12 @@ pub struct Scope<'a> {
     return_type: TypeSymbol,
 }
 
+impl<'a> Default for Scope<'a> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<'a> Scope<'a> {
     pub fn new() -> Self {
         Self {
@@ -279,19 +285,10 @@ impl Default for TypeSymbol {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TypeOption {
     pub mutable: bool,
     pub reference: bool,
-}
-
-impl Default for TypeOption {
-    fn default() -> Self {
-        Self {
-            mutable: false,
-            reference: false,
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
