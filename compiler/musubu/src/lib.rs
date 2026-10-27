@@ -84,9 +84,10 @@ pub unsafe extern "C" fn uninit(engine: *mut MusubuEngine) {
 ///
 /// # Safety
 /// A non-null engine must be live, aligned and exclusively accessible. A non-null
-/// source must reference len readable initialized bytes in one allocation, with
-/// len at most isize::MAX. The source must not alias engine storage. Calls on the
-/// same engine must not overlap; prior diagnostic borrows must have ended.
+/// source must reference len readable initialized bytes in one allocation unless
+/// len exceeds isize::MAX (rejected before reading). The source must not alias
+/// engine storage. Calls on the same engine must not overlap; prior diagnostic
+/// borrows must have ended.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn compile(
     engine: *mut MusubuEngine,
@@ -104,6 +105,10 @@ pub unsafe extern "C" fn compile(
         return false;
     }
 
+    if len > isize::MAX as usize {
+        engine.set_compile_error("error: source length is too large\n".to_string());
+        return false;
+    }
     let bytes = unsafe { from_raw_parts(code_ptr as *const u8, len) };
     let code = match from_utf8(bytes) {
         Ok(s) => s,
@@ -122,8 +127,8 @@ pub unsafe extern "C" fn compile(
 ///
 /// # Safety
 /// A non-null engine must be live and exclusively accessible. Both non-null input
-/// byte ranges must be readable, at most `isize::MAX` bytes, and must not alias
-/// the engine's storage. Calls on the same engine must not overlap.
+/// byte ranges must be readable unless their length exceeds `isize::MAX`, and
+/// must not alias the engine's storage. Calls on the same engine must not overlap.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn compile_with_filename(
     engine: *mut MusubuEngine,
@@ -141,6 +146,10 @@ pub unsafe extern "C" fn compile_with_filename(
         engine.set_compile_error(
             "error: source and filename pointers must not be null\n".to_string(),
         );
+        return false;
+    }
+    if code_len > isize::MAX as usize || filename_len > isize::MAX as usize {
+        engine.set_compile_error("error: source or filename length is too large\n".to_string());
         return false;
     }
     let code = unsafe { from_raw_parts(code_ptr.cast::<u8>(), code_len) };

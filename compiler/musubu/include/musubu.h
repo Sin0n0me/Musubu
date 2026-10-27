@@ -37,6 +37,8 @@ MUSUBU_API void MUSUBU_CALL uninit(MusubuEngine *engine);
 MUSUBU_API bool MUSUBU_CALL set_execution_limits(MusubuEngine *engine, uint64_t instructions, size_t call_depth);
 
 /* Input strings are UTF-8 byte ranges; lengths exclude any NUL terminator.
+ * Lengths greater than isize::MAX (the platform's signed pointer-sized maximum)
+ * are rejected before reading input bytes.
  * Compilation clears the previous diagnostic, including on success.
  * Success replaces the entire program; removed functions no longer exist.
  * Failure preserves the previous program, source metadata and function tokens.
