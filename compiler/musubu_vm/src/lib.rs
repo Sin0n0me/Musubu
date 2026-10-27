@@ -12,6 +12,9 @@ mod matrices;
 mod structures;
 mod vectors;
 
+#[cfg(test)]
+mod boundary_tests;
+
 use crate::errors::VMError;
 use crate::frame::Frame;
 use alloc::{vec, vec::Vec};
@@ -96,6 +99,16 @@ impl<'a> VM<'a> {
         let mut frame_stack = vec![frame];
         let mut remaining = self.limits.instructions;
         loop {
+            // Falling off a function executes no instruction and consumes no budget.
+            while frame_stack
+                .last()
+                .is_some_and(|frame| frame.ip == frame.code.len())
+            {
+                frame_stack.pop();
+            }
+            if frame_stack.is_empty() {
+                return Ok(None);
+            }
             if remaining == 0 {
                 self.capture_trace(&frame_stack, true);
                 return Err(VMError::InstructionLimitExceeded);
@@ -158,11 +171,11 @@ impl<'a> VM<'a> {
                 let r = &frame.registers[rhs.0];
                 frame.registers[dst.0] = Self::eval_cmp(op, l, r)?;
             }
-            Instruction::JumpIfFalse { cond, target } => {
-                if let Value::Bool(false) = frame.registers[cond.0] {
-                    frame.ip = *target;
-                }
-            }
+            Instruction::JumpIfFalse { cond, target } => match frame.registers[cond.0] {
+                Value::Bool(false) => frame.ip = *target,
+                Value::Bool(true) => (),
+                _ => return Err(VMError::InvalidOperand),
+            },
             Instruction::Jump { target } => {
                 frame.ip = *target;
             }
