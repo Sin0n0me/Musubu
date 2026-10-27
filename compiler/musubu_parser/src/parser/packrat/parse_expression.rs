@@ -74,7 +74,7 @@ impl PackratAndPrattParser {
 
         let literal = if let Some(literal) = self.tokens.get_literal().cloned() {
             self.tokens.next();
-            match literal.to_literal() {
+            match literal.into_literal() {
                 Ok(literal) => literal,
                 Err(err) => return self.make_memo_from_result(key, Err(err)),
             }
@@ -232,11 +232,11 @@ impl PackratAndPrattParser {
         let statements = self
             .option(Self::parse_statements)
             .and_then(|memo| memo.get_node())
-            .and_then(|node| {
+            .map(|node| {
                 let ASTNode::Statements(statements) = node.as_ref().clone() else {
                     unreachable!()
                 };
-                Some(statements)
+                statements
             })
             .unwrap_or_default();
 
@@ -362,8 +362,7 @@ impl PackratAndPrattParser {
         // ExpressionWithoutBlock
         if let Some(node) = self
             .option(Self::parse_expression_without_block)
-            .map(|memo| memo.get_node())
-            .flatten()
+            .and_then(|memo| memo.get_node())
         {
             let ASTNode::Expression(expr) = node.as_ref().clone() else {
                 unreachable!();

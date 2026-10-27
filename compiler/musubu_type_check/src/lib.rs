@@ -39,6 +39,12 @@ impl ScopeControl<TypeCheckError> for TypeChecker {
     }
 }
 
+impl Default for TypeChecker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TypeChecker {
     pub fn new() -> Self {
         Self {
@@ -93,7 +99,7 @@ impl TypeChecker {
             | BinaryOperator::Divide => {
                 if !lhs.type_kind.is_scalar_type() {
                     return Err(TypeCheckError::InvalidOperation {
-                        op: format!("{:?} lhs: {:?} rhs: {:?}", operator, lhs, rhs),
+                        op: format!("{operator:?} lhs: {lhs:?} rhs: {rhs:?}"),
                         reason: "unsupported binary operator".into(),
                     });
                 }
@@ -106,7 +112,7 @@ impl TypeChecker {
             | BinaryOperator::RightShift => {
                 if !lhs.type_kind.is_integer() {
                     return Err(TypeCheckError::InvalidOperation {
-                        op: format!("{:?}", operator),
+                        op: format!("{operator:?}"),
                         reason: "unsupported binary operator".into(),
                     });
                 }
@@ -149,7 +155,7 @@ impl TypeChecker {
             | AssignOperator::DivAssign => {
                 if !lhs.type_kind.is_scalar_type() {
                     return Err(TypeCheckError::InvalidOperation {
-                        op: format!("{:?}", operator),
+                        op: format!("{operator:?}"),
                         reason: "unsupported assign operator".into(),
                     });
                 }
@@ -162,7 +168,7 @@ impl TypeChecker {
             | AssignOperator::RightShiftAssign => {
                 if !lhs.type_kind.is_integer() {
                     return Err(TypeCheckError::InvalidOperation {
-                        op: format!("{:?}", operator),
+                        op: format!("{operator:?}"),
                         reason: "unsupported assign operator".into(),
                     });
                 }
@@ -184,7 +190,7 @@ impl TypeChecker {
             ComparisonOperator::Equal | ComparisonOperator::NotEqual => {
                 if !lhs.type_kind.is_scalar_type() && !lhs.type_kind.is_boolean() {
                     return Err(TypeCheckError::InvalidOperation {
-                        op: format!("{:?}", operator),
+                        op: format!("{operator:?}"),
                         reason: "unsupported comparison operator".into(),
                     });
                 }
@@ -195,7 +201,7 @@ impl TypeChecker {
             | ComparisonOperator::GreaterThanEqual => {
                 if !lhs.type_kind.is_scalar_type() {
                     return Err(TypeCheckError::InvalidOperation {
-                        op: format!("{:?}", operator),
+                        op: format!("{operator:?}"),
                         reason: "unsupported comparison operator".into(),
                     });
                 }
@@ -215,7 +221,7 @@ impl TypeChecker {
 
         if !lhs.type_kind.is_boolean() {
             return Err(TypeCheckError::InvalidOperation {
-                op: format!("{:?}", operator),
+                op: format!("{operator:?}"),
                 reason: "unsupported logical operator".into(),
             });
         }
@@ -285,7 +291,7 @@ impl TypeChecker {
 
         // 条件式の戻り型チェック
         let Some(else_body) = else_body else {
-            return Ok(then_body);
+            return Ok(TypeSymbol::default());
         };
 
         if !then_body.is_same_type(&else_body) {
@@ -305,7 +311,7 @@ impl TypeChecker {
             .ok_or(TypeCheckError::InvalidReturnScope)?;
 
         let is_same = if let Some(return_type) = return_type {
-            expect.is_same_type(&return_type)
+            expect.is_same_type(return_type)
         } else {
             expect.type_kind.is_unit()
         };
@@ -366,7 +372,7 @@ impl TypeChecker {
             let segment = &segment.node;
             for arg in &segment.arguments {
                 let arg = &arg.node;
-                self.check_type(scope, &arg)?;
+                self.check_type(scope, arg)?;
             }
         }
 
@@ -513,6 +519,14 @@ impl TypeChecker {
         pattern: &'a Pattern,
         variable_type: &PrimitiveType,
     ) -> TypeCheckResult<()> {
+        Self::resolve_pattern_inner(scope, pattern, variable_type)
+    }
+
+    fn resolve_pattern_inner<'a>(
+        scope: &Scope<'a>,
+        pattern: &'a Pattern,
+        variable_type: &PrimitiveType,
+    ) -> TypeCheckResult<()> {
         match pattern {
             Pattern::Identifier { ident, .. } => {
                 if !scope.contains(ident) {
@@ -540,7 +554,7 @@ impl TypeChecker {
                     });
                 }
                 for (pattern, ty) in patterns.iter().zip(elements) {
-                    self.resolve_pattern(scope, &pattern.node, ty)?;
+                    Self::resolve_pattern_inner(scope, &pattern.node, ty)?;
                 }
             }
             Pattern::Multiply(patterns) => {
@@ -562,7 +576,7 @@ impl TypeChecker {
 
                 // TODO
             }
-            Pattern::Literal(literal) => {}
+            Pattern::Literal(_) => {}
             Pattern::None => {}
         }
 

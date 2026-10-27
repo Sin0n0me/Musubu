@@ -2,10 +2,10 @@
 
 extern crate alloc;
 
-#[cfg(test)]
-mod tests;
 mod enumeration;
 mod matrix;
+#[cfg(test)]
+mod tests;
 mod vector;
 pub use enumeration::{EnumVariant, EnumVariantKind};
 pub use matrix::matrix_result_type;
@@ -269,10 +269,10 @@ impl PrimitiveType {
             return None;
         }
 
-        return Some(Self::Vector {
+        Some(Self::Vector {
             dimension,
             type_kind: Box::new(ty),
-        });
+        })
     }
 
     // 最初は列を表し次に行を表す
@@ -310,11 +310,11 @@ impl PrimitiveType {
             return None;
         }
 
-        return Some(Self::Matrix {
+        Some(Self::Matrix {
             columns,
             rows,
             type_kind: Box::new(ty),
-        });
+        })
     }
 
     fn parse_number(iter: &mut Chars) -> Option<u32> {
@@ -347,60 +347,63 @@ impl PrimitiveType {
     }
 }
 
-impl ToString for PrimitiveType {
-    fn to_string(&self) -> String {
-        match self {
-            Self::NamedStruct { name, .. } => name.clone(),
-            Self::NamedEnum { name, .. } => name.clone(),
-            Self::Unit => "void".to_string(),
-            Self::Boolean => "bool".to_string(),
-            Self::Integer { signed, byte } => {
-                let bit = (*byte as SizeCount) * BYTE_BIT_WIDTH;
-                if *signed {
-                    format!("int_{bit}")
-                } else {
-                    format!("uint_{bit}")
+impl core::fmt::Display for PrimitiveType {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let rendered: String = {
+            match self {
+                Self::NamedStruct { name, .. } => name.clone(),
+                Self::NamedEnum { name, .. } => name.clone(),
+                Self::Unit => "void".to_string(),
+                Self::Boolean => "bool".to_string(),
+                Self::Integer { signed, byte } => {
+                    let bit = (*byte as SizeCount) * BYTE_BIT_WIDTH;
+                    if *signed {
+                        format!("int_{bit}")
+                    } else {
+                        format!("uint_{bit}")
+                    }
                 }
+                Self::Float { byte } => format!("float_{}", (*byte as SizeCount) * BYTE_BIT_WIDTH),
+                Self::Tuple { elements } => format!(
+                    "({}{})",
+                    elements
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                    if elements.len() == 1 { "," } else { "" }
+                ),
+                Self::Struct { elements } => elements.iter().map(|elem| elem.to_string()).collect(),
+                Self::Enumeration { variants } => {
+                    variants.iter().map(|variant| variant.to_string()).collect()
+                }
+                Self::Range { type_kind } => format!("Range<{type_kind}>"),
+                Self::Array { type_kind, size } => format!("{type_kind}[{size}]"),
+                Self::Pointer { point } => format!("{point}_ptr"),
+                Self::Function {
+                    return_type,
+                    arguments,
+                } => format!(
+                    "fn({})->{}",
+                    arguments
+                        .iter()
+                        .map(|arg| arg.to_string())
+                        .collect::<Vec<String>>()
+                        .join("_"),
+                    return_type
+                ),
+                Self::Vector {
+                    type_kind,
+                    dimension,
+                } => format!("vec<{type_kind}>{dimension}"),
+                Self::Matrix {
+                    type_kind,
+                    rows,
+                    columns,
+                } => format!("matrix<{type_kind}>{rows}x{columns}"),
             }
-            Self::Float { byte } => format!("float_{}", (*byte as SizeCount) * BYTE_BIT_WIDTH),
-            Self::Tuple { elements } => format!(
-                "({}{})",
-                elements
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join(", "),
-                if elements.len() == 1 { "," } else { "" }
-            ),
-            Self::Struct { elements } => elements.iter().map(|elem| elem.to_string()).collect(),
-            Self::Enumeration { variants } => {
-                variants.iter().map(|variant| variant.to_string()).collect()
-            }
-            Self::Range { type_kind } => format!("Range<{}>", type_kind.to_string()),
-            Self::Array { type_kind, size } => format!("{}[{size}]", type_kind.to_string()),
-            Self::Pointer { point } => format!("{}_ptr", point.to_string()),
-            Self::Function {
-                return_type,
-                arguments,
-            } => format!(
-                "fn({})->{}",
-                arguments
-                    .iter()
-                    .map(|arg| arg.to_string())
-                    .collect::<Vec<String>>()
-                    .join("_"),
-                return_type.to_string()
-            ),
-            Self::Vector {
-                type_kind,
-                dimension,
-            } => format!("vec<{}>{dimension}", type_kind.to_string()),
-            Self::Matrix {
-                type_kind,
-                rows,
-                columns,
-            } => format!("matrix<{}>{rows}x{columns}", type_kind.to_string()),
-        }
+        };
+        f.write_str(&rendered)
     }
 }
 
@@ -497,7 +500,7 @@ impl Mul for Matrix {
     }
 }
 
-impl<'a, 'b> Mul<&'b Matrix> for &'a Matrix {
+impl<'b> Mul<&'b Matrix> for &Matrix {
     type Output = Matrix;
 
     fn mul(self, rhs: &'b Matrix) -> Self::Output {
@@ -685,7 +688,7 @@ impl Div for Integer {
     }
 }
 
-impl<'a, 'b> Add<&'b Integer> for &'a Integer {
+impl<'b> Add<&'b Integer> for &Integer {
     type Output = Integer;
 
     fn add(self, rhs: &'b Integer) -> Self::Output {
@@ -703,7 +706,7 @@ impl<'a, 'b> Add<&'b Integer> for &'a Integer {
     }
 }
 
-impl<'a, 'b> Sub<&'b Integer> for &'a Integer {
+impl<'b> Sub<&'b Integer> for &Integer {
     type Output = Integer;
 
     fn sub(self, rhs: &'b Integer) -> Self::Output {
@@ -721,7 +724,7 @@ impl<'a, 'b> Sub<&'b Integer> for &'a Integer {
     }
 }
 
-impl<'a, 'b> Mul<&'b Integer> for &'a Integer {
+impl<'b> Mul<&'b Integer> for &Integer {
     type Output = Integer;
 
     fn mul(self, rhs: &'b Integer) -> Self::Output {
@@ -739,7 +742,7 @@ impl<'a, 'b> Mul<&'b Integer> for &'a Integer {
     }
 }
 
-impl<'a, 'b> Div<&'b Integer> for &'a Integer {
+impl<'b> Div<&'b Integer> for &Integer {
     type Output = Integer;
 
     fn div(self, rhs: &'b Integer) -> Self::Output {
@@ -840,7 +843,7 @@ impl Div for Float {
     }
 }
 
-impl<'a, 'b> Add<&'b Float> for &'a Float {
+impl<'b> Add<&'b Float> for &Float {
     type Output = Float;
 
     fn add(self, rhs: &'b Float) -> Self::Output {
@@ -852,7 +855,7 @@ impl<'a, 'b> Add<&'b Float> for &'a Float {
     }
 }
 
-impl<'a, 'b> Sub<&'b Float> for &'a Float {
+impl<'b> Sub<&'b Float> for &Float {
     type Output = Float;
 
     fn sub(self, rhs: &'b Float) -> Self::Output {
@@ -864,7 +867,7 @@ impl<'a, 'b> Sub<&'b Float> for &'a Float {
     }
 }
 
-impl<'a, 'b> Mul<&'b Float> for &'a Float {
+impl<'b> Mul<&'b Float> for &Float {
     type Output = Float;
 
     fn mul(self, rhs: &'b Float) -> Self::Output {
@@ -876,7 +879,7 @@ impl<'a, 'b> Mul<&'b Float> for &'a Float {
     }
 }
 
-impl<'a, 'b> Div<&'b Float> for &'a Float {
+impl<'b> Div<&'b Float> for &Float {
     type Output = Float;
 
     fn div(self, rhs: &'b Float) -> Self::Output {

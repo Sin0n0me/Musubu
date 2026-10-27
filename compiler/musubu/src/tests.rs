@@ -2,6 +2,7 @@ use alloc::vec;
 use musubu_driver::{compile, compile_with_filename};
 use musubu_engine::MusubuEngine;
 use musubu_primitive::{Integer, Value};
+mod definite_assignment;
 mod diagnostic_regressions;
 mod language_interactions;
 mod matrix_arithmetic;
@@ -549,6 +550,36 @@ fn ffi_null_arguments_are_rejected() {
         ));
         assert!(engine.compile_error().contains("must not be null"));
     }
+}
+
+#[test]
+fn ffi_oversized_compile_inputs_preserve_program() {
+    let mut engine = MusubuEngine::new();
+    assert!(compile(&mut engine, "fn f() -> i32 { 7 }"));
+    let token = engine.get_function_token("musubu::f").unwrap();
+    let bytes = b"x";
+    for length in [isize::MAX as usize + 1, usize::MAX] {
+        // Oversized lengths are rejected without reading the supplied live pointer.
+        unsafe {
+            assert!(!crate::compile(&mut engine, bytes.as_ptr().cast(), length));
+            assert!(engine.compile_error().contains("length is too large"));
+            for (code_length, filename_length) in [(length, 1), (1, length)] {
+                assert!(!crate::compile_with_filename(
+                    &mut engine,
+                    bytes.as_ptr().cast(),
+                    code_length,
+                    bytes.as_ptr().cast(),
+                    filename_length,
+                ));
+                assert!(engine.compile_error().contains("length is too large"));
+                assert_eq!(engine.token_function(token), Some(token.function));
+            }
+        }
+    }
+    assert!(matches!(
+        engine.run_function(token.function, vec![]),
+        Ok(Some(Value::Integer(Integer::Int32(7))))
+    ));
 }
 
 #[test]

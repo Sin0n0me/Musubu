@@ -6,6 +6,7 @@ use crate::MusubuValue;
 use alloc::{boxed::Box, format, string::String, vec::Vec};
 use core::{ffi::c_char, ptr, slice, str};
 pub use matrix_buffer::*;
+pub use musubu_engine::FunctionToken as MusubuFunctionToken;
 use musubu_engine::MusubuEngine;
 use musubu_primitive::{ToPrimitiveType, Value};
 use value::HostValue;
@@ -47,6 +48,16 @@ unsafe fn children(
     unsafe { input(values, count) }?
         .iter()
         .map(|p| unsafe { handle(*p) }.cloned())
+        .collect()
+}
+
+unsafe fn borrowed_children<'a>(
+    values: *const *const MusubuValueHandle,
+    count: usize,
+) -> Result<Vec<&'a HostValue>, String> {
+    unsafe { input(values, count) }?
+        .iter()
+        .map(|value| unsafe { handle(*value) })
         .collect()
 }
 
@@ -176,7 +187,7 @@ fn execute(
     engine: &MusubuEngine,
     id: usize,
     name: Option<&str>,
-    args: &[HostValue],
+    args: &[&HostValue],
 ) -> Result<HostValue, String> {
     let function = engine
         .get_function(id)
@@ -209,8 +220,7 @@ fn execute(
         })
         .collect::<Result<Vec<_>, _>>()?;
     let result = engine
-        .run_function(id, args)
-        .map_err(|error| format!("VM error: {error:?}"))?
+        .run_function_diagnostic(id, args)?
         .unwrap_or(Value::Unit);
     if result.to_type() != function.return_type {
         return Err(String::from(
@@ -240,7 +250,7 @@ pub unsafe extern "C" fn call_function_value(
                 engine,
                 resolve_function(engine, name)?,
                 Some(name),
-                &children(arguments, count)?,
+                &borrowed_children(arguments, count)?,
             )?;
             Ok(MusubuValueHandle::owned(result))
         })
@@ -280,7 +290,76 @@ pub unsafe extern "C" fn call_function_value_by_id(
 ) -> bool {
     unsafe {
         write_result(engine, output, |engine| {
-            let result = execute(engine, function_id, None, &children(arguments, count)?)?;
+            let result = execute(
+                engine,
+                function_id,
+                None,
+                &borrowed_children(arguments, count)?,
+            )?;
+            Ok(MusubuValueHandle::owned(result))
+        })
+    }
+}
+
+/// Resolves a name into an engine- and revision-specific token.
+/// # Safety
+/// Same contract as get_function_id, with writable MusubuFunctionToken output.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn get_function_token(
+    engine: *mut MusubuEngine,
+    name: *const c_char,
+    name_length: usize,
+    output: *mut MusubuFunctionToken,
+) -> bool {
+    unsafe {
+        write_result(engine, output, |engine| {
+            let name = text(name, name_length)?;
+            engine
+                .get_function_token(&format!("musubu::{name}"))
+                .ok_or_else(|| format!("undefined function `{name}`"))
+        })
+    }
+}
+
+/// Checks a token without executing its function or modifying diagnostics.
+/// Null pointers, foreign tokens and replaced programs return false.
+/// # Safety
+/// Non-null pointers must be live, aligned and initialized. The engine must not
+/// be mutated or freed during this call. Validation does not extend token lifetime.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn is_function_token_valid(
+    engine: *const MusubuEngine,
+    token: *const MusubuFunctionToken,
+) -> bool {
+    let Some(engine) = (unsafe { engine.as_ref() }) else {
+        return false;
+    };
+    let Some(token) = (unsafe { token.as_ref() }) else {
+        return false;
+    };
+    engine.token_function(*token).is_some()
+}
+
+/// Calls a function token, rejecting other engines and replaced programs.
+/// # Safety
+/// Same contract as call_function_value. token must point to an initialized token.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn call_function_value_by_token(
+    engine: *mut MusubuEngine,
+    token: *const MusubuFunctionToken,
+    arguments: *const *const MusubuValueHandle,
+    count: usize,
+    output: *mut *mut MusubuValueHandle,
+) -> bool {
+    unsafe {
+        write_result(engine, output, |engine| {
+            let token = token
+                .as_ref()
+                .ok_or_else(|| String::from("token must not be null"))?;
+            let id = engine
+                .token_function(*token)
+                .ok_or_else(|| String::from("stale or foreign function token"))?;
+            let result = execute(engine, id, None, &borrowed_children(arguments, count)?)?;
             Ok(MusubuValueHandle::owned(result))
         })
     }
@@ -297,7 +376,9 @@ pub unsafe extern "C" fn value_get_scalar(
 ) -> bool {
     unsafe {
         write_result(engine, output, |_| match handle(value)? {
-            HostValue::Plain(value) => MusubuValue::from_value(value.clone()),
+            HostValue::Plain(
+                value @ (Value::Unit | Value::Bool(_) | Value::Integer(_) | Value::Float(_)),
+            ) => MusubuValue::from_value(value.clone()),
             _ => Err(String::from("value is not a scalar")),
         })
     }

@@ -1,7 +1,7 @@
 use crate::iterator::IteratorState;
 use alloc::collections::BTreeMap;
-use alloc::{vec, vec::Vec};
-use musubu_ir::{Instruction, Register};
+use alloc::vec::Vec;
+use musubu_ir::Instruction;
 use musubu_primitive::{Integer, Value};
 
 //const HALT: usize = usize::MAX;
@@ -9,6 +9,7 @@ const INITIAL_IP: usize = 0;
 
 #[derive(Debug)]
 pub(crate) struct Frame<'a> {
+    pub function_id: usize,
     pub iterators: BTreeMap<usize, IteratorState>,
     pub registers: Vec<Value>, // TODO 初期化コストが重たいのでVM側に移動して1つのVecでやる(オフセットで位置を定められる)
     pub ip: usize,
@@ -17,29 +18,16 @@ pub(crate) struct Frame<'a> {
 }
 
 impl<'a> Frame<'a> {
-    pub fn new(registers: usize, code: &'a [Instruction], args: Vec<Value>) -> Self {
-        let mut frame = Self {
+    pub fn new(registers: usize, code: &'a [Instruction], mut args: Vec<Value>) -> Self {
+        // Reuse the owned argument storage; initialize only the remaining registers once.
+        args.resize(registers, Value::Integer(Integer::Int32(0)));
+        Self {
+            function_id: 0,
             iterators: BTreeMap::new(),
-            registers: vec![Value::Integer(Integer::Int32(0)); registers],
+            registers: args,
             ip: INITIAL_IP,
             code,
             next_reg: None,
-        };
-
-        frame.init(args);
-        frame
-    }
-
-    pub fn init(&mut self, args: Vec<Value>) {
-        self.iterators.clear();
-        let args_len = args.len();
-
-        // 引数セット
-        for (i, arg) in args.into_iter().enumerate() {
-            self.registers[i] = arg;
         }
-
-        self.registers[args_len..].fill(Value::Integer(Integer::Int32(0)));
-        self.ip = INITIAL_IP;
     }
 }

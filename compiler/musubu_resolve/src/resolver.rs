@@ -1,6 +1,7 @@
 mod collections;
 mod control_flow;
 mod enumeration;
+mod initialization;
 mod match_coverage;
 mod match_expression;
 mod matrices;
@@ -14,7 +15,7 @@ use alloc::format;
 use alloc::string::ToString;
 use alloc::vec::Vec;
 use musubu_ast::*;
-use musubu_hir::{HIRBlock, HIRExpression, HIRFunction, HIRFunctionParam, HIRStatement};
+use musubu_hir::{HIRBlock, HIRExpression, HIRFunctionParam, HIRStatement};
 use musubu_name_space::errors::NameSpaceError;
 use musubu_name_space::{FunctionItem, ItemStoreReader, ItemSymbol};
 use musubu_primitive::{
@@ -38,14 +39,14 @@ impl<'a> Resolver<'a> {
                     body,
                     return_type,
                 } => self.resolve_function(
-                    &name,
-                    &params,
+                    name,
+                    params,
                     body.as_ref().map(|b| b.as_ref_spanned()),
                     return_type.as_ref().map(|r| r.as_ref_spanned()),
                 )?,
-                Item::Struct { name, fields } => self.resolve_struct(&name, fields)?,
-                Item::Enumeration { name, items } => self.resolve_enumeration(&name, items)?,
-                Item::Union { name, fields } => {
+                Item::Struct { name, fields } => self.resolve_struct(name, fields)?,
+                Item::Enumeration { name, items } => self.resolve_enumeration(name, items)?,
+                Item::Union { name: _, fields } => {
                     for field in fields {
                         self.resolve_type(field.node.field_type.as_ref_spanned())?;
                     }
@@ -95,24 +96,15 @@ impl<'a> Resolver<'a> {
 
         // 関数本体
         let hir = self.enter_function(return_type.clone(), |s| {
-            let params = arguments.into_iter().zip(params).collect::<Vec<_>>();
+            let params = arguments.iter().zip(params).collect::<Vec<_>>();
             let args = s.resolve_arguments(params)?;
             let type_symbol = return_type.clone();
             let return_type = return_type.type_kind.clone();
             let body = s.resolve_expression(body_expr)?.hir.to_block();
+            initialization::check(&body, &args)?;
 
             let actual = body.to_type();
-            if actual != return_type
-                && (!actual.is_unit()
-                    || (matches!(
-                        return_type,
-                        PrimitiveType::NamedStruct { .. }
-                            | PrimitiveType::NamedEnum { .. }
-                            | PrimitiveType::Tuple { .. }
-                            | PrimitiveType::Vector { .. }
-                            | PrimitiveType::Matrix { .. }
-                    ) && control_flow::can_complete(&body)))
-            {
+            if actual != return_type && control_flow::can_complete(&body) {
                 return Err(
                     musubu_type_check::errors::TypeCheckError::FunctionReturnMismatch {
                         expected: return_type,
@@ -146,7 +138,7 @@ impl<'a> Resolver<'a> {
             let param = param.get_node();
             let pattern = param.pattern.as_ref_spanned();
 
-            let (id, type_requirement) = self.resolve_pattern(&pattern, Some(&resolved_type))?;
+            let (id, type_requirement) = self.resolve_pattern(&pattern, Some(resolved_type))?;
             let TypeRequirement::Expect(type_symbol) = type_requirement else {
                 return Err(ResolveError::Unsupported {
                     feature: "function parameter patterns",
@@ -288,7 +280,7 @@ impl<'a> Resolver<'a> {
                     self.resolve_range(start.as_ref_spanned(), end.as_ref_spanned(), *inclusive)?
                 }
                 Expression::FieldAccess { parent, field_name } => {
-                    self.resolve_field_access(&parent.as_ref_spanned(), &field_name)?
+                    self.resolve_field_access(&parent.as_ref_spanned(), field_name)?
                 }
                 Expression::MethodCall(method) => self.resolve_method_call(method)?,
                 Expression::Index { parent, index } => {
@@ -303,7 +295,13 @@ impl<'a> Resolver<'a> {
                 )?,
             };
 
-            Ok(lowered)
+            Ok(Lowered {
+                type_symbol: lowered.type_symbol,
+                hir: HIRExpression::Located {
+                    range: (diagnostic_span.start as usize, diagnostic_span.end as usize),
+                    expression: alloc::boxed::Box::new(lowered.hir),
+                },
+            })
         })()
         .map_err(|error: ResolveError| error.at(diagnostic_span))
     }
@@ -405,7 +403,7 @@ impl<'a> Resolver<'a> {
         let rhs = self.resolve_expression(&right)?;
 
         if !matches!(
-            &lhs.hir,
+            lhs.hir.unlocated(),
             HIRExpression::Variable { .. }
                 | HIRExpression::Field { .. }
                 | HIRExpression::Index { .. }
@@ -501,8 +499,8 @@ impl<'a> Resolver<'a> {
         }
         let call = self.resolve_expression(&function)?;
         let args = arguments
-            .into_iter()
-            .map(|arg| self.resolve_expression(&arg))
+            .iter()
+            .map(|arg| self.resolve_expression(arg))
             .collect::<Result<Vec<_>, ResolveError>>()?;
 
         let type_symbol = self.type_checker.check_function_call(
@@ -616,9 +614,9 @@ impl<'a> Resolver<'a> {
             self.resolve_expression(&param.as_ref_spanned())?;
         }
 
-        return Err(ResolveError::Unsupported {
+        Err(ResolveError::Unsupported {
             feature: "method calls",
-        });
+        })
         // Ok(Lowered { type_symbol, hir })
     }
 
@@ -677,7 +675,7 @@ impl<'a> Resolver<'a> {
         if let Some(id) = self.name_resolver.get_variable_id(name) {
             let hir = self
                 .desugar
-                .lower_symbol(id.clone(), type_symbol.type_kind.clone())?;
+                .lower_symbol(*id, type_symbol.type_kind.clone())?;
 
             return Ok(Lowered {
                 type_symbol,
@@ -700,13 +698,13 @@ impl<'a> Resolver<'a> {
 
         let hir = match item {
             ItemSymbol::Function(function_item) => {
-                let id = function_item.id.clone();
+                let id = function_item.id;
                 let return_type = function_item.return_type.type_kind.clone();
                 let hir = self.desugar.lower_function_symbol(id, return_type)?;
                 Some(hir)
             }
-            ItemSymbol::Enumeration(enum_item) => None,
-            ItemSymbol::Struct(struct_item) => None,
+            ItemSymbol::Enumeration(_) => None,
+            ItemSymbol::Struct(_) => None,
         };
 
         Ok(Lowered { type_symbol, hir })
@@ -824,7 +822,7 @@ impl<'a> Resolver<'a> {
         // パターン
         let pattern = name.as_ref_spanned();
         let type_kind = variable_type.as_ref().or(initializer_type.as_ref());
-        let (id, symbol_type) = self.resolve_pattern(&pattern, type_kind)?;
+        let (id, _symbol_type) = self.resolve_pattern(&pattern, type_kind)?;
 
         // 型チェック
         let scope = self.get_scope()?;
@@ -1074,16 +1072,5 @@ impl<'a> Resolver<'a> {
             Ok(ty)
         })()
         .map_err(|error: ResolveError| error.at(diagnostic_span))
-    }
-
-    fn resolve_type_alias(&mut self, alias: Spanned<&'a TypeAlias>) -> ResolveResult<()> {
-        //self.insert(&alias.node.name, ResolvedSymbol::Type)?;
-
-        self.resolve_type(Spanned {
-            node: &alias.node.target,
-            span: alias.span,
-        })?;
-
-        Ok(())
     }
 }

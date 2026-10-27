@@ -179,20 +179,6 @@ impl PackratAndPrattParser {
     }
 
     // TupleFields ::= TupleField (`,` TupleField)* `,`?
-    fn parse_tuple_fields(&mut self) -> ParseResult {
-        let key = self.make_key("TupleFields");
-        if let Some(memo) = self.get_memo(&key) {
-            return Ok(memo);
-        }
-        self.make_memo_from_result(key, Err(ParseError::NotMatch))
-    }
 
     // TupleField ::= Visibility? Type
-    fn parse_tuple_field(&mut self) -> ParseResult {
-        let key = self.make_key("TupleField");
-        if let Some(memo) = self.get_memo(&key) {
-            return Ok(memo);
-        }
-        self.make_memo_from_result(key, Err(ParseError::NotMatch))
-    }
 }

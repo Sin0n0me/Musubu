@@ -239,7 +239,7 @@ fn runtime_errors_are_readable_and_cleared_on_success() {
             &[signed(MusubuValue::I32, 1), signed(MusubuValue::I32, 0)]
         )
         .unwrap_err()
-        .contains("InvalidOperand")
+        .contains("DivisionByZero")
     );
     let mut length = 0;
     // The diagnostic is borrowed only while the engine is unmodified.
@@ -282,6 +282,24 @@ fn recompile_updates_signature_and_failed_compile_keeps_executable() {
         5
     );
     assert_eq!(engine.compile_error(), error);
+}
+
+#[test]
+fn successful_recompile_replaces_whole_program_and_failed_resolution_is_atomic() {
+    let mut engine = engine("fn f() -> i32 { 1 } fn g() -> i32 { f() + 1 }");
+    assert_eq!(call(&mut engine, "g", &[]).unwrap().signed_value, 2);
+    assert!(!compile(&mut engine, "fn new_name() -> i32 { missing }"));
+    assert_eq!(call(&mut engine, "g", &[]).unwrap().signed_value, 2);
+    assert!(engine.get_function_id("musubu::new_name").is_none());
+    assert!(compile(&mut engine, "fn f() -> bool { true }"));
+    assert!(call(&mut engine, "g", &[]).is_err());
+    assert_eq!(call(&mut engine, "f", &[]).unwrap().unsigned_value, 1);
+    assert!(compile(&mut engine, "fn new_name() -> i32 { 8 }"));
+    assert_eq!(engine.get_function_id("musubu::new_name"), Some(0));
+    assert!(call(&mut engine, "f", &[]).is_err());
+    assert_eq!(call(&mut engine, "new_name", &[]).unwrap().signed_value, 8);
+    assert!(compile(&mut engine, ""));
+    assert!(call(&mut engine, "new_name", &[]).is_err());
 }
 
 #[test]
@@ -423,7 +441,7 @@ fn vm_bounds_and_overflow_failures_leave_output_unchanged() {
     );
     for (name, value, error) in [
         ("bounds", 1, "IndexOutOfBounds"),
-        ("overflow", i32::MAX, "InvalidOperand"),
+        ("overflow", i32::MAX, "ArithmeticOverflow"),
     ] {
         let args = [signed(MusubuValue::I32, i64::from(value))];
         let mut output = signed(MusubuValue::I32, 99);
@@ -441,4 +459,70 @@ fn vm_bounds_and_overflow_failures_leave_output_unchanged() {
         assert_eq!(output.signed_value, 99);
         assert!(engine.runtime_error().contains(error));
     }
+}
+
+#[test]
+fn execution_limits_stop_loops_and_recursion_and_allow_recovery() {
+    let mut engine = engine(
+        "fn spin() { loop {} } fn recurse(n: i32) -> i32 { if n == 0 { 1 } else { recurse(n - 1) } } fn ok() -> i32 { 7 }",
+    );
+    unsafe {
+        assert!(crate::set_execution_limits(&mut engine, 1000, 8));
+        assert!(!crate::set_execution_limits(&mut engine, 0, 8));
+        assert!(!crate::set_execution_limits(&mut engine, 1000, 0));
+        assert!(!crate::set_execution_limits(ptr::null_mut(), 1000, 8));
+    }
+    assert!(
+        call(&mut engine, "spin", &[])
+            .unwrap_err()
+            .contains("InstructionLimitExceeded")
+    );
+    assert!(
+        call(&mut engine, "recurse", &[signed(MusubuValue::I32, -1)])
+            .unwrap_err()
+            .contains("StackOverflow")
+    );
+    assert_eq!(
+        call(&mut engine, "recurse", &[signed(MusubuValue::I32, 6)])
+            .unwrap()
+            .signed_value,
+        1
+    );
+    assert_eq!(call(&mut engine, "ok", &[]).unwrap().signed_value, 7);
+    assert!(compile(&mut engine, "fn spin() { loop {} }"));
+    assert!(
+        call(&mut engine, "spin", &[])
+            .unwrap_err()
+            .contains("InstructionLimitExceeded")
+    );
+}
+
+#[test]
+fn runtime_diagnostics_include_precise_source_and_callers() {
+    let mut engine = MusubuEngine::new();
+    let source =
+        "fn inner(x: i32) -> i32 {\n    let y = 1;\n    y / x\n}\nfn outer() -> i32 { inner(0) }";
+    assert!(musubu_driver::compile_with_filename(
+        &mut engine,
+        "scripts/runtime.msb",
+        source
+    ));
+    let error = call(&mut engine, "outer", &[]).unwrap_err();
+    assert!(error.contains("DivisionByZero"), "{error}");
+    assert!(error.contains("scripts/runtime.msb:3:5"), "{error}");
+    assert!(error.contains("y / x"), "{error}");
+    assert!(error.contains("^^^^^"), "{error}");
+    assert!(error.contains("musubu::inner"), "{error}");
+    assert!(error.contains("musubu::outer"), "{error}");
+    assert!(error.contains("scripts/runtime.msb:5:"), "{error}");
+    assert!(!musubu_driver::compile_with_filename(
+        &mut engine,
+        "bad.msb",
+        "fn broken"
+    ));
+    assert!(
+        call(&mut engine, "outer", &[])
+            .unwrap_err()
+            .contains("scripts/runtime.msb:3:5")
+    );
 }

@@ -87,11 +87,11 @@ impl PackratAndPrattParser {
                 parser.parse_generic_args()
             })
             .and_then(|memo| memo.get_node())
-            .and_then(|kind| {
+            .map(|kind| {
                 let ASTNode::Arguments(args) = kind.as_ref() else {
                     unreachable!();
                 };
-                Some(args.clone())
+                args.clone()
             })
             .unwrap_or_default();
 
@@ -130,7 +130,8 @@ impl PackratAndPrattParser {
         if let Some(memo) = self.get_memo(&key) {
             return Ok(memo);
         }
-        let result = self.or(vec![
+
+        self.or(vec![
             // `<` `>`
             |parser: &mut Self| -> ParseResult {
                 let Some(ComparisonOperator::LessThan) = parser.tokens.get_comparison_operator()
@@ -157,7 +158,7 @@ impl PackratAndPrattParser {
                 parser.tokens.next();
 
                 // ( GenericArg `,` )*
-                let args = parser.zero_or_more(|parser: &mut Self| -> ParseResult {
+                let _args = parser.zero_or_more(|parser: &mut Self| -> ParseResult {
                     let arg = parser.parse_generic_arg()?;
                     let Some(MusubuOperator::Comma) = parser.tokens.get_operator() else {
                         return Err(ParseError::NotMatch);
@@ -178,9 +179,7 @@ impl PackratAndPrattParser {
                     parser.tokens.get_position(),
                 ))
             },
-        ]);
-
-        result
+        ])
     }
 
     // GenericArg ::= Type | GenericArgsConst | GenericArgsBinding | GenericArgsBounds
@@ -220,7 +219,7 @@ impl PackratAndPrattParser {
         }
 
         // IDENTIFIER
-        let Some(ident) = self.tokens.get_identifier() else {
+        let Some(_ident) = self.tokens.get_identifier() else {
             return self.make_memo_from_result(key, Err(ParseError::NotMatch));
         };
         self.tokens.next();
@@ -244,7 +243,7 @@ impl PackratAndPrattParser {
             return Ok(memo);
         }
 
-        let Some(ident) = self.tokens.get_identifier() else {
+        let Some(_ident) = self.tokens.get_identifier() else {
             return self.make_memo_from_result(key, Err(ParseError::NotMatch));
         };
         self.tokens.next();
@@ -262,57 +261,6 @@ impl PackratAndPrattParser {
     }
 
     // SimplePath ::= `::`? SimplePathSegment ( `::` SimplePathSegment )*
-    fn parse_simple_path(&mut self) -> ParseResult {
-        let key = self.make_key("SimplePath");
-        if let Some(memo) = self.get_memo(&key) {
-            return Ok(memo);
-        }
-
-        // `::`?
-        if let Some(MusubuOperator::Path) = self.tokens.get_operator() {
-            self.tokens.next();
-        }
-
-        // SimplePathSegment
-        let Ok(first) = self.get_node(Self::parse_simple_path_segment) else {
-            return self.make_memo_from_result(key, Err(ParseError::NotMatch));
-        };
-
-        // (`::` SimplePathSegment)*
-        let Some(mut segments) = self
-            .zero_or_more(|parser: &mut Self| -> ParseResult {
-                if let Some(MusubuOperator::Path) = parser.tokens.get_operator() {
-                    parser.tokens.next();
-                }
-                parser.parse_simple_path_segment()
-            })
-            .into_iter()
-            .map(|memo| memo.get_node())
-            .collect::<Option<Vec<_>>>()
-        else {
-            return self.make_memo_from_result(key, Err(ParseError::UnexpectedAST));
-        };
-
-        segments.insert(0, first);
-
-        let segments = segments
-            .into_iter()
-            .map(|seg| {
-                let ASTNode::Segment(segment) = seg.as_ref() else {
-                    unreachable!();
-                };
-                Spanned {
-                    node: PathSegment {
-                        ident: segment.node.clone(),
-                        arguments: vec![],
-                    },
-                    span: segment.span,
-                }
-            })
-            .collect::<Vec<_>>();
-
-        self.make_memo_from(key, Path { segments })
-    }
 
     // SimplePathSegment ::= IDENTIFIER
     fn parse_simple_path_segment(&mut self) -> ParseResult {
@@ -347,12 +295,8 @@ impl PackratAndPrattParser {
 
         let mut segments = vec![];
 
-        loop {
-            if let Some(MusubuOperator::Path) = self.tokens.get_operator() {
-                self.tokens.next();
-            } else {
-                break;
-            }
+        while let Some(MusubuOperator::Path) = self.tokens.get_operator() {
+            self.tokens.next();
 
             let Ok(seg) = self.get_node(Self::parse_path_expr_segment) else {
                 return self.make_memo_from_result(key, Err(ParseError::UnexpectedAST));
@@ -369,15 +313,4 @@ impl PackratAndPrattParser {
     }
 
     // QualifiedPathType ::= `<` Type (`as` TypePath)? `>`
-    fn parse_qualified_path_type(&mut self) -> ParseResult {
-        let key = self.make_key("OperatorExpression");
-        if let Some(memo) = self.get_memo(&key) {
-            return Ok(memo);
-        }
-
-        // TODO
-        let result = self.parse_type();
-
-        self.make_memo_from_result(key, result)
-    }
 }

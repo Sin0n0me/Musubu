@@ -61,18 +61,30 @@ impl VM<'_> {
 
 fn grid(value: &Value, left: bool) -> VMResult<Vec<Vec<Value>>> {
     match value {
-        Value::Matrix(m) => m
-            .columns()
-            .iter()
-            .map(|c| match c {
-                Value::Vector(v) => Ok(v.components()),
-                _ => Err(VMError::InvalidOperand),
-            })
-            .collect(),
+        Value::Matrix(m) => map_components(m, Ok),
         Value::Vector(v) if left => Ok(v.components().into_iter().map(|v| vec![v]).collect()),
         Value::Vector(v) => Ok(vec![v.components()]),
         _ => Err(VMError::InvalidOperand),
     }
+}
+
+fn map_components(
+    matrix: &Matrix,
+    mut operation: impl FnMut(Value) -> VMResult<Value>,
+) -> VMResult<Vec<Vec<Value>>> {
+    let mut columns = Vec::with_capacity(matrix.column_count());
+    for column in 0..matrix.column_count() {
+        let rows = matrix.column_len(column).ok_or(VMError::InvalidOperand)?;
+        let mut elements = Vec::with_capacity(rows);
+        for row in 0..rows {
+            let component = matrix
+                .component(column, row)
+                .ok_or(VMError::InvalidOperand)?;
+            elements.push(operation(component)?);
+        }
+        columns.push(elements);
+    }
+    Ok(columns)
 }
 
 fn scale(
@@ -81,22 +93,14 @@ fn scale(
     scalar: &Value,
     scalar_left: bool,
 ) -> VMResult<Vec<Vec<Value>>> {
-    let columns = grid(&Value::Matrix(matrix.clone()), true)?;
     // (A * s)[c][r] = A[c][r] * s; (A / s)[c][r] = A[c][r] / s.
-    columns
-        .iter()
-        .map(|c| {
-            c.iter()
-                .map(|v| {
-                    if scalar_left {
-                        scalar_op(op, scalar, v)
-                    } else {
-                        scalar_op(op, v, scalar)
-                    }
-                })
-                .collect()
-        })
-        .collect()
+    map_components(matrix, |value| {
+        if scalar_left {
+            scalar_op(op, scalar, &value)
+        } else {
+            scalar_op(op, &value, scalar)
+        }
+    })
 }
 
 fn product(a: &[Vec<Value>], b: &[Vec<Value>]) -> VMResult<Vec<Vec<Value>>> {

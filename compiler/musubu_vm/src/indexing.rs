@@ -40,8 +40,8 @@ impl VM<'_> {
 fn load(parent: &Value, index: usize) -> VMResult<Value> {
     let value = match parent {
         Value::Struct { fields, .. } | Value::Tuple { fields, .. } => fields.get(index).cloned(),
-        Value::Vector(v) => v.components().get(index).cloned(),
-        Value::Matrix(m) => m.columns().get(index).cloned(),
+        Value::Vector(v) => v.component(index),
+        Value::Matrix(m) => m.column(index),
         _ => return Err(VMError::InvalidOperand),
     };
     value.ok_or(VMError::IndexOutOfBounds)

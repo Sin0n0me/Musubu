@@ -44,11 +44,11 @@ impl PackratAndPrattParser {
         let params = self
             .option(Self::parse_function_parameters)
             .and_then(|memo| memo.get_node())
-            .and_then(|node| {
+            .map(|node| {
                 let ASTNode::FunctionParameters(params) = node.as_ref().clone() else {
                     unreachable!();
                 };
-                Some(params)
+                params
             })
             .unwrap_or_default();
 
@@ -62,11 +62,11 @@ impl PackratAndPrattParser {
         let return_type = self
             .option(Self::parse_function_return_type)
             .and_then(|memo| memo.get_node())
-            .and_then(|node| {
+            .map(|node| {
                 let ASTNode::Type(return_type) = node.as_ref().clone() else {
                     unreachable!();
                 };
-                Some(return_type)
+                return_type
             });
 
         // ( BlockExpression | `;` )
@@ -168,7 +168,7 @@ impl PackratAndPrattParser {
                 node: FunctionParam {
                     pattern: Spanned {
                         node: Pattern::None,
-                        span: span.clone(),
+                        span,
                     },
                     param_type,
                 },

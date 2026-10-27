@@ -183,8 +183,7 @@ fn execute(
         })
         .collect::<Result<Vec<_>, String>>()?;
     let value = engine
-        .run_function(id, args)
-        .map_err(|error| format!("VM error: {error:?}"))?
+        .run_function_diagnostic(id, args)?
         .unwrap_or(Value::Unit);
     if value.to_type() != function.return_type {
         return Err(String::from(

@@ -12,6 +12,9 @@ mod matrices;
 mod structures;
 mod vectors;
 
+#[cfg(test)]
+mod boundary_tests;
+
 use crate::errors::VMError;
 use crate::frame::Frame;
 use alloc::{vec, vec::Vec};
@@ -21,17 +24,72 @@ use musubu_primitive::*;
 
 pub type VMResult<T> = Result<T, VMError>;
 
+#[derive(Debug, Clone, Copy)]
+pub struct TraceFrame {
+    pub function: usize,
+    pub instruction: usize,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ExecutionLimits {
+    pub instructions: u64,
+    pub call_depth: usize,
+}
+
+impl Default for ExecutionLimits {
+    fn default() -> Self {
+        Self {
+            instructions: 1_000_000,
+            call_depth: 256,
+        }
+    }
+}
+
 // TODO デバッグ用のスタックトレース
 pub struct VM<'a> {
     cache: &'a Cache,
+    limits: ExecutionLimits,
+    trace: Vec<TraceFrame>,
 }
 
 impl<'a> VM<'a> {
     pub fn new(cache: &'a Cache) -> Self {
-        Self { cache }
+        Self::with_limits(cache, ExecutionLimits::default())
+    }
+
+    pub fn with_limits(cache: &'a Cache, limits: ExecutionLimits) -> Self {
+        Self {
+            cache,
+            limits,
+            trace: Vec::new(),
+        }
+    }
+
+    pub fn stack_trace(&self) -> &[TraceFrame] {
+        &self.trace
+    }
+
+    fn capture_trace(&mut self, frames: &[Frame<'_>], pending: bool) {
+        self.trace = frames
+            .iter()
+            .rev()
+            .enumerate()
+            .map(|(index, frame)| TraceFrame {
+                function: frame.function_id,
+                instruction: if pending && index == 0 {
+                    frame.ip
+                } else {
+                    frame.ip.saturating_sub(1)
+                },
+            })
+            .collect();
     }
 
     pub fn run_function(&mut self, func_id: usize, args: Vec<Value>) -> VMResult<Option<Value>> {
+        self.trace.clear();
+        if self.limits.call_depth == 0 {
+            return Err(VMError::StackOverflow);
+        }
         let frame = self.load_function(func_id, args)?;
         self.execute_frame(frame)
     }
@@ -39,8 +97,30 @@ impl<'a> VM<'a> {
     fn execute_frame(&mut self, frame: Frame<'a>) -> VMResult<Option<Value>> {
         // 順次実行
         let mut frame_stack = vec![frame];
+        let mut remaining = self.limits.instructions;
         loop {
-            let ret = self.next(&mut frame_stack)?;
+            // Falling off a function executes no instruction and consumes no budget.
+            while frame_stack
+                .last()
+                .is_some_and(|frame| frame.ip == frame.code.len())
+            {
+                frame_stack.pop();
+            }
+            if frame_stack.is_empty() {
+                return Ok(None);
+            }
+            if remaining == 0 {
+                self.capture_trace(&frame_stack, true);
+                return Err(VMError::InstructionLimitExceeded);
+            }
+            remaining -= 1;
+            let ret = match self.next(&mut frame_stack) {
+                Ok(value) => value,
+                Err(error) => {
+                    self.capture_trace(&frame_stack, false);
+                    return Err(error);
+                }
+            };
             if frame_stack.is_empty() {
                 return Ok(ret);
             }
@@ -48,6 +128,7 @@ impl<'a> VM<'a> {
     }
 
     fn next(&self, frame_stack: &mut Vec<Frame<'a>>) -> VMResult<Option<Value>> {
+        let depth = frame_stack.len();
         let Some(frame) = frame_stack.last_mut() else {
             return Ok(None);
         };
@@ -90,15 +171,18 @@ impl<'a> VM<'a> {
                 let r = &frame.registers[rhs.0];
                 frame.registers[dst.0] = Self::eval_cmp(op, l, r)?;
             }
-            Instruction::JumpIfFalse { cond, target } => {
-                if let Value::Bool(false) = frame.registers[cond.0] {
-                    frame.ip = *target;
-                }
-            }
+            Instruction::JumpIfFalse { cond, target } => match frame.registers[cond.0] {
+                Value::Bool(false) => frame.ip = *target,
+                Value::Bool(true) => (),
+                _ => return Err(VMError::InvalidOperand),
+            },
             Instruction::Jump { target } => {
                 frame.ip = *target;
             }
             Instruction::Call { dst, func, args } => {
+                if depth >= self.limits.call_depth {
+                    return Err(VMError::StackOverflow);
+                }
                 frame.next_reg = dst.map(|reg| reg.0);
 
                 let mut call_args = Vec::with_capacity(args.len());
@@ -110,14 +194,15 @@ impl<'a> VM<'a> {
                 frame_stack.push(func);
             }
             Instruction::Return { value } => {
-                let Some(frame) = frame_stack.pop() else {
+                let Some(mut frame) = frame_stack.pop() else {
                     return Ok(None);
                 };
                 let Some(value) = value else {
                     return Ok(None);
                 };
 
-                let value = frame.registers[value.0].clone();
+                // The popped frame is never executed again, so transfer its owned return value.
+                let value = core::mem::replace(&mut frame.registers[value.0], Value::Unit);
 
                 // 呼び出し元の取得
                 let Some(caller) = frame_stack.last_mut() else {
@@ -219,7 +304,8 @@ impl<'a> VM<'a> {
         {
             return Err(VMError::ArgumentTypeMismatch);
         }
-        let frame = Frame::new(func.registers, &func.code, args);
+        let mut frame = Frame::new(func.registers, &func.code, args);
+        frame.function_id = func_id;
         Ok(frame)
     }
 

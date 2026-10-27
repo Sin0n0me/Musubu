@@ -17,6 +17,12 @@ pub struct HIRModule {
     pub function_ranges: BTreeMap<usize, (usize, usize)>,
 }
 
+impl Default for HIRModule {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HIRModule {
     pub fn new() -> Self {
         Self {
@@ -89,13 +95,16 @@ impl ToPrimitiveType for HIRBlock {
     fn to_type(&self) -> PrimitiveType {
         self.statements
             .last()
-            .cloned()
             .map_or(PrimitiveType::Unit, |s| s.to_type())
     }
 }
 
 #[derive(Debug, Clone)]
 pub enum HIRExpression {
+    Located {
+        range: (usize, usize),
+        expression: Box<HIRExpression>,
+    },
     Index {
         parent: Box<HIRExpression>,
         index: Box<HIRExpression>,
@@ -208,6 +217,19 @@ pub enum HIRExpression {
 }
 
 impl HIRExpression {
+    pub fn unlocated(&self) -> &Self {
+        match self {
+            Self::Located { expression, .. } => expression.unlocated(),
+            _ => self,
+        }
+    }
+
+    pub fn into_unlocated(self) -> Self {
+        match self {
+            Self::Located { expression, .. } => expression.into_unlocated(),
+            _ => self,
+        }
+    }
     pub fn to_statement(self) -> HIRStatement {
         HIRStatement::Expr(self)
     }
@@ -222,6 +244,7 @@ impl HIRExpression {
 impl ToPrimitiveType for HIRExpression {
     fn to_type(&self) -> PrimitiveType {
         match self {
+            Self::Located { expression, .. } => expression.to_type(),
             Self::Index { element_type, .. } => element_type.clone(),
             Self::StoreIndex { .. } => PrimitiveType::Unit,
             Self::Enum { enum_type, .. } => enum_type.clone(),
@@ -267,8 +290,14 @@ impl ToPrimitiveType for HIRExpression {
             Self::If {
                 cond: _,
                 then_block,
-                else_block: _,
-            } => then_block.to_type(),
+                else_block,
+            } => {
+                if else_block.is_some() {
+                    then_block.to_type()
+                } else {
+                    PrimitiveType::Unit
+                }
+            }
             Self::Call {
                 function: _,
                 return_type,

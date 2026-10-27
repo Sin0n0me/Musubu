@@ -1,4 +1,3 @@
-use alloc::boxed::Box;
 use alloc::string::String;
 use musubu_ast::{AssignOperator, Literal, TypeKind};
 use musubu_primitive::*;
@@ -27,11 +26,10 @@ pub enum MusubuLiteral {
         suffix: Option<String>,
     },
     Float(FloatLiteral),
-    String(String),
 }
 
 impl MusubuLiteral {
-    pub fn to_literal(self) -> Result<Literal, ParseError> {
+    pub fn into_literal(self) -> Result<Literal, ParseError> {
         let make_type = |suffix: Option<String>, default_type: TypeKind| -> TypeKind {
             suffix
                 .map(|s| {
@@ -78,15 +76,6 @@ impl MusubuLiteral {
                         TypeKind::Primitive(PrimitiveType::Float { byte: 4 }),
                     ),
                 },
-            },
-            MusubuLiteral::String(value) => Literal::String {
-                value,
-                value_type: TypeKind::Primitive(PrimitiveType::Pointer {
-                    point: Box::new(PrimitiveType::Integer {
-                        signed: false,
-                        byte: 1,
-                    }),
-                }),
             },
         };
 
@@ -140,10 +129,6 @@ pub enum MusubuOperator {
 pub type BindingPower = u16;
 
 impl MusubuOperator {
-    pub fn enable_operator(&self) -> bool {
-        !matches!(self, Self::Comma | Self::Semicolon | Self::Colon)
-    }
-
     pub fn get_prefix_binding_power(&self) -> Option<BindingPower> {
         let bp = match self {
             Self::Binary(BinaryOperator::Subtract) | Self::Logical(LogicalOperator::Not) => 170,

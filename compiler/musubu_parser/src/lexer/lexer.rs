@@ -127,18 +127,12 @@ impl TokenStream {
         };
         Some(op)
     }
-
-    pub fn get_logical_operator(&self) -> Option<&LogicalOperator> {
-        let MusubuOperator::Logical(op) = self.get_operator()? else {
-            return None;
-        };
-        Some(op)
-    }
 }
 
 type ParseIter<'a> = Peekable<Iter<'a, Token<'a>>>;
 type ParseResult = Result<MusubuToken, TokenStreamParseError>;
 
+#[cfg(test)]
 pub(crate) fn tokenize<'a>(tokens: &Tokens<'a>) -> Result<TokenStream, TokenStreamParseError> {
     tokenize_located(tokens).map_err(|error| match error {
         TokenStreamParseError::Located { error, .. } => *error,
@@ -326,11 +320,11 @@ fn tokenize_float_literal(iter: &mut ParseIter, prefix: &str, position: usize) -
     // suffix
     let suffix = iter
         .next_if(|t| matches!(t.token_kind, TokenKind::Identifier(_)))
-        .and_then(|token| {
+        .map(|token| {
             let TokenKind::Identifier(ident) = token.token_kind else {
                 unreachable!();
             };
-            Some(ident.to_string())
+            ident.to_string()
         });
 
     Ok(MusubuToken {
@@ -402,11 +396,11 @@ fn tokenize_float_literal_exponent(
     //
     let suffix = iter
         .next_if(|t| matches!(t.token_kind, TokenKind::Identifier(_)))
-        .and_then(|token| {
+        .map(|token| {
             let TokenKind::Identifier(ident) = token.token_kind else {
                 unreachable!();
             };
-            Some(ident.to_string())
+            ident.to_string()
         });
 
     Ok(MusubuToken {
@@ -435,11 +429,11 @@ fn tokenize_float_literal_exponent_ident(
     let suffix = if suffix.is_empty() {
         eat_whitespace(iter);
         iter.next_if(|t| matches!(t.token_kind, TokenKind::Identifier(_)))
-            .and_then(|token| {
+            .map(|token| {
                 let TokenKind::Identifier(ident) = token.token_kind else {
                     unreachable!();
                 };
-                Some(ident.to_string())
+                ident.to_string()
             })
     } else {
         Some(suffix.to_string())
@@ -669,18 +663,4 @@ fn eat_digit(
     })
     .map(func)
     .collect()
-}
-
-fn is_valid_number(iter: &mut ParseIter) -> bool {
-    let Some(token) = iter.peek() else {
-        return false;
-    };
-    if !matches!(
-        token.token_kind,
-        TokenKind::Number(_) | TokenKind::Symbol(Symbol::Underscore)
-    ) {
-        return false;
-    }
-
-    true
 }

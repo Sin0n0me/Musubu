@@ -25,18 +25,29 @@ pub(super) fn can_complete(block: &HIRBlock) -> bool {
     block_flow(block).next
 }
 
+pub(super) fn expression_can_complete(expression: &HIRExpression) -> bool {
+    expression_flow(expression).next
+}
+
 fn block_flow(block: &HIRBlock) -> Flow {
-    block.statements.iter().fold(Flow::NEXT, |flow, statement| {
+    let mut flow = Flow::NEXT;
+    for statement in &block.statements {
+        // Unreachable statements cannot add a reachable break or fallthrough path.
+        if !flow.next {
+            break;
+        }
         let expr = match statement {
             HIRStatement::Expr(expr) | HIRStatement::Discard(expr) => Some(expr),
             HIRStatement::Let { initializer, .. } => initializer.as_ref(),
         };
-        flow.then(expr.map(expression_flow).unwrap_or(Flow::NEXT))
-    })
+        flow = flow.then(expr.map(expression_flow).unwrap_or(Flow::NEXT));
+    }
+    flow
 }
 
 fn expression_flow(expr: &HIRExpression) -> Flow {
     match expr {
+        HIRExpression::Located { expression, .. } => expression_flow(expression),
         HIRExpression::Index { parent, index, .. } => {
             expression_flow(parent).then(expression_flow(index))
         }
