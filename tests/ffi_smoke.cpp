@@ -83,6 +83,39 @@ bool scalar_roundtrip(MusubuEngine* engine) {
         output.kind == MUSUBU_I32 && output.signed_value == Expected;
 }
 
+bool token_validation(MusubuEngine* engine) {
+    constexpr char Name[] = "add";
+    MusubuFunctionToken token{};
+    MusubuFunctionToken empty{};
+    if (!get_function_token(engine, Name, sizeof(Name) - 1, &token) ||
+        !is_function_token_valid(engine, &token) ||
+        is_function_token_valid(engine, &empty) ||
+        is_function_token_valid(nullptr, &token) ||
+        is_function_token_valid(engine, nullptr)) {
+        return false;
+    }
+    MusubuEngine* rawOther = nullptr;
+    if (!init(&rawOther)) {
+        return false;
+    }
+    Engine other(rawOther, &uninit);
+    if (is_function_token_valid(other.get(), &token)) {
+        return false;
+    }
+    constexpr char InvalidSource[] = "fn add(";
+    if (compile(engine, InvalidSource, sizeof(InvalidSource) - 1) ||
+        !is_function_token_valid(engine, &token)) {
+        return false;
+    }
+    constexpr char Replacement[] = "fn add(x: i32) -> i32 { x + 2 }";
+    if (!compile(engine, Replacement, sizeof(Replacement) - 1) ||
+        is_function_token_valid(engine, &token)) {
+        return false;
+    }
+    return get_function_token(engine, Name, sizeof(Name) - 1, &token) &&
+        is_function_token_valid(engine, &token);
+}
+
 void print_error(MusubuEngine* engine, bool compilation) {
     size_t length = 0;
     const char* message = compilation ? get_compile_error(engine, &length)
@@ -109,7 +142,7 @@ bool run_ffi_checks() {
         return false;
     }
     if (!matrix_roundtrip(engine.get()) || !double_roundtrip(engine.get()) ||
-        !scalar_roundtrip(engine.get())) {
+        !scalar_roundtrip(engine.get()) || !token_validation(engine.get())) {
         print_error(engine.get(), false);
         return false;
     }
