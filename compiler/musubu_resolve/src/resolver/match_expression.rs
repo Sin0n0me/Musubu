@@ -46,7 +46,7 @@ impl<'a> Resolver<'a> {
                 type_symbol: arm_value.type_symbol,
                 hir: body_hir,
             };
-            if control_flow::can_complete(&body.hir.clone().to_block()) {
+            if control_flow::expression_can_complete(&body.hir) {
                 if let Some(expected) = &result_type {
                     check_payload_type(expected, &body.type_symbol.type_kind)
                         .map_err(|e| e.at(arm.body.span))?;

@@ -95,7 +95,6 @@ impl ToPrimitiveType for HIRBlock {
     fn to_type(&self) -> PrimitiveType {
         self.statements
             .last()
-            .cloned()
             .map_or(PrimitiveType::Unit, |s| s.to_type())
     }
 }
