@@ -1,6 +1,7 @@
 mod collections;
 mod control_flow;
 mod enumeration;
+mod initialization;
 mod match_coverage;
 mod match_expression;
 mod matrices;
@@ -100,6 +101,7 @@ impl<'a> Resolver<'a> {
             let type_symbol = return_type.clone();
             let return_type = return_type.type_kind.clone();
             let body = s.resolve_expression(body_expr)?.hir.to_block();
+            initialization::check(&body, &args)?;
 
             let actual = body.to_type();
             if actual != return_type && control_flow::can_complete(&body) {

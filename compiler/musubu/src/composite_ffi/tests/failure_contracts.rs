@@ -1,6 +1,33 @@
 use super::*;
 
 #[test]
+fn rejected_data_flow_keeps_previous_program_and_token() {
+    let mut engine = engine("fn f() -> i32 { 41 }");
+    let mut token = MusubuFunctionToken::default();
+    assert!(unsafe { get_function_token(&mut engine, b"f".as_ptr().cast(), 1, &mut token) });
+    for source in [
+        "fn f() -> i32 {}",
+        "fn f() -> i32 { if true { 42 } }",
+        "fn f() -> i32 { let x: i32; x }",
+    ] {
+        assert!(!unsafe { crate::compile(&mut engine, source.as_ptr().cast(), source.len()) });
+        let mut length = 0;
+        let diagnostic = unsafe { crate::get_compile_error(&engine, &mut length) };
+        assert!(!diagnostic.is_null());
+        let diagnostic = unsafe { slice::from_raw_parts(diagnostic.cast::<u8>(), length) };
+        let diagnostic = str::from_utf8(diagnostic).unwrap();
+        assert!(diagnostic.contains("error:"));
+        assert!(diagnostic.contains("<input>:1:"));
+        assert!(diagnostic.contains('^'));
+        let result = receive(&mut engine, |e, out| unsafe {
+            call_function_value_by_token(e, &token, ptr::null(), 0, out)
+        })
+        .unwrap();
+        assert_eq!(read_scalar(&mut engine, &result).signed_value, 41);
+    }
+}
+
+#[test]
 fn failed_calls_preserve_existing_output_and_arguments_for_all_dispatch_modes() {
     let mut engine = engine("fn f(x: i32) -> i32 { 12 / x }");
     let sentinel = scalar(&mut engine, integer(123));
