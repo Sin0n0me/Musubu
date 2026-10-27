@@ -376,7 +376,9 @@ pub unsafe extern "C" fn value_get_scalar(
 ) -> bool {
     unsafe {
         write_result(engine, output, |_| match handle(value)? {
-            HostValue::Plain(value) => MusubuValue::from_value(value.clone()),
+            HostValue::Plain(
+                value @ (Value::Unit | Value::Bool(_) | Value::Integer(_) | Value::Float(_)),
+            ) => MusubuValue::from_value(value.clone()),
             _ => Err(String::from("value is not a scalar")),
         })
     }

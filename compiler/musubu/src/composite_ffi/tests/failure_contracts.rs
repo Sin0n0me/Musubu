@@ -1,6 +1,23 @@
 use super::*;
 
 #[test]
+fn scalar_getter_rejects_aggregates_without_changing_output() {
+    let mut engine = MusubuEngine::new();
+    let vector = vector(&mut engine, &[integer(1), integer(2)]);
+    let matrix = matrix(&mut engine, &[&vector]);
+    let enumeration = enumeration(&mut engine, "E", "V", &[&matrix]);
+    for handle in [&vector, &matrix, &enumeration] {
+        let mut output = integer(123);
+        assert!(!unsafe { value_get_scalar(&mut engine, handle.0, &mut output) });
+        assert_eq!(output.kind, MusubuValue::I32);
+        assert_eq!(output.signed_value, 123);
+        assert_eq!(output.unsigned_value, 0);
+        assert_eq!(output.float_value, 0.0);
+        assert_eq!(engine.runtime_error(), "value is not a scalar");
+    }
+}
+
+#[test]
 fn token_validation_is_read_only_and_tracks_program_lifetime() {
     let mut engine = engine("fn f() { loop {} }");
     let other = MusubuEngine::new();
