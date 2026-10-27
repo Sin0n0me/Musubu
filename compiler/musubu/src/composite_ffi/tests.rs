@@ -3,6 +3,7 @@ use alloc::vec;
 use musubu_driver::compile;
 
 mod buffer_and_id;
+mod matrix_properties;
 mod performance;
 
 #[derive(Debug)]
