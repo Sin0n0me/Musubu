@@ -1,6 +1,42 @@
 use super::*;
 
 #[test]
+fn token_validation_is_read_only_and_tracks_program_lifetime() {
+    let mut engine = engine("fn f() { loop {} }");
+    let other = MusubuEngine::new();
+    let mut token = MusubuFunctionToken::default();
+    assert!(unsafe { get_function_token(&mut engine, b"f".as_ptr().cast(), 1, &mut token) });
+    engine.set_runtime_error(String::from("preserved runtime diagnostic"));
+    engine.set_compile_error(String::from("preserved compile diagnostic"));
+    let missing = MusubuFunctionToken {
+        function: usize::MAX,
+        ..token
+    };
+    unsafe {
+        assert!(is_function_token_valid(&engine, &token));
+        assert!(!is_function_token_valid(&other, &token));
+        assert!(!is_function_token_valid(&engine, &missing));
+        assert!(!is_function_token_valid(
+            &engine,
+            &MusubuFunctionToken::default()
+        ));
+        assert!(!is_function_token_valid(ptr::null(), &token));
+        assert!(!is_function_token_valid(&engine, ptr::null()));
+        assert!(!is_function_token_valid(ptr::null(), ptr::null()));
+    }
+    assert_eq!(engine.runtime_error(), "preserved runtime diagnostic");
+    assert_eq!(engine.compile_error(), "preserved compile diagnostic");
+    assert!(!compile(&mut engine, "fn f("));
+    let diagnostic = String::from(engine.compile_error());
+    assert!(unsafe { is_function_token_valid(&engine, &token) });
+    assert_eq!(engine.compile_error(), diagnostic);
+    assert!(compile(&mut engine, "fn f() {}"));
+    assert!(!unsafe { is_function_token_valid(&engine, &token) });
+    assert!(unsafe { get_function_token(&mut engine, b"f".as_ptr().cast(), 1, &mut token) });
+    assert!(unsafe { is_function_token_valid(&engine, &token) });
+}
+
+#[test]
 fn rejected_data_flow_keeps_previous_program_and_token() {
     let mut engine = engine("fn f() -> i32 { 41 }");
     let mut token = MusubuFunctionToken::default();

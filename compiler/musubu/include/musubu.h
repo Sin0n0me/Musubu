@@ -110,6 +110,11 @@ typedef struct MusubuFunctionToken {
 
 MUSUBU_API bool MUSUBU_CALL get_function_token(MusubuEngine *engine, const char *name,
     size_t name_length, MusubuFunctionToken *output);
+/* Checks without executing or modifying diagnostics. Null, foreign or stale tokens
+ * return false. Non-null pointers must be live, aligned and initialized; the engine
+ * must not be mutated/freed during this call. Later recompilation can invalidate it. */
+MUSUBU_API bool MUSUBU_CALL is_function_token_valid(const MusubuEngine *engine,
+    const MusubuFunctionToken *token);
 MUSUBU_API bool MUSUBU_CALL call_function_value_by_token(MusubuEngine *engine,
     const MusubuFunctionToken *token, const MusubuValueHandle *const *arguments,
     size_t count, MusubuValueHandle **output);

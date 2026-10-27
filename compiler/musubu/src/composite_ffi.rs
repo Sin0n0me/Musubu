@@ -321,6 +321,25 @@ pub unsafe extern "C" fn get_function_token(
     }
 }
 
+/// Checks a token without executing its function or modifying diagnostics.
+/// Null pointers, foreign tokens and replaced programs return false.
+/// # Safety
+/// Non-null pointers must be live, aligned and initialized. The engine must not
+/// be mutated or freed during this call. Validation does not extend token lifetime.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn is_function_token_valid(
+    engine: *const MusubuEngine,
+    token: *const MusubuFunctionToken,
+) -> bool {
+    let Some(engine) = (unsafe { engine.as_ref() }) else {
+        return false;
+    };
+    let Some(token) = (unsafe { token.as_ref() }) else {
+        return false;
+    };
+    engine.token_function(*token).is_some()
+}
+
 /// Calls a function token, rejecting other engines and replaced programs.
 /// # Safety
 /// Same contract as call_function_value. token must point to an initialized token.
