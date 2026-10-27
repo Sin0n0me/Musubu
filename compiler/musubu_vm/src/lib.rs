@@ -181,14 +181,15 @@ impl<'a> VM<'a> {
                 frame_stack.push(func);
             }
             Instruction::Return { value } => {
-                let Some(frame) = frame_stack.pop() else {
+                let Some(mut frame) = frame_stack.pop() else {
                     return Ok(None);
                 };
                 let Some(value) = value else {
                     return Ok(None);
                 };
 
-                let value = frame.registers[value.0].clone();
+                // The popped frame is never executed again, so transfer its owned return value.
+                let value = core::mem::replace(&mut frame.registers[value.0], Value::Unit);
 
                 // 呼び出し元の取得
                 let Some(caller) = frame_stack.last_mut() else {
