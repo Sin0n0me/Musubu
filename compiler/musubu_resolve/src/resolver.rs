@@ -102,17 +102,7 @@ impl<'a> Resolver<'a> {
             let body = s.resolve_expression(body_expr)?.hir.to_block();
 
             let actual = body.to_type();
-            if actual != return_type
-                && (!actual.is_unit()
-                    || (matches!(
-                        return_type,
-                        PrimitiveType::NamedStruct { .. }
-                            | PrimitiveType::NamedEnum { .. }
-                            | PrimitiveType::Tuple { .. }
-                            | PrimitiveType::Vector { .. }
-                            | PrimitiveType::Matrix { .. }
-                    ) && control_flow::can_complete(&body)))
-            {
+            if actual != return_type && control_flow::can_complete(&body) {
                 return Err(
                     musubu_type_check::errors::TypeCheckError::FunctionReturnMismatch {
                         expected: return_type,

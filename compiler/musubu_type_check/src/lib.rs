@@ -291,7 +291,7 @@ impl TypeChecker {
 
         // 条件式の戻り型チェック
         let Some(else_body) = else_body else {
-            return Ok(then_body);
+            return Ok(TypeSymbol::default());
         };
 
         if !then_body.is_same_type(&else_body) {

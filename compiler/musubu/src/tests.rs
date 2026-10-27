@@ -3,6 +3,7 @@ use musubu_driver::{compile, compile_with_filename};
 use musubu_engine::MusubuEngine;
 use musubu_primitive::{Integer, Value};
 mod diagnostic_regressions;
+mod definite_assignment;
 mod language_interactions;
 mod matrix_arithmetic;
 

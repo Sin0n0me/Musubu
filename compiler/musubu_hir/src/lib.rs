@@ -291,8 +291,14 @@ impl ToPrimitiveType for HIRExpression {
             Self::If {
                 cond: _,
                 then_block,
-                else_block: _,
-            } => then_block.to_type(),
+                else_block,
+            } => {
+                if else_block.is_some() {
+                    then_block.to_type()
+                } else {
+                    PrimitiveType::Unit
+                }
+            }
             Self::Call {
                 function: _,
                 return_type,
