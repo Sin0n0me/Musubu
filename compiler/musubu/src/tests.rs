@@ -553,6 +553,45 @@ fn ffi_null_arguments_are_rejected() {
 }
 
 #[test]
+fn ffi_compile_recovers_after_oversized_inputs_using_exact_byte_ranges() {
+    let mut engine = MusubuEngine::new();
+    let source = b"fn f() -> i32 { 9 }@trailing garbage";
+    let valid_source = b"fn f() -> i32 { 9 }";
+    let filename = "例/関数.musubu";
+    let oversized = isize::MAX as usize + 1;
+    for named in [false, true] {
+        unsafe {
+            assert!(!crate::compile(
+                &mut engine,
+                source.as_ptr().cast(),
+                oversized
+            ));
+            assert!(!engine.compile_error().is_empty());
+            let success = if named {
+                crate::compile_with_filename(
+                    &mut engine,
+                    source.as_ptr().cast(),
+                    valid_source.len(),
+                    filename.as_ptr().cast(),
+                    filename.len(),
+                )
+            } else {
+                crate::compile(&mut engine, source.as_ptr().cast(), valid_source.len())
+            };
+            assert!(success, "{}", engine.compile_error());
+            let mut length = usize::MAX;
+            assert!(crate::get_compile_error(&engine, &mut length).is_null());
+            assert_eq!(length, 0);
+        }
+        let id = engine.get_function_id("musubu::f").unwrap();
+        assert!(matches!(
+            engine.run_function(id, vec![]),
+            Ok(Some(Value::Integer(Integer::Int32(9))))
+        ));
+    }
+}
+
+#[test]
 fn ffi_oversized_compile_inputs_preserve_program() {
     let mut engine = MusubuEngine::new();
     assert!(compile(&mut engine, "fn f() -> i32 { 7 }"));

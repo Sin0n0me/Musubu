@@ -1,6 +1,105 @@
 use super::*;
 
 #[test]
+fn token_validation_preserves_borrowed_diagnostic_buffers() {
+    let mut engine = engine("fn f() {}");
+    let mut token = MusubuFunctionToken::default();
+    assert!(unsafe { get_function_token(&mut engine, b"f".as_ptr().cast(), 1, &mut token) });
+    engine.set_compile_error(String::from("compile: 日本語"));
+    engine.set_runtime_error(String::from("runtime: 日本語"));
+    let mut compile_length = 0;
+    let mut runtime_length = 0;
+    let compile_pointer = unsafe { crate::get_compile_error(&engine, &mut compile_length) };
+    let runtime_pointer = unsafe { crate::get_runtime_error(&engine, &mut runtime_length) };
+    for _ in 0..3 {
+        assert!(unsafe { is_function_token_valid(&engine, &token) });
+        assert!(!unsafe { is_function_token_valid(&engine, &MusubuFunctionToken::default()) });
+        assert_eq!(
+            unsafe { crate::get_compile_error(&engine, &mut compile_length) },
+            compile_pointer
+        );
+        assert_eq!(
+            unsafe { crate::get_runtime_error(&engine, &mut runtime_length) },
+            runtime_pointer
+        );
+        assert_eq!(
+            unsafe { slice::from_raw_parts(compile_pointer.cast::<u8>(), compile_length) },
+            "compile: 日本語".as_bytes()
+        );
+        assert_eq!(
+            unsafe { slice::from_raw_parts(runtime_pointer.cast::<u8>(), runtime_length) },
+            "runtime: 日本語".as_bytes()
+        );
+    }
+}
+
+#[test]
+fn tokens_cannot_rebind_to_reordered_or_reintroduced_functions() {
+    let mut engine = engine("fn a() -> i32 { 1 } fn b() -> i32 { 2 }");
+    let mut a = MusubuFunctionToken::default();
+    let mut b = MusubuFunctionToken::default();
+    assert!(unsafe { get_function_token(&mut engine, b"a".as_ptr().cast(), 1, &mut a) });
+    assert!(unsafe { get_function_token(&mut engine, b"b".as_ptr().cast(), 1, &mut b) });
+    for source in ["", "fn b() -> i32 { 20 } fn a() -> i32 { 10 }"] {
+        assert!(compile(&mut engine, source));
+        for token in [&a, &b] {
+            assert!(!unsafe { is_function_token_valid(&engine, token) });
+            assert!(
+                receive(&mut engine, |e, out| unsafe {
+                    call_function_value_by_token(e, token, ptr::null(), 0, out)
+                })
+                .is_err()
+            );
+        }
+    }
+    let result = call(&mut engine, "a", &[]).unwrap();
+    assert_eq!(read_scalar(&mut engine, &result).signed_value, 10);
+    let result = call(&mut engine, "b", &[]).unwrap();
+    assert_eq!(read_scalar(&mut engine, &result).signed_value, 20);
+}
+
+macro_rules! matrix_copy_recovery {
+    ($name:ident, $ty:ty, $create:ident, $copy:ident) => {
+        #[test]
+        fn $name() {
+            let mut engine = MusubuEngine::new();
+            let input: [$ty; 6] = [1.0, -2.0, 3.0, 4.0, -5.0, 6.0];
+            let matrix = receive(&mut engine, |e, out| unsafe {
+                $create(e, input.as_ptr(), 2, 3, out)
+            })
+            .unwrap();
+            // The writable interior covers even the incorrect requested shape.
+            let mut output: [$ty; 10] = [123.0; 10];
+            for rows in [1, 2, 4] {
+                assert!(!unsafe {
+                    $copy(&mut engine, matrix.0, output.as_mut_ptr().add(1), 2, rows)
+                });
+                assert_eq!(engine.runtime_error(), "matrix row count mismatch");
+                assert_eq!(output, [123.0; 10]);
+            }
+            assert!(unsafe { $copy(&mut engine, matrix.0, output.as_mut_ptr().add(1), 2, 3) });
+            assert!(engine.runtime_error().is_empty());
+            assert_eq!(&output[1..7], &input);
+            assert_eq!(output[0], 123.0);
+            assert_eq!(&output[7..], &[123.0; 3]);
+        }
+    };
+}
+
+matrix_copy_recovery!(
+    f32_row_mismatch_then_valid_copy,
+    f32,
+    value_create_matrix_f32,
+    value_copy_matrix_f32
+);
+matrix_copy_recovery!(
+    f64_row_mismatch_then_valid_copy,
+    f64,
+    value_create_matrix_f64,
+    value_copy_matrix_f64
+);
+
+#[test]
 fn scalar_getter_rejects_aggregates_without_changing_output() {
     let mut engine = MusubuEngine::new();
     let vector = vector(&mut engine, &[integer(1), integer(2)]);
