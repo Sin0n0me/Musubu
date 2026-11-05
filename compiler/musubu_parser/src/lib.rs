@@ -8,8 +8,8 @@ mod lexer;
 mod parser;
 
 #[cfg(test)]
-use crate::lexer::lexer::tokenize;
-use crate::lexer::lexer::{TokenStream, tokenize_located};
+use crate::lexer::stream::tokenize;
+use crate::lexer::stream::{TokenStream, tokenize_located};
 use crate::parser::packrat::PackratAndPrattParser;
 use alloc::rc::Rc;
 use alloc::vec::Vec;

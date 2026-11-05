@@ -15,11 +15,10 @@ impl<'a> Resolver<'a> {
             ty,
             PrimitiveType::NamedEnum { .. } | PrimitiveType::Tuple { .. } | PrimitiveType::Unit
         ) {
-            return Err(enum_error(format!(
-                "match requires an enum value or tuple, found {}",
-                ty.to_string()
-            ))
-            .at(value.span));
+            return Err(
+                enum_error(format!("match requires an enum value or tuple, found {ty}"))
+                    .at(value.span),
+            );
         }
         let mut lowered = Vec::new();
         let mut patterns = Vec::new();
@@ -32,7 +31,9 @@ impl<'a> Resolver<'a> {
                     &mut BTreeSet::new(),
                 )?;
                 if !match_coverage::useful(&patterns, &pattern, ty) {
-                    return Err(enum_error(format!("unreachable match arm")).at(arm.pattern.span));
+                    return Err(
+                        enum_error("unreachable match arm".to_string()).at(arm.pattern.span)
+                    );
                 }
                 let body = s.resolve_expression(&arm.body.as_ref_spanned())?;
                 Ok(Lowered {
@@ -45,7 +46,7 @@ impl<'a> Resolver<'a> {
                 type_symbol: arm_value.type_symbol,
                 hir: body_hir,
             };
-            if control_flow::can_complete(&body.hir.clone().to_block()) {
+            if control_flow::expression_can_complete(&body.hir) {
                 if let Some(expected) = &result_type {
                     check_payload_type(expected, &body.type_symbol.type_kind)
                         .map_err(|e| e.at(arm.body.span))?;
@@ -61,8 +62,7 @@ impl<'a> Resolver<'a> {
         }
         if match_coverage::useful(&patterns, &HIRMatchPattern::Wildcard, ty) {
             return Err(enum_error(format!(
-                "non-exhaustive match for {}; add the missing variants or `_`",
-                ty.to_string()
+                "non-exhaustive match for {ty}; add the missing variants or `_`"
             ))
             .at(value.span));
         }

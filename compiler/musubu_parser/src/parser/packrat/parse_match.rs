@@ -1,3 +1,9 @@
+type MatchFields = (
+    EnumVariantKind,
+    Vec<(Spanned<alloc::string::String>, Spanned<MatchPattern>)>,
+    bool,
+);
+
 use super::*;
 use crate::lexer::{musubu_keywords::MusubuKeyword, token::MusubuOperator};
 use alloc::string::ToString;
@@ -129,17 +135,7 @@ impl PackratAndPrattParser {
         })
     }
 
-    fn parse_match_fields(
-        &mut self,
-        named: bool,
-    ) -> Result<
-        (
-            EnumVariantKind,
-            Vec<(Spanned<alloc::string::String>, Spanned<MatchPattern>)>,
-            bool,
-        ),
-        ParseError,
-    > {
+    fn parse_match_fields(&mut self, named: bool) -> Result<MatchFields, ParseError> {
         self.tokens.next();
         let close = if named {
             MusubuOperator::RightBrace

@@ -54,7 +54,9 @@ pub fn compile_with_filename(engine: &mut MusubuEngine, filename: &str, code: &s
         }
     };
     let ast_items = ast_items.iter().map(|ast| ast.as_ref()).collect::<Vec<_>>();
-    let allocator = engine.get_cache().get_function_allocator();
+    // Resolution also allocates IDs; keep all mutations private until compilation succeeds.
+    let mut staged = MusubuEngine::new();
+    let allocator = staged.get_cache().get_function_allocator();
     let hir = match resolve_unordered("Musubu", "musubu", &ast_items, allocator) {
         Ok(hir) => hir,
         Err(error) => {
@@ -86,7 +88,14 @@ pub fn compile_with_filename(engine: &mut MusubuEngine, filename: &str, code: &s
         }
     };
     for (id, function) in functions {
-        engine.register_function(id, function);
+        if let Err(error) = staged.register_function(id, function) {
+            engine.set_compile_error(alloc::format!(
+                "error: invalid compiler output: {error:?}\n"
+            ));
+            return false;
+        }
     }
+    staged.set_source(filename, code);
+    engine.replace_program(staged);
     true
 }

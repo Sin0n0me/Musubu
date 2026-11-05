@@ -273,42 +273,45 @@ pub enum TypeKind {
     },
 }
 
-impl ToString for TypeKind {
-    fn to_string(&self) -> String {
-        match self {
-            Self::Tuple(elements) => format!(
-                "({}{})",
-                elements
-                    .iter()
-                    .map(|t| t.node.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", "),
-                if elements.len() == 1 { "," } else { "" }
-            ),
-            Self::Primitive(t) => t.to_string(),
-            Self::PathType(t) => t.node.to_string(),
-            Self::Function {
-                return_type,
-                arguments,
-            } => {
-                format!(
-                    "fn({})->{}",
-                    arguments
+impl core::fmt::Display for TypeKind {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let rendered: String = {
+            match self {
+                Self::Tuple(elements) => format!(
+                    "({}{})",
+                    elements
                         .iter()
-                        .map(|arg| arg.node.to_string())
-                        .collect::<Vec<String>>()
-                        .join(","),
-                    return_type.node.to_string()
-                )
+                        .map(|t| t.node.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                    if elements.len() == 1 { "," } else { "" }
+                ),
+                Self::Primitive(t) => t.to_string(),
+                Self::PathType(t) => t.node.to_string(),
+                Self::Function {
+                    return_type,
+                    arguments,
+                } => {
+                    format!(
+                        "fn({})->{}",
+                        arguments
+                            .iter()
+                            .map(|arg| arg.node.to_string())
+                            .collect::<Vec<String>>()
+                            .join(","),
+                        return_type.node
+                    )
+                }
             }
-        }
+        };
+        f.write_str(&rendered)
     }
 }
 
 impl TypeKind {
     pub fn make_single_type(type_name: String, span: Span) -> Self {
         Self::PathType(Spanned {
-            node: Box::new(Path::make(type_name, span.clone())),
+            node: Box::new(Path::make(type_name, span)),
             span,
         })
     }
@@ -429,13 +432,16 @@ impl Path {
     }
 }
 
-impl ToString for Path {
-    fn to_string(&self) -> String {
-        self.segments
-            .iter()
-            .map(|seg| seg.node.to_string())
-            .collect::<Vec<String>>()
-            .join("::")
+impl core::fmt::Display for Path {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let rendered: String = {
+            self.segments
+                .iter()
+                .map(|seg| seg.node.to_string())
+                .collect::<Vec<String>>()
+                .join("::")
+        };
+        f.write_str(&rendered)
     }
 }
 
@@ -460,20 +466,23 @@ impl PathSegment {
     }
 }
 
-impl ToString for PathSegment {
-    fn to_string(&self) -> String {
-        let args: String = self
-            .arguments
-            .iter()
-            .map(|arg| arg.node.to_string())
-            .collect::<Vec<String>>()
-            .join(", ");
-        let args = if args.is_empty() {
-            args
-        } else {
-            format!("<{}>", args)
+impl core::fmt::Display for PathSegment {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let rendered: String = {
+            let args: String = self
+                .arguments
+                .iter()
+                .map(|arg| arg.node.to_string())
+                .collect::<Vec<String>>()
+                .join(", ");
+            let args = if args.is_empty() {
+                args
+            } else {
+                format!("<{args}>")
+            };
+            format!("{}{}", self.ident, args)
         };
-        format!("{}{}", self.ident, args)
+        f.write_str(&rendered)
     }
 }
 

@@ -49,7 +49,7 @@ impl<'a, T> SpannedAsRef<'a, T> for Spanned<Box<T>> {
     }
 
     fn get_node(&self) -> &T {
-        &*self.node
+        &self.node
     }
 }
 

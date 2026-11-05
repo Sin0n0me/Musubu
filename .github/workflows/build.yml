@@ -11,17 +11,17 @@ permissions:
   contents: read
 
 env:
-  RUST_TOOLCHAIN: "stable"
-  CARGO_HOME: ~/.cargo
+  RUST_TOOLCHAIN: "1.88.0"
   TARGET_DIR: target
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
 
     strategy:
       matrix:
+        os: [ubuntu-latest, windows-latest]
         profile: [debug, release]
 
     steps:
@@ -37,8 +37,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ${{ env.CARGO_HOME }}/registry
-            ${{ env.CARGO_HOME }}/git
+            ~/.cargo/registry
+            ~/.cargo/git
           key: cargo-registry-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Cache build artifacts
@@ -51,6 +51,7 @@ jobs:
             target-${{ runner.os }}-${{ env.RUST_TOOLCHAIN }}-
 
       - name: Build
+        shell: bash
         run: |
           if [ "${{ matrix.profile }}" = "release" ]; then
             cargo build --workspace --release --locked --verbose
@@ -59,9 +60,48 @@ jobs:
           fi
 
       - name: Test
+        shell: bash
         run: |
           if [ "${{ matrix.profile }}" = "release" ]; then
             cargo test --workspace --release --locked --verbose
           else
             cargo test --workspace --locked --verbose
           fi
+
+      - name: Set up MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: C++ DLL smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/test-ffi.ps1 -Profile '${{ matrix.profile }}'
+
+      - name: C++ shared-library smoke test (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          c++ -std=c++17 -Wall -Wextra -Werror -Icompiler/musubu/include tests/ffi_smoke.cpp \
+            -Ltarget/${{ matrix.profile }} -lmusubu -Wl,-rpath,'$ORIGIN' \
+            -o target/${{ matrix.profile }}/ffi_smoke
+          target/${{ matrix.profile }}/ffi_smoke
+
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: rustfmt, clippy
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+  stable-compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo +stable test --workspace --locked

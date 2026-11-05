@@ -6,7 +6,7 @@ use crate::{
 use alloc::{boxed::Box, rc::Rc, vec, vec::Vec};
 use musubu_ast::{ASTNode, Path, PathSegment, TypeKind};
 use musubu_primitive::PrimitiveType;
-use musubu_span::{Span, Spanned};
+use musubu_span::Spanned;
 
 impl PackratAndPrattParser {
     // Type ::= TypeNoBounds
@@ -124,11 +124,11 @@ impl PackratAndPrattParser {
                 parser.or(vec![Self::parse_generic_args, Self::parse_type_path_fn])
             })
             .and_then(|memo| memo.get_node())
-            .and_then(|node| {
+            .map(|node| {
                 let ASTNode::Arguments(args) = node.as_ref() else {
                     unreachable!();
                 };
-                Some(args.clone())
+                args.clone()
             })
             .unwrap_or_default();
 
@@ -158,11 +158,11 @@ impl PackratAndPrattParser {
         let arguments = self
             .option(Self::parse_type_path_inputs)
             .and_then(|memo| memo.get_node())
-            .and_then(|kind| {
+            .map(|kind| {
                 let ASTNode::Arguments(types) = kind.as_ref() else {
                     unreachable!();
                 };
-                Some(types.iter().map(|t| t.clone()).collect::<Vec<_>>())
+                types.to_vec()
             })
             .unwrap_or_default();
 

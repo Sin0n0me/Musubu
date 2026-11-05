@@ -47,18 +47,20 @@ pub trait SymbolStore<'a, E> {
 
 #[derive(Debug)]
 pub struct Scope<'a> {
-    label: Option<&'a str>,
-    parent: Option<&'a Scope<'a>>,
     symbol_map: BTreeMap<&'a str, Symbol>,
     import_types: BTreeSet<&'a str>, // 今は考えない
     return_type: TypeSymbol,
 }
 
+impl<'a> Default for Scope<'a> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<'a> Scope<'a> {
     pub fn new() -> Self {
         Self {
-            label: None,
-            parent: None,
             symbol_map: BTreeMap::new(),
             import_types: BTreeSet::new(),
             return_type: TypeSymbol::default(),
@@ -279,19 +281,10 @@ impl Default for TypeSymbol {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TypeOption {
     pub mutable: bool,
     pub reference: bool,
-}
-
-impl Default for TypeOption {
-    fn default() -> Self {
-        Self {
-            mutable: false,
-            reference: false,
-        }
-    }
 }
 
 #[derive(Debug, Clone)]

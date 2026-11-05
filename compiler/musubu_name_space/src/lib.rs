@@ -73,7 +73,6 @@ impl<'a> ItemStoreReader<'a> for SymbolTable<'a> {
 
 #[derive(Debug)]
 pub struct Module<'a> {
-    module_name: &'a str,
     children: BTreeMap<&'a str, Box<Module<'a>>>,
     items: BTreeMap<&'a str, SymbolTable<'a>>,
 }
@@ -140,9 +139,8 @@ impl<'a> ItemStoreReader<'a> for Module<'a> {
 }
 
 impl<'a> Module<'a> {
-    pub fn new(name: &'a str) -> Self {
+    pub fn new(_name: &'a str) -> Self {
         Self {
-            module_name: name,
             children: BTreeMap::new(),
             items: BTreeMap::new(),
         }

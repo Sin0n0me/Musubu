@@ -199,10 +199,4 @@ impl<'a> Resolver<'a> {
             .get_scope()
             .ok_or(ResolveError::ScopeError(ScopeError::InvalidScope))
     }
-
-    pub(crate) fn get_mut_scope(&mut self) -> ResolveResult<&mut Scope<'a>> {
-        self.name_resolver
-            .get_mut_scope()
-            .ok_or(ResolveError::ScopeError(ScopeError::InvalidScope))
-    }
 }

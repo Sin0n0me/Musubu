@@ -163,7 +163,7 @@ impl PackratAndPrattParser {
             })?;
         let end = self.tokens.token_end(self.tokens.get_position());
         self.tokens.next();
-        let mut literal = literal.to_literal()?;
+        let mut literal = literal.into_literal()?;
         match &mut literal {
             musubu_ast::Literal::Integer { value, .. }
             | musubu_ast::Literal::Float { value, .. } => value.insert(0, '-'),
@@ -196,9 +196,8 @@ fn make_ast_from_operator(
     rhs: Option<Rc<ASTNode>>,
 ) -> Result<Rc<ASTNode>, ParseError> {
     // ()など特殊な文
-    match op {
-        MusubuOperator::LeftParenthesis => return make_brackets_ast(span, lhs, mhs, rhs),
-        _ => (),
+    if op == &MusubuOperator::LeftParenthesis {
+        return make_brackets_ast(span, lhs, mhs, rhs);
     };
 
     let convert = |node: Option<Rc<ASTNode>>| -> Option<_> {
@@ -212,10 +211,10 @@ fn make_ast_from_operator(
     let rhs = convert(rhs);
 
     match [lhs, mhs, rhs] {
-        [Some(lhs), None, None] => Err(ParseError::Unsupported {
+        [Some(_), None, None] => Err(ParseError::Unsupported {
             feature: "postfix operators",
         }),
-        [None, None, Some(rhs)] => Err(ParseError::Unsupported {
+        [None, None, Some(_)] => Err(ParseError::Unsupported {
             feature: "unary operators",
         }),
         [Some(lhs), None, Some(rhs)] => match op {
@@ -240,7 +239,7 @@ fn make_ast_from_operator(
             )),
             _ => Err(ParseError::NotMatch),
         },
-        [Some(lhs), Some(mhs), Some(rhs)] => Err(ParseError::Unsupported {
+        [Some(_), Some(_), Some(_)] => Err(ParseError::Unsupported {
             feature: "ternary operators",
         }),
         _ => unreachable!(),

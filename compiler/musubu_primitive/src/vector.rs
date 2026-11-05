@@ -18,6 +18,22 @@ impl ToPrimitiveType for Vector {
 }
 
 impl Vector {
+    pub fn component_count(&self) -> usize {
+        match self {
+            Self::Components { elements, .. } => elements.len(),
+            Self::Vector3(_) => 3,
+            Self::Vector4(_) => 4,
+        }
+    }
+
+    pub fn component(&self, index: usize) -> Option<Value> {
+        match self {
+            Self::Components { elements, .. } => elements.get(index).cloned(),
+            Self::Vector3(v) => v.get(index).map(|v| Value::Float(Float::Float32(*v))),
+            Self::Vector4(v) => v.get(index).map(|v| Value::Float(Float::Float32(*v))),
+        }
+    }
+
     pub fn components(&self) -> Vec<Value> {
         match self {
             Self::Components { elements, .. } => elements.clone(),

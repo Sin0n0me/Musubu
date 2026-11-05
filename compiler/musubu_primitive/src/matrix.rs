@@ -92,6 +92,49 @@ impl ToPrimitiveType for Matrix {
 }
 
 impl Matrix {
+    pub fn column_count(&self) -> usize {
+        match self {
+            Self::Columns { columns, .. } => columns.len(),
+            Self::Matrix3(_) => 3,
+            Self::Matrix4(_) => 4,
+        }
+    }
+
+    pub fn column_len(&self, index: usize) -> Option<usize> {
+        match self {
+            Self::Columns { columns, .. } => match columns.get(index)? {
+                Value::Vector(v) => Some(v.component_count()),
+                _ => None,
+            },
+            Self::Matrix3(_) => (index < 3).then_some(3),
+            Self::Matrix4(_) => (index < 4).then_some(4),
+        }
+    }
+
+    pub fn component(&self, column: usize, row: usize) -> Option<Value> {
+        match self {
+            Self::Columns { columns, .. } => match columns.get(column)? {
+                Value::Vector(v) => v.component(row),
+                _ => None,
+            },
+            Self::Matrix3(m) => m
+                .get((row, column))
+                .map(|v| Value::Float(Float::Float32(*v))),
+            Self::Matrix4(m) => m
+                .get((row, column))
+                .map(|v| Value::Float(Float::Float32(*v))),
+        }
+    }
+
+    pub fn column(&self, index: usize) -> Option<Value> {
+        match self {
+            Self::Columns { columns, .. } => columns.get(index).cloned(),
+            Self::Matrix3(m) if index < 3 => Some(float_column(m.column(index).iter().copied())),
+            Self::Matrix4(m) if index < 4 => Some(float_column(m.column(index).iter().copied())),
+            _ => None,
+        }
+    }
+
     pub fn columns(&self) -> Vec<Value> {
         match self {
             Self::Columns { columns, .. } => columns.clone(),

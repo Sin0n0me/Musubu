@@ -36,11 +36,7 @@ impl VM<'_> {
             }
             Instruction::LoadField { dst, parent, index } => {
                 if let Value::Vector(vector) = &frame.registers[parent.0] {
-                    let value = vector
-                        .components()
-                        .get(*index)
-                        .cloned()
-                        .ok_or(VMError::InvalidOperand)?;
+                    let value = vector.component(*index).ok_or(VMError::InvalidOperand)?;
                     frame.registers[dst.0] = value;
                     return Ok(());
                 }

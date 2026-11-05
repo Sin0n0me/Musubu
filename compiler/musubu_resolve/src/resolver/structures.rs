@@ -87,7 +87,7 @@ impl<'a> Resolver<'a> {
             return Err(ResolveError::InvalidStruct {
                 message: alloc::format!(
                     "type {} has no field `{field_name}`",
-                    parent.type_symbol.type_kind.to_string()
+                    parent.type_symbol.type_kind
                 ),
             });
         };

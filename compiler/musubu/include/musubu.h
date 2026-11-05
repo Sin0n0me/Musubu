@@ -30,8 +30,18 @@ typedef struct MusubuEngine MusubuEngine;
 MUSUBU_API bool MUSUBU_CALL init(MusubuEngine **output);
 MUSUBU_API void MUSUBU_CALL uninit(MusubuEngine *engine);
 
+/* Per-call limits, reset for each call (including after failure).
+ * Defaults: 1,000,000 instructions and 256 frames including the entry function.
+ * Both must be positive. Failure leaves settings unchanged; runtime errors apply.
+ * Recompilation preserves limits. This is not a total memory/time sandbox. */
+MUSUBU_API bool MUSUBU_CALL set_execution_limits(MusubuEngine *engine, uint64_t instructions, size_t call_depth);
+
 /* Input strings are UTF-8 byte ranges; lengths exclude any NUL terminator.
+ * Lengths greater than isize::MAX (the platform's signed pointer-sized maximum)
+ * are rejected before reading input bytes.
  * Compilation clears the previous diagnostic, including on success.
+ * Success replaces the entire program; removed functions no longer exist.
+ * Failure preserves the previous program, source metadata and function tokens.
  * Use a path relative to your project root for filename. */
 MUSUBU_API bool MUSUBU_CALL compile(MusubuEngine *engine, const char *code, size_t length);
 MUSUBU_API bool MUSUBU_CALL compile_with_filename(MusubuEngine *engine, const char *code, size_t code_length,
@@ -91,6 +101,25 @@ MUSUBU_API bool MUSUBU_CALL call_function(MusubuEngine *engine, const char *name
 MUSUBU_API const char *MUSUBU_CALL get_runtime_error(const MusubuEngine *engine, size_t *length);
 
 typedef struct MusubuValueHandle MusubuValueHandle;
+
+/* Program identity includes engine identity and revision. Treat fields as opaque.
+ * Tokens remain valid after a failed compile, but not after a successful compile.
+ * No allocations to release. Numeric-ID APIs remain available for compatibility. */
+typedef struct MusubuFunctionToken {
+    uint64_t program;
+    size_t function;
+} MusubuFunctionToken;
+
+MUSUBU_API bool MUSUBU_CALL get_function_token(MusubuEngine *engine, const char *name,
+    size_t name_length, MusubuFunctionToken *output);
+/* Checks without executing or modifying diagnostics. Null, foreign or stale tokens
+ * return false. Non-null pointers must be live, aligned and initialized; the engine
+ * must not be mutated/freed during this call. Later recompilation can invalidate it. */
+MUSUBU_API bool MUSUBU_CALL is_function_token_valid(const MusubuEngine *engine,
+    const MusubuFunctionToken *token);
+MUSUBU_API bool MUSUBU_CALL call_function_value_by_token(MusubuEngine *engine,
+    const MusubuFunctionToken *token, const MusubuValueHandle *const *arguments,
+    size_t count, MusubuValueHandle **output);
 
 /* Handle API: scalar, enum, vec and mat (including recursively nested enum payloads
  * made of these types). Struct/tuple/array payloads are not yet supported.

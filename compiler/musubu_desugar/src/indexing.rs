@@ -1,7 +1,7 @@
 use super::*;
 
 pub(super) fn has_index(value: &HIRExpression) -> bool {
-    match value {
+    match value.unlocated() {
         HIRExpression::Index { .. } => true,
         HIRExpression::Field { parent, .. } => has_index(parent),
         _ => false,
@@ -36,7 +36,7 @@ pub(super) fn lower_assignment(
 }
 
 fn index_place(value: HIRExpression, path: &mut Vec<HIRExpression>) -> DesugarResult<usize> {
-    match value {
+    match value.into_unlocated() {
         HIRExpression::Variable { id, .. } => Ok(id),
         HIRExpression::Field { parent, index, .. } => {
             let root = index_place(*parent, path)?;

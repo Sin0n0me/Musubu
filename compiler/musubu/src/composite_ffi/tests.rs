@@ -2,6 +2,11 @@ use super::*;
 use alloc::vec;
 use musubu_driver::compile;
 
+mod buffer_and_id;
+mod failure_contracts;
+mod matrix_properties;
+mod performance;
+
 #[derive(Debug)]
 struct Owned(*mut MusubuValueHandle);
 impl Drop for Owned {
@@ -492,7 +497,7 @@ fn vm_error_and_success_clear_diagnostics() {
     assert!(
         call(&mut engine, "f", &[&v, &zero])
             .unwrap_err()
-            .contains("InvalidOperand")
+            .contains("DivisionByZero")
     );
     assert_eq!(unsafe { value_get_kind(v.0) }, MusubuValue::VECTOR);
     assert!(!engine.runtime_error().is_empty());

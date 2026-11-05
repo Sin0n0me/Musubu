@@ -36,6 +36,7 @@ fn visit_block(block: &HIRBlock, count: &mut usize) {
 
 fn visit_expression(expression: &HIRExpression, count: &mut usize) {
     match expression {
+        HIRExpression::Located { expression, .. } => visit_expression(expression, count),
         HIRExpression::Index { parent, index, .. } => {
             visit_expression(parent, count);
             visit_expression(index, count);

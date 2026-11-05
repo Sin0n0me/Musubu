@@ -13,6 +13,7 @@ use musubu_type_check::errors::TypeCheckError;
 
 #[derive(Debug)]
 pub enum ResolveError {
+    UninitializedVariable,
     InvalidMatrix {
         message: String,
     },
@@ -111,6 +112,7 @@ impl fmt::Display for ResolveError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Located { error, .. } => write!(f, "{error}"),
+            Self::UninitializedVariable => write!(f, "variable may be uninitialized when used"),
             Self::InvalidEnum { message } => write!(f, "{message}"),
             Self::InvalidVector { message } => write!(f, "{message}"),
             Self::InvalidMatrix { message } => write!(f, "{message}"),

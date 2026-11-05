@@ -71,24 +71,35 @@ macro_rules! matrix_buffer_api {
                     if data.is_null() {
                         return Err(String::from("matrix output buffer must not be null"));
                     }
-                    let value = handle(value)?;
-                    if value.kind() != MusubuValue::MATRIX || value.len() != columns {
+                    let HostValue::Plain(Value::Matrix(value)) = handle(value)? else {
+                        return Err(String::from("value is not a matrix"));
+                    };
+                    if value.column_count() != columns {
                         return Err(String::from("matrix column count or value kind mismatch"));
                     }
-                    let mut elements = Vec::with_capacity(count);
+                    // Validate all components before allocating the output staging buffer.
+                    // Keep writes transactional even if an invalid component is encountered.
                     for column in 0..columns {
-                        let column = value.element(column)?;
-                        if column.len() != rows {
+                        if value.column_len(column) != Some(rows) {
                             return Err(String::from("matrix row count mismatch"));
                         }
                         for row in 0..rows {
-                            let HostValue::Plain(component) = column.element(row)? else {
-                                return Err(String::from("invalid matrix component"));
-                            };
+                            let component = value
+                                .component(column, row)
+                                .ok_or_else(|| String::from("invalid matrix component"))?;
                             let component = MusubuValue::from_value(component)?;
                             if component.kind != MusubuValue::$kind {
                                 return Err(String::from("matrix scalar type mismatch"));
                             }
+                        }
+                    }
+                    let mut elements = Vec::with_capacity(count);
+                    for column in 0..columns {
+                        for row in 0..rows {
+                            let component = value
+                                .component(column, row)
+                                .ok_or_else(|| String::from("invalid matrix component"))?;
+                            let component = MusubuValue::from_value(component)?;
                             // Column-major offset = column index * rows + row index.
                             elements.push(component.float_value as $scalar);
                         }
